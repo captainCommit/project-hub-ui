@@ -22,13 +22,26 @@ const addIfPresent = (target: ApiRecord, source: ApiRecord, key: string) => {
   if (hasOwn(source, key) && source[key] !== undefined) target[key] = source[key];
 };
 
+// The API stores the landing page as an enum; the UI uses its Projects view keys.
+const LANDING_PAGE_TO_UI: Record<string, string> = {
+  FAVORITES: 'favorites',
+  PORTFOLIOS: 'all_portfolios',
+  PROGRAMS: 'all_programs',
+  SPRINTS: 'sprints',
+};
+const LANDING_PAGE_TO_API: Record<string, string> = Object.fromEntries(
+  Object.entries(LANDING_PAGE_TO_UI).map(([apiValue, uiValue]) => [uiValue, apiValue]),
+);
+
 export const mapAccountSettings = (settings: ApiRecord = {}) => {
   const mapped: ApiRecord = {};
 
   addIfPresent(mapped, settings, 'id');
   addIfPresent(mapped, settings, 'account_id');
   addIfPresent(mapped, settings, 'date_format');
-  addIfPresent(mapped, settings, 'default_landing_page');
+  if (typeof settings.default_landing_page === 'string') {
+    mapped.default_landing_page = LANDING_PAGE_TO_UI[settings.default_landing_page.toUpperCase()] || 'all_portfolios';
+  }
   addIfPresent(mapped, settings, 'hide_delivery_section');
   addIfPresent(mapped, settings, 'timezone');
   addIfPresent(mapped, settings, 'week_start_day');
@@ -46,7 +59,9 @@ export const mapAccountSettingsPayload = (data: ApiRecord = {}) => {
   const payload: ApiRecord = {};
 
   addIfPresent(payload, data, 'date_format');
-  addIfPresent(payload, data, 'default_landing_page');
+  if (typeof data.default_landing_page === 'string') {
+    payload.default_landing_page = LANDING_PAGE_TO_API[data.default_landing_page] || data.default_landing_page.toUpperCase();
+  }
   addIfPresent(payload, data, 'hide_delivery_section');
   addIfPresent(payload, data, 'timezone');
   addIfPresent(payload, data, 'week_start_day');

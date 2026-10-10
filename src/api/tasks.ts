@@ -1110,7 +1110,7 @@ export const mapProjectGanttToGanttTasks = (ganttResponse: unknown): GanttTask[]
         due_date: task.finish_date as string,
         end_date: task.finish_date as string,
         parent_task_id: task.parent_task_id ?? null,
-        task_type: summaryValue(task.task_type) || 'activity',
+        task_type: summaryValue(task.task_type)?.trim().toLowerCase() || 'activity',
         status: summaryValue(task.status),
       };
 

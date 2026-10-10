@@ -79,10 +79,6 @@ export default function ProjectSidebar(/** @type {any} */ {
     setExpandedFolders(prev => prev.includes(folder) ? prev.filter(f => f !== folder) : [...prev, folder]);
   };
 
-  const safeSelectItem = (/** @type {unknown} */ item, /** @type {string} */ type) => {
-    if (onSelectItem) onSelectItem(item, type);
-  };
-
   const initials = (user?.full_name || 'U').split(' ').map((/** @type {string} */ s) => s[0]).slice(0, 2).join('').toUpperCase();
   const roleLabel = user?.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1)) : 'Member';
 
@@ -98,6 +94,12 @@ export default function ProjectSidebar(/** @type {any} */ {
   const isAnyPortfolioRouteActive = pathname.startsWith('/portfolios/');
   const isAnyProgramRouteActive = pathname.startsWith('/programs/');
   const isAnyProjectRouteActive = pathname.startsWith('/projects/');
+  const directoryView = pathname === '/' || pathname === '/projects'
+    ? new URLSearchParams(location.search).get('view') || selectedType
+    : null;
+  const portfoliosActive = isAnyPortfolioRouteActive || ['all_portfolios', 'portfolio'].includes(directoryView);
+  const programsActive = isAnyProgramRouteActive || ['all_programs', 'program'].includes(directoryView);
+  const projectsActive = isAnyProjectRouteActive || ['all_projects', 'project'].includes(directoryView);
 
   const IconNavLink = (/** @type {{ href: string, icon: any, label: string, sub?: string }} */ { href, icon, label, sub }) => {
     const NavIcon = icon;
@@ -232,19 +234,19 @@ export default function ProjectSidebar(/** @type {any} */ {
           </button>
         </div>
         <div className="flex-1 flex flex-col items-center py-3 gap-1 overflow-y-auto">
-          <Link to="/Favorites" title="Favorites"><button className={cn('p-2 rounded-lg', typeof window !== 'undefined' && window.location.pathname.toLowerCase().includes('favorites') ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-[#d97706]')}><Star className="w-4 h-4" fill="currentColor" /></button></Link>
-          <button onClick={() => safeSelectItem({ id: 'all_portfolios', name: 'All Portfolios' }, 'all_portfolios')}
-            title="Portfolios" className={cn('p-2 rounded-lg', selectedType === 'all_portfolios' || selectedType === 'portfolio' ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}>
+          <Link to="/Favorites" title="Favorites" className={cn('p-2 rounded-lg', pathname === '/favorites' ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-[#d97706]')}><Star className="w-4 h-4" fill="currentColor" /></Link>
+          <Link to="/Projects?view=all_portfolios"
+            title="Portfolios" className={cn('p-2 rounded-lg', portfoliosActive ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}>
             <Building2 className="w-4 h-4" />
-          </button>
-          <button onClick={() => safeSelectItem({ id: 'all_programs', name: 'All Programs' }, 'all_programs')}
-            title="Programs" className={cn('p-2 rounded-lg', selectedType === 'all_programs' || selectedType === 'program' ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}>
+          </Link>
+          <Link to="/Projects?view=all_programs"
+            title="Programs" className={cn('p-2 rounded-lg', programsActive ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}>
             <FolderTree className="w-4 h-4" />
-          </button>
-          <button onClick={() => safeSelectItem({ id: 'all_projects', name: 'All Projects' }, 'all_projects')}
-            title="Projects" className={cn('p-2 rounded-lg', selectedType === 'all_projects' || selectedType === 'project' ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}>
+          </Link>
+          <Link to="/Projects?view=all_projects"
+            title="Projects" className={cn('p-2 rounded-lg', projectsActive ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}>
             <Folder className="w-4 h-4" />
-          </button>
+          </Link>
           <div className="w-6 border-t border-white/10 my-1" />
           <Link to={createPageUrl('SprintManagement')} title="Delivery"><button className={cn('p-2 rounded-lg', typeof window !== 'undefined' && window.location.pathname.toLowerCase().includes('sprintmanagement') ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}><Package className="w-4 h-4" /></button></Link>
           <Link to={createPageUrl('ResourceManagementHub')} title="Resource Management">
@@ -255,10 +257,10 @@ export default function ProjectSidebar(/** @type {any} */ {
             <Shield className="w-4 h-4" />
           </button>
           <Link to={createPageUrl('RiskLog')} title="RAID Log"><button className="p-2 rounded-lg hover:bg-white/10 text-white/60"><AlertTriangle className="w-4 h-4" /></button></Link>
-          <button onClick={() => safeSelectItem({ id: 'templates', name: 'Templates' }, 'templates')}
-            title="Templates" className={cn('p-2 rounded-lg', selectedType === 'templates' ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}>
+          <Link to="/Projects?view=templates"
+            title="Templates" className={cn('p-2 rounded-lg', directoryView === 'templates' ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}>
             <FileText className="w-4 h-4" />
-          </button>
+          </Link>
           <Link to="/AIAssistant" title="Compass (powered by AI)"><button className="p-2 rounded-lg hover:bg-white/10 text-white/60"><Compass className="w-4 h-4" /></button></Link>
           <div className="mt-auto space-y-1">
             <Link to="/LearnSupport" title="Help Center"><button className="p-2 rounded-lg hover:bg-white/10 text-white/60"><LifeBuoy className="w-4 h-4" /></button></Link>
@@ -286,37 +288,37 @@ export default function ProjectSidebar(/** @type {any} */ {
         {/* Favorites */}
         <Link to="/Favorites" className="block mb-1">
           <div className={cn('w-full flex items-center gap-2 px-2 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-lg transition-colors',
-            typeof window !== 'undefined' && window.location.pathname.toLowerCase().includes('favorites') ? cn('bg-white/10 text-white', activeBar) : 'text-white hover:bg-white/10')}>
+            pathname === '/favorites' ? cn('bg-white/10 text-white', activeBar) : 'text-white hover:bg-white/10')}>
             <Star className="w-3.5 h-3.5 text-[#d97706]" fill="currentColor" /> Favorites
           </div>
         </Link>
 
         {/* Portfolios */}
-        <button
-          onClick={() => safeSelectItem({ id: 'all_portfolios', name: 'All Portfolios' }, 'all_portfolios')}
+        <Link
+          to="/Projects?view=all_portfolios"
           className={cn('w-full flex items-center gap-2 px-2 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-lg mb-1 transition-colors',
-            selectedType === 'all_portfolios' || selectedType === 'portfolio' || isAnyPortfolioRouteActive ? cn('bg-white/10 text-white', activeBar) : 'text-white hover:bg-white/10')}>
+            portfoliosActive ? cn('bg-white/10 text-white', activeBar) : 'text-white hover:bg-white/10')}>
           <Building2 className="w-3.5 h-3.5 text-[#d97706] flex-shrink-0" />
           <span className="flex-1 text-left">Portfolios</span>
-        </button>
+        </Link>
 
         {/* Programs */}
-        <button
-          onClick={() => safeSelectItem({ id: 'all_programs', name: 'All Programs' }, 'all_programs')}
+        <Link
+          to="/Projects?view=all_programs"
           className={cn('w-full flex items-center gap-2 px-2 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-lg mb-1 transition-colors',
-            selectedType === 'all_programs' || selectedType === 'program' || isAnyProgramRouteActive ? cn('bg-white/10 text-white', activeBar) : 'text-white hover:bg-white/10')}>
+            programsActive ? cn('bg-white/10 text-white', activeBar) : 'text-white hover:bg-white/10')}>
           <FolderTree className="w-3.5 h-3.5 text-[#d97706] flex-shrink-0" />
           <span className="flex-1 text-left">Programs</span>
-        </button>
+        </Link>
 
         {/* Projects */}
-        <button
-          onClick={() => safeSelectItem({ id: 'all_projects', name: 'All Projects' }, 'all_projects')}
+        <Link
+          to="/Projects?view=all_projects"
           className={cn('w-full flex items-center gap-2 px-2 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-lg mb-1 transition-colors',
-            selectedType === 'all_projects' || selectedType === 'project' || isAnyProjectRouteActive ? cn('bg-white/10 text-white', activeBar) : 'text-white hover:bg-white/10')}>
+            projectsActive ? cn('bg-white/10 text-white', activeBar) : 'text-white hover:bg-white/10')}>
           <Folder className="w-3.5 h-3.5 text-[#d97706] flex-shrink-0" />
           <span className="flex-1 text-left">Projects</span>
-        </button>
+        </Link>
 
         <div className="ml-2 pl-3 border-l border-white/10 mb-2 space-y-0.5">
           <HierarchyState />
@@ -373,11 +375,11 @@ export default function ProjectSidebar(/** @type {any} */ {
         <div className="mb-1">
           <div className="flex items-center rounded-lg hover:bg-white/10">
             <div className="p-2"><FileText className="w-3.5 h-3.5 text-[#d97706]" /></div>
-            <button onClick={() => safeSelectItem({ id: 'templates', name: 'Templates' }, 'templates')}
+            <Link to="/Projects?view=templates"
               className={cn('flex-1 flex items-center gap-2 py-1.5 pr-3 text-xs font-semibold uppercase tracking-wider',
                 selectedType === 'templates' ? 'text-white' : 'text-white')}>
               <span className="flex-1 text-left">Templates</span>
-            </button>
+            </Link>
           </div>
         </div>
 

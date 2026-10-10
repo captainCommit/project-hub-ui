@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { portfoliosApi } from '@/api/portfolios';
 import { programsApi } from '@/api/programs';
 import { projectsApi } from '@/api/projects';
@@ -47,6 +47,7 @@ import { invalidateHierarchy, useAccountChangeRequests, useAccountDecisions, use
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PROJECT_TABS = ['sheet', 'board', 'gantt', 'audit'];
+const DIRECTORY_VIEWS = ['all_portfolios', 'all_programs', 'all_projects', 'all_raid', 'templates', 'all_resource_mgmt', 'delivery', 'sprints', 'test_cases'];
 
 function ProjectTabPlaceholder({ label }) {
   return (
@@ -245,6 +246,7 @@ export default function Projects() {
   const { selectedAccountId } = useAuth();
   const { portfolioId, programId, projectId, projectTab } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const hasPortfolioRoute = Boolean(portfolioId);
   const hasProgramRoute = Boolean(programId);
   const hasProjectRoute = Boolean(projectId);
@@ -949,29 +951,12 @@ export default function Projects() {
   const handleSelectItem = (item, type) => {
     setSelectedItem(item);
     setSelectedType(type);
-    if (type === 'all_portfolios') {
-      setViewMode('all_portfolios');
-      if (hasPortfolioRoute || hasProgramRoute) navigate('/Projects?view=all_portfolios');
-    } else if (type === 'all_programs') {
-      setViewMode('all_programs');
-      if (hasPortfolioRoute || hasProgramRoute) navigate('/Projects?view=all_programs');
-    } else if (type === 'all_projects') {
-      setViewMode('all_projects');
-      if (hasPortfolioRoute || hasProgramRoute) navigate('/Projects?view=all_projects');
-    } else if (type === 'all_raid') {
-      setViewMode('all_raid');
-    } else if (type === 'templates') {
-      setViewMode('templates');
-    } else if (type === 'all_resource_mgmt') {
-      setViewMode('all_resource_mgmt');
-    } else if (type === 'delivery') {
-      setViewMode('delivery');
-    } else if (type === 'sprints') {
-      setViewMode('sprints');
-    } else if (type === 'test_cases') {
-      setViewMode('test_cases');
+    if (DIRECTORY_VIEWS.includes(type)) {
+      setViewMode(type);
+      navigate(`/Projects?view=${type}`);
     } else if (type === 'portfolio') {
       setViewMode('portfolio');
+      if (item?.id) navigate(`/portfolios/${item.id}`);
     } else if (type === 'program') {
       setViewMode('program');
       if (item?.id) navigate(`/programs/${item.id}`);
@@ -982,29 +967,29 @@ export default function Projects() {
     }
   };
 
-  const didDeepLink = useRef(false);
   useEffect(() => {
-    if (didDeepLink.current) return;
-    const params = new URLSearchParams(window.location.search);
-    const view = params.get('view');
+    if (hasPortfolioRoute || hasProgramRoute || hasProjectRoute) return;
+    const params = new URLSearchParams(location.search);
+    const requestedView = params.get('view');
     const id = params.get('id');
-    if (view && !id && !hasPortfolioRoute && !hasProgramRoute) {
-      const routeOnlyViews = ['all_portfolios', 'all_programs', 'all_projects'];
-      if (routeOnlyViews.includes(view)) {
-        didDeepLink.current = true;
-        setSelectedItem(null);
-        setSelectedType(view);
-        setViewMode(view);
+    if (id) {
+      // Keep old saved links working without waiting for hierarchy queries.
+      const detailRoutes = { portfolio: '/portfolios', program: '/programs', project: '/projects' };
+      if (UUID_RE.test(id) && detailRoutes[requestedView]) {
+        navigate(`${detailRoutes[requestedView]}/${id}${requestedView === 'project' ? '/sheet' : ''}`, { replace: true });
       }
       return;
     }
-    if (!view || !id) return;
-    let item = null, type = null;
-    if (view === 'portfolio') { item = portfolios.find(p => p.id === id); type = 'portfolio'; }
-    else if (view === 'program') { item = programs.find(p => p.id === id); type = 'program'; }
-    else if (view === 'project') { item = projects.find(p => p.id === id); type = 'project'; }
-    if (item) { didDeepLink.current = true; handleSelectItem(item, type); }
-  }, [portfolios, programs, projects]);
+    const nextView = requestedView || _defaultLanding;
+    if (nextView === 'favorites') {
+      navigate('/Favorites', { replace: true });
+      return;
+    }
+    if (!DIRECTORY_VIEWS.includes(nextView)) return;
+    setSelectedItem(nextView === 'sprints' ? { id: 'sprints', name: 'Sprints' } : null);
+    setSelectedType(nextView);
+    setViewMode(nextView);
+  }, [location.pathname, location.search, hasPortfolioRoute, hasProgramRoute, hasProjectRoute, navigate, _defaultLanding]);
 
   const handleDeleteItem = (item, type) => {
     if (type === 'program') {

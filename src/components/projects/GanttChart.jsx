@@ -1,6 +1,6 @@
 // @ts-nocheck
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { format, differenceInDays, addDays, startOfWeek, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, isWeekend, isSameDay, isSameMonth, getWeekOfMonth } from 'date-fns';
+import { format, differenceInDays, addDays, startOfDay, startOfWeek, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, isWeekend, isSameDay, isSameMonth, getWeekOfMonth } from 'date-fns';
 import { cn } from "@/lib/utils";
 import { ChevronRight, ChevronDown, Zap, Diamond, Circle, Package, Layers, Flag, Filter } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -46,22 +46,18 @@ export default function GanttChart({
   const [visibleTypes, setVisibleTypes] = useState(new Set(ALL_TASK_TYPES));
   const [tooltip, setTooltip] = useState(null);
   const [dragPreview, setDragPreview] = useState(null);
-  const todayRef = useRef(null);
+  const focusDateRef = useRef(null);
   const scrollRef = useRef(null);
-  const today = useMemo(() => new Date(), []);
+  const today = useMemo(() => startOfDay(new Date()), []);
 
   // Build columns — start far enough back to show all tasks
-  const { startDate, columns } = useMemo(() => {
-    const earliestTaskDate = tasks.reduce((min, t) => {
-      if (t.start_date) { const d = new Date(t.start_date); return d < min ? d : min; }
-      return min;
-    }, today);
+  const { startDate, columns, focusDate } = useMemo(() => {
+    const taskDates = tasks.flatMap(task => [parseApiDate(task.start_date), parseApiDate(task.due_date)]).filter(Boolean);
+    const earliestTaskDate = taskDates.reduce((min, date) => date < min ? date : min, taskDates[0] || today);
+    const lastTaskDate = taskDates.reduce((max, date) => date > max ? date : max, taskDates[0] || today);
     const start = startOfWeek(addDays(earliestTaskDate, -14));
-    const projectEnd = project?.end_date ? new Date(project.end_date) : addDays(today, 90);
-    const latestTaskDate = tasks.reduce((max, t) => {
-      if (t.due_date) { const d = new Date(t.due_date); return d > max ? d : max; }
-      return max;
-    }, projectEnd);
+    const projectEnd = parseApiDate(project?.end_date) || addDays(today, 90);
+    const latestTaskDate = lastTaskDate > projectEnd ? lastTaskDate : projectEnd;
     const end = addDays(latestTaskDate, 30);
 
     let cols = [];
@@ -72,20 +68,24 @@ export default function GanttChart({
     } else {
       cols = eachMonthOfInterval({ start, end }).map(d => ({ date: d, key: d.toISOString() }));
     }
-    return { startDate: start, columns: cols };
+    return {
+      startDate: start,
+      columns: cols,
+      focusDate: today < earliestTaskDate || today > lastTaskDate ? earliestTaskDate : today,
+    };
   }, [project, viewScale, today, tasks]);
 
-  // Scroll so today is visible (centered-ish) on mount/scale change
+  // Keep the schedule visible when all tasks are in the past or future.
   useEffect(() => {
-    if (todayRef.current && scrollRef.current) {
-      const offset = todayRef.current.offsetLeft - 160;
+    if (focusDateRef.current && scrollRef.current) {
+      const offset = focusDateRef.current.offsetLeft - TASK_NAME_COL_W - 160;
       scrollRef.current.scrollLeft = Math.max(0, offset);
     }
   }, [columns]);
 
   const criticalPath = useMemo(() => {
     if (!showCriticalPath || tasks.length === 0) return new Set();
-    const getDur = t => (t.start_date && t.due_date) ? differenceInDays(new Date(t.due_date), new Date(t.start_date)) + 1 : (t.duration || 1);
+    const getDur = t => (t.start_date && t.due_date) ? differenceInDays(parseApiDate(t.due_date), parseApiDate(t.start_date)) + 1 : (t.duration || 1);
     const max = Math.max(...tasks.map(getDur));
     return new Set(tasks.filter(t => getDur(t) === max).map(t => t.id));
   }, [tasks, showCriticalPath]);
@@ -101,14 +101,16 @@ export default function GanttChart({
 
   const getTaskPosition = (task) => {
     if (!task.start_date && !task.due_date) return null;
-    const taskStart = new Date(task.start_date || task.due_date);
-    const taskEnd = new Date(task.due_date || task.start_date);
+    const taskStart = parseApiDate(task.start_date || task.due_date);
+    const taskEnd = parseApiDate(task.due_date || task.start_date);
+    if (!taskStart || !taskEnd) return null;
     const left = Math.max(0, getColIndex(taskStart));
     const endCol = getColIndex(taskEnd);
     return { left, width: Math.max(1, endCol - left + 1) };
   };
 
   const todayColIndex = useMemo(() => getColIndex(today), [columns, viewScale]);
+  const focusColIndex = getColIndex(focusDate);
   const cw = COL_WIDTH[viewScale];
   const daysPerColumn = viewScale === 'week' ? 7 : viewScale === 'month' ? 30 : 1;
 
@@ -434,7 +436,7 @@ export default function GanttChart({
                 )}
                 style={{ top: 5, height: 26, left: `${position.left * cw + 2}px`, width: `${Math.max(position.width * cw - 6, 8)}px`, zIndex: 10 }}
                 onMouseDown={(e) => handleSchedulePointerDown(e, task, 'move')}
-                onMouseEnter={(e) => { if (previewTask.due_date) setTooltip({ text: `End: ${format(new Date(previewTask.due_date), 'MMM d, yyyy')}`, x: e.clientX, y: e.clientY }); }}
+                onMouseEnter={(e) => { if (previewTask.due_date) setTooltip({ text: `End: ${format(parseApiDate(previewTask.due_date), 'MMM d, yyyy')}`, x: e.clientX, y: e.clientY }); }}
                 onMouseLeave={() => setTooltip(null)}
               >
                 {isScheduleEditable && (
@@ -558,7 +560,7 @@ export default function GanttChart({
               <div className="flex-shrink-0 sticky left-0 z-30 bg-slate-50 border-r border-slate-200" style={{ width: TASK_NAME_COL_W, minWidth: TASK_NAME_COL_W, height: 26 }} />
               <div className="flex flex-shrink-0" style={{ width: columns.length * cw }}>
                 {columns.map((col, i) => (
-                  <div key={i} ref={i === todayColIndex ? todayRef : null}
+                  <div key={i} ref={i === focusColIndex ? focusDateRef : null}
                     style={{ width: cw, minWidth: cw, height: 26 }}
                     className={cn("flex-shrink-0 flex items-center justify-center border-r border-slate-100 text-[10px]",
                       viewScale === 'day' && isWeekend(col.date) && "bg-slate-100",

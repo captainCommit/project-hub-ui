@@ -85,15 +85,15 @@ export default function FavoritesView() {
     </div>
   );
 
-  const renderProject = (pn, depth) => {
+  const renderProject = (pn, projectId, depth) => {
     const proj = pn.project;
     const name = proj?.name || 'Unknown Project';
-    const favObj = projectFavs.find(f => f.id === pn.project?.id);
+    const favObj = projectFavs.find(f => f.id === projectId);
     return (
-      <div key={pn.project?.id || name} className="border-l-2 border-slate-100" style={{ marginLeft: depth - 20 }}>
+      <div key={projectId} className="border-l-2 border-slate-100" style={{ marginLeft: depth - 20 }}>
         <div className="flex items-center gap-2 py-2 pr-3 hover:bg-slate-50" style={{ paddingLeft: 8 }}>
           <Folder className="w-4 h-4 text-[#c87b14] flex-shrink-0" />
-          <Link to={`/Projects?view=project&id=${pn.project?.id}`} className="text-sm font-semibold text-slate-700 hover:text-[#002046] truncate flex-1">{name}</Link>
+          <Link to={`/projects/${projectId}/sheet`} className="text-sm font-semibold text-slate-700 hover:text-[#002046] truncate flex-1">{name}</Link>
           <UnstarBtn fav={favObj} />
           <span className="text-xs text-slate-400">{projectCount(pn)}</span>
         </div>
@@ -112,11 +112,11 @@ export default function FavoritesView() {
         <div className="flex items-center gap-2 py-2.5 pr-3 hover:bg-slate-50" style={{ paddingLeft: 8 }}>
           <FolderTree className="w-4 h-4 text-slate-500 flex-shrink-0" />
           {isNone ? <span className="text-sm font-semibold text-slate-600 flex-1 truncate">{name}</span>
-            : <Link to={`/Projects?view=program&id=${prid}`} className="text-sm font-semibold text-slate-700 hover:text-[#002046] flex-1 truncate">{name}</Link>}
+            : <Link to={`/programs/${prid}`} className="text-sm font-semibold text-slate-700 hover:text-[#002046] flex-1 truncate">{name}</Link>}
           <UnstarBtn fav={favObj} />
           <span className="text-xs text-slate-400">{programCount(prn)}</span>
         </div>
-        <div>{projectIds.map(pid => renderProject(prn.projects[pid], depth + 16))}</div>
+        <div>{projectIds.map(pid => renderProject(prn.projects[pid], pid, depth + 16))}</div>
       </div>
     );
   };
@@ -132,7 +132,7 @@ export default function FavoritesView() {
         <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
           <Building2 className="w-4 h-4 text-[#c87b14]" />
           {isNone ? <span className="text-sm font-bold text-slate-800 flex-1 truncate">{name}</span>
-            : <Link to={`/Projects?view=portfolio&id=${poid}`} className="text-sm font-bold text-slate-800 hover:text-[#002046] flex-1 truncate">{name}</Link>}
+            : <Link to={`/portfolios/${poid}`} className="text-sm font-bold text-slate-800 hover:text-[#002046] flex-1 truncate">{name}</Link>}
           <UnstarBtn fav={favObj} />
           <span className="text-xs text-slate-400">{portfolioCount(pon)}</span>
         </div>

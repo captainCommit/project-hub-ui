@@ -167,7 +167,7 @@ export default function ProgramsLanding({ programs = [], projects = [], portfoli
                  <tr key={prog.id} onClick={() => onSelectProgram(prog)}
                    className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer group">
                    <td className="px-3 py-3 w-8">
-                     <button onClick={e => toggleFav(e, prog)} className="p-1 rounded hover:bg-amber-50" style={{ color: isFav(prog.id) ? '#f59e0b' : '#cbd5e1' }}>
+                     <button onClick={e => toggleFav(e, prog)} className="p-1 rounded hover:bg-amber-50" style={{ color: isFav(prog.id) ? '#f59e0b' : '#94a3b8' }}>
                        <Star className="w-3.5 h-3.5" fill={isFav(prog.id) ? 'currentColor' : 'none'} />
                      </button>
                    </td>

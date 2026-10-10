@@ -5,6 +5,8 @@ import { formatDate, formatDateRange } from '@/lib/dateUtils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import ReportGenerator from '@/components/projects/ReportGenerator';
+import StarButton from '@/components/projects/StarButton';
+import { useFavorites } from '@/lib/favorites';
 import ResourceUtilizationTable from '@/components/projects/ResourceUtilizationTable';
 import BudgetForecast from '@/components/projects/BudgetForecast';
 
@@ -294,17 +296,12 @@ export default function ProgramDetailView({ program, projects, portfolios = [], 
   const [renamingProgram, setRenamingProgram] = useState(false);
   const [renameText, setRenameText] = useState('');
   const [editingPM, setEditingPM] = useState(null);
-  const [favorites, setFavorites] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('sidebar_favorites') || '[]'); } catch { return []; }
-  });
+  const { isFav, toggle: toggleFavItem } = useFavorites();
 
   const resources = [];
 
-  const isFavorite = id => favorites.some(f => f.id === id);
-  const toggleFavorite = project => {
-    const updated = isFavorite(project.id) ? favorites.filter(f=>f.id!==project.id) : [...favorites,{id:project.id,name:project.name,type:'project',color:project.color}];
-    setFavorites(updated); localStorage.setItem('sidebar_favorites',JSON.stringify(updated));
-  };
+  const isFavorite = id => isFav('project', id);
+  const toggleFavorite = project => toggleFavItem({ id: project.id, name: project.name, type: 'project', color: project.color });
 
   const handleSaveRename = () => {
     if (renameText.trim() && onRenameItem) onRenameItem(program.id, renameText.trim(), 'program');
@@ -367,7 +364,7 @@ export default function ProgramDetailView({ program, projects, portfolios = [], 
                   <td className="px-4 py-3" onClick={e=>e.stopPropagation()}>
                     <div className="flex items-center gap-0.5">
                       <button onClick={()=>toggleFavorite(project)} className="p-1 rounded hover:bg-amber-50"
-                        style={{ color:isFavorite(project.id)?'#f59e0b':'#cbd5e1' }}>
+                        style={{ color:isFavorite(project.id)?'#f59e0b':'#94a3b8' }}>
                         <Star className="w-3.5 h-3.5" fill={isFavorite(project.id)?'currentColor':'none'}/>
                       </button>
                       <button onClick={()=>onEditItem(project,'project')} className="p-1 text-slate-300 hover:text-slate-500 rounded">
@@ -454,6 +451,7 @@ export default function ProgramDetailView({ program, projects, portfolios = [], 
                   <button onClick={()=>{setRenameText(program.name);setRenamingProgram(true);}} className="p-1.5 bg-[#002046]/10 hover:bg-[#002046]/20 rounded-lg">
                     <Edit2 className="w-4 h-4 text-[#002046]/70"/>
                   </button>
+                  <StarButton type="program" id={program.id} name={program.name} color={program.color} className="p-1.5 bg-[#002046]/10 hover:bg-[#002046]/20 rounded-lg" iconClassName="w-4 h-4" />
                 </>
               )}
             </div>

@@ -37,6 +37,7 @@ import DeliverySummary from '@/components/projects/DeliverySummary';
 import PortfolioDetailView from '@/components/projects/PortfolioDetailView';
 import ProgramDetailView from '@/components/projects/ProgramDetailView';
 import PortfolioLanding from '@/components/projects/PortfolioLanding';
+import StarButton from '@/components/projects/StarButton';
 import ReportGenerator from '@/components/projects/ReportGenerator';
 import ProgramsLanding from '@/components/projects/ProgramsLanding';
 import { parseISO, isValid, isBefore, isAfter, addDays } from 'date-fns';
@@ -1655,6 +1656,7 @@ export default function Projects() {
                         <Button variant="ghost" size="icon" className="h-7 w-7" title="Rename project" onClick={() => setProjectNameDraft(projectDetail.name || '')}>
                           <Edit2 className="w-3.5 h-3.5 text-slate-400" />
                         </Button>
+                        <StarButton type="project" id={projectDetail.id} name={projectDetail.name} color={projectDetail.color} iconClassName="w-4 h-4" />
                       </div>
                     )}
                     <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5 flex-wrap">

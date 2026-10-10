@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { formatDateRange } from '@/lib/dateUtils';
 import ReportGenerator from '@/components/projects/ReportGenerator';
+import StarButton from '@/components/projects/StarButton';
 import ResourceUtilizationTable from '@/components/projects/ResourceUtilizationTable';
 import BudgetForecast from '@/components/projects/BudgetForecast';
 
@@ -494,6 +495,7 @@ export default function PortfolioDetailView({
                   <h1 className="text-2xl font-bold text-[#002046]"><span className="font-normal text-[#002046]/60">Portfolio:</span> {portfolio.name}</h1>
                   <button onClick={() => { setRenameText(portfolio.name); setRenamingPortfolio(true); }}
                     className="p-1.5 bg-[#002046]/10 hover:bg-[#002046]/20 rounded-lg"><Edit2 className="w-4 h-4 text-[#002046]/70" /></button>
+                  <StarButton type="portfolio" id={portfolio.id} name={portfolio.name} color={portfolio.color} className="p-1.5 bg-[#002046]/10 hover:bg-[#002046]/20 rounded-lg" iconClassName="w-4 h-4" />
                 </>
               )}
             </div>

@@ -13,6 +13,7 @@ type TaskAssignmentRead = {
   task_id?: string;
   user_id?: string | null;
   resource_name?: string | null;
+  hours?: string | number | null;
   created_at?: string;
 };
 
@@ -522,6 +523,11 @@ export const mapTaskReadToTaskSheetRow = (task: ProjectHubTaskRead, depth = 0): 
   if (progress !== undefined) row.progress = progress;
   if (predecessorIds) row.predecessors = predecessorIds;
   if (assignmentResources) row.resources = assignmentResources;
+  if (Array.isArray(task.assignments)) {
+    row.resource_hours = task.assignments
+      .filter((assignment) => assignment?.resource_name && assignment.hours !== null && assignment.hours !== undefined)
+      .map((assignment) => ({ resource: assignment.resource_name as string, hours: Number(assignment.hours) }));
+  }
   if (childIds && childIds.length > 0) row.children = childIds;
 
   ['risk_ids', 'issue_ids', 'raid_ids', 'related_risks', 'related_issues'].forEach((key) => copyIfPresent(row, task, key));

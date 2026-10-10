@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { base44 } from '@/api/base44Client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +10,8 @@ import { ClipboardList, Plus, X, Download, ChevronDown, Check } from 'lucide-rea
 import { cn } from '@/lib/utils';
 import { exportRecords } from '@/lib/exportUtils';
 import StarButton from '@/components/projects/StarButton';
-import { useAccountHierarchy } from '@/hooks/useAccountLookups';
+import { useAccountHierarchy, useAccountRequirements, useAccountTestCases } from '@/hooks/useAccountLookups';
+import { mapRequirementFromApi, mapRequirementInputToPayload, requirementsApi } from '@/api/projectLogs';
 
 const PRIORITY_COLORS = {
   low: 'bg-slate-100 text-slate-600',
@@ -60,18 +60,31 @@ export default function RequirementView() {
   const [form, setForm] = useState(emptyForm());
   const [editingId, setEditingId] = useState(null);
 
-  const { data: requirements = [], isLoading } = useQuery({ queryKey: ['requirements'], queryFn: () => base44.entities.Requirement.list('-created_date') });
+  const { requirements, isLoading } = useAccountRequirements();
   const { projects, programs, portfolios } = useAccountHierarchy();
-  const { data: testCases = [] } = useQuery({ queryKey: ['test_cases'], queryFn: () => base44.entities.TestCase.list() });
+  const { testCases } = useAccountTestCases();
+
+  const invalidateLinks = () => {
+    queryClient.invalidateQueries({ queryKey: ['requirements'] });
+    queryClient.invalidateQueries({ queryKey: ['test_cases'] });
+  };
 
   const create = useMutation({
-    mutationFn: (data) => base44.entities.Requirement.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['requirements'] }); setPanelOpen(false); setForm(emptyForm()); },
+    mutationFn: async (data) => {
+      const created = mapRequirementFromApi(await requirementsApi.create(data.project_id, mapRequirementInputToPayload(data)));
+      await requirementsApi.syncTestCaseLinks(created.id, data.test_case_id || [], testCases);
+      return created;
+    },
+    onSuccess: () => { invalidateLinks(); setPanelOpen(false); setForm(emptyForm()); },
   });
 
   const update = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.Requirement.update(id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['requirements'] }); setPanelOpen(false); setEditingId(null); setForm(emptyForm()); },
+    mutationFn: async ({ id, data }) => {
+      const updated = mapRequirementFromApi(await requirementsApi.update(id, mapRequirementInputToPayload(data)));
+      await requirementsApi.syncTestCaseLinks(id, data.test_case_id || [], testCases);
+      return updated;
+    },
+    onSuccess: () => { invalidateLinks(); setPanelOpen(false); setEditingId(null); setForm(emptyForm()); },
   });
 
   const getProjectName = (id) => projects.find(p => p.id === id)?.name || '—';

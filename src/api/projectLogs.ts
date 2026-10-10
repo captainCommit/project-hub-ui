@@ -61,7 +61,9 @@ export const mapRequirementFromApi = (record: ApiRecord = {}) => ({
   requirement_id: record.requirement_number || record.id,
   entered_by: record.entered_by_name || record.created_by_name || '',
   entered_date: dateOnly(record.entered_date || record.created_at),
-  test_case_id: Array.isArray(record.test_case_ids) ? record.test_case_ids : [],
+  // The UI links records by display code (TC-001), so expose codes alongside ids.
+  test_case_id: Array.isArray(record.test_case_numbers) ? record.test_case_numbers : [],
+  test_case_uuids: Array.isArray(record.test_case_ids) ? record.test_case_ids : [],
 });
 
 export const mapRequirementInputToPayload = (input: ApiRecord = {}) => buildPayload(input, {
@@ -78,8 +80,10 @@ const TEST_RESULTS: Record<string, string> = { NOT_EXECUTED: 'not_executed', PAS
 export const mapTestCaseFromApi = (record: ApiRecord = {}) => ({
   ...mapLogBase(record, 'test_case_number'),
   test_case_id: record.test_case_number || record.id,
-  sprint_id: record.sprint_id || '',
-  requirement_id: record.requirement_id || '',
+  sprint_id: record.sprint_name || '',
+  sprint_uuid: record.sprint_id || null,
+  requirement_id: record.requirement_number || '',
+  requirement_uuid: record.requirement_id || null,
   designed_by: record.designed_by_name || '',
   executed_by: record.executed_by_name || '',
   execution_date: dateOnly(record.execution_date),
@@ -93,8 +97,28 @@ export const mapTestCaseFromApi = (record: ApiRecord = {}) => ({
   comments: record.notes || '',
 });
 
-export const mapTestCaseInputToPayload = (input: ApiRecord = {}) => {
-  const payload = buildPayload(input, {
+interface TestCaseLookups {
+  requirements?: ApiRecord[];
+  sprints?: ApiRecord[];
+}
+
+/** Resolve a display code (or id) chosen in the UI back to the record id, preferring the same project. */
+const resolveCode = (records: ApiRecord[] = [], codeField: string, value: unknown, projectId?: string) => {
+  if (!value) return null;
+  const matches = records.filter((record) => record.id === value || record[codeField] === value);
+  const match = matches.find((record) => !projectId || record.project_id === projectId) || matches[0];
+  return match ? match.id : null;
+};
+
+export const mapTestCaseInputToPayload = (input: ApiRecord = {}, lookups: TestCaseLookups = {}) => {
+  const resolved = { ...input };
+  if (Object.prototype.hasOwnProperty.call(input, 'requirement_id')) {
+    resolved.requirement_id = resolveCode(lookups.requirements, 'requirement_id', input.requirement_id, input.project_id);
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'sprint_id')) {
+    resolved.sprint_id = resolveCode(lookups.sprints, 'sprint_id', input.sprint_id, input.project_id);
+  }
+  const payload = buildPayload(resolved, {
     title: 'title',
     description: 'description',
     priority: 'priority',
@@ -117,5 +141,24 @@ export const mapTestCaseInputToPayload = (input: ApiRecord = {}) => {
 
 export const dependenciesApi = collectionApi('dependencies');
 export const changeRequestsApi = collectionApi('change-requests');
-export const requirementsApi = collectionApi('requirements');
+export const requirementsApi = {
+  ...collectionApi('requirements'),
+  /**
+   * Requirements own their test-case links in the UI, but the API stores the link on
+   * the test case. Point selected test cases at the requirement and unlink the rest.
+   */
+  syncTestCaseLinks: async (requirementId: string, selectedCodes: string[], testCases: ApiRecord[]) => {
+    const selected = new Set(selectedCodes);
+    const updates = testCases
+      .map((testCase) => {
+        const shouldLink = selected.has(testCase.test_case_id) || selected.has(testCase.id);
+        const isLinked = testCase.requirement_uuid === requirementId;
+        if (shouldLink && !isLinked) return apiClient.patch(`/api/v1/test-cases/${testCase.id}`, { requirement_id: requirementId });
+        if (!shouldLink && isLinked) return apiClient.patch(`/api/v1/test-cases/${testCase.id}`, { requirement_id: null });
+        return null;
+      })
+      .filter(Boolean);
+    await Promise.all(updates);
+  },
+};
 export const testCasesApi = collectionApi('test-cases');

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,7 +11,8 @@ import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { exportRecords } from '@/lib/exportUtils';
 import StarButton from '@/components/projects/StarButton';
-import { useAccountHierarchy } from '@/hooks/useAccountLookups';
+import { useAccountHierarchy, useAccountRequirements, useAccountSprints, useAccountTestCases } from '@/hooks/useAccountLookups';
+import { mapTestCaseFromApi, mapTestCaseInputToPayload, testCasesApi } from '@/api/projectLogs';
 
 const PRIORITY_COLORS = {
   low: 'bg-slate-100 text-slate-600',
@@ -64,21 +64,26 @@ export default function TestCaseView() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [form, setForm] = useState(emptyForm());
 
-  const { data: testCases = [], isLoading } = useQuery({ queryKey: ['test_cases'], queryFn: () => base44.entities.TestCase.list('-created_date') });
+  const { testCases, isLoading } = useAccountTestCases();
   const { projects, programs, portfolios } = useAccountHierarchy();
-  const { data: sprints = [] } = useQuery({ queryKey: ['sprints'], queryFn: () => base44.entities.Sprint.list() });
-  const { data: requirements = [] } = useQuery({ queryKey: ['requirements'], queryFn: () => base44.entities.Requirement.list() });
+  const sprints = useAccountSprints();
+  const { requirements } = useAccountRequirements();
 
   const [editingId, setEditingId] = useState(null);
 
+  const invalidateLinks = () => {
+    queryClient.invalidateQueries({ queryKey: ['test_cases'] });
+    queryClient.invalidateQueries({ queryKey: ['requirements'] });
+  };
+
   const create = useMutation({
-    mutationFn: (data) => base44.entities.TestCase.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['test_cases'] }); setPanelOpen(false); setForm(emptyForm()); },
+    mutationFn: async (data) => mapTestCaseFromApi(await testCasesApi.create(data.project_id, mapTestCaseInputToPayload(data, { requirements, sprints }))),
+    onSuccess: () => { invalidateLinks(); setPanelOpen(false); setForm(emptyForm()); },
   });
 
   const update = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.TestCase.update(id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['test_cases'] }); setPanelOpen(false); setEditingId(null); setForm(emptyForm()); },
+    mutationFn: async ({ id, data }) => mapTestCaseFromApi(await testCasesApi.update(id, mapTestCaseInputToPayload(data, { requirements, sprints }))),
+    onSuccess: () => { invalidateLinks(); setPanelOpen(false); setEditingId(null); setForm(emptyForm()); },
   });
 
   const getProjectName = (id) => projects.find(p => p.id === id)?.name || '—';

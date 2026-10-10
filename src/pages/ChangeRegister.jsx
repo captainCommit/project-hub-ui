@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import { FileEdit, Loader2, X, MessageSquare, Download } from 'lucide-react';
 import SavedFilterView from '@/components/projects/SavedFilterView';
@@ -15,7 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
+import { useAccountChangeRequests, useAccountDecisions, useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
+import { changeRequestsApi, mapChangeRequestFromApi, mapChangeRequestInputToPayload } from '@/api/projectLogs';
+import { raidApi } from '@/api/raid';
 
 const CR_STATUSES = [
   { value: 'draft', label: 'Draft', color: 'bg-slate-100 text-slate-600' },
@@ -45,10 +46,10 @@ export default function ChangeRegister({ embedded = false }) {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data: changeRequests = [], isLoading } = useQuery({ queryKey: ['change_requests'], queryFn: () => base44.entities.ChangeRequest.list('-created_date') });
+  const { changeRequests, isLoading } = useAccountChangeRequests();
   const { projects, programs, portfolios } = useAccountHierarchy();
   const resources = useAccountResources();
-  const { data: decisions = [] } = useQuery({ queryKey: ['decisions'], queryFn: () => base44.entities.Decision.list() });
+  const decisions = useAccountDecisions();
 
   const getRelatedDecisions = (programId) => {
     const hasProgram = programId && programId !== 'all';
@@ -57,16 +58,18 @@ export default function ChangeRegister({ embedded = false }) {
       : decisions;
   };
 
+  const linkDecision = async (relatedRecord, crCode) => {
+    const decision = decisions.find(d => d.decision_id === relatedRecord || d.id === relatedRecord);
+    if (!decision) return;
+    await raidApi.updateDecision(decision.id, { related_record: crCode });
+    queryClient.invalidateQueries({ queryKey: ['account-decisions'] });
+  };
+
   const create = useMutation({
     mutationFn: async (data) => {
-      const cr = await base44.entities.ChangeRequest.create(data);
-      if (data.related_record) {
-        const decision = decisions.find(d => d.decision_id === data.related_record || d.id === data.related_record);
-        if (decision) {
-          await base44.entities.Decision.update(decision.id, { related_record: cr.cr_id });
-          queryClient.invalidateQueries({ queryKey: ['decisions'] });
-        }
-      }
+      if (!data?.project_id) throw new Error('Select a project before creating a change request.');
+      const cr = mapChangeRequestFromApi(await changeRequestsApi.create(data.project_id, mapChangeRequestInputToPayload(data)));
+      if (data.related_record) await linkDecision(data.related_record, cr.cr_id);
       return cr;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['change_requests'] })
@@ -74,25 +77,15 @@ export default function ChangeRegister({ embedded = false }) {
 
   const update = useMutation({
     mutationFn: async ({ id, data }) => {
-      const cr = await base44.entities.ChangeRequest.update(id, data);
-      if (data.related_record !== undefined) {
-        const crData = changeRequests.find(c => c.id === id);
-        const crId = crData?.cr_id;
-        if (data.related_record && crId) {
-          const decision = decisions.find(d => d.decision_id === data.related_record || d.id === data.related_record);
-          if (decision) {
-            await base44.entities.Decision.update(decision.id, { related_record: crId });
-            queryClient.invalidateQueries({ queryKey: ['decisions'] });
-          }
-        }
-      }
+      const cr = mapChangeRequestFromApi(await changeRequestsApi.update(id, mapChangeRequestInputToPayload(data)));
+      if (data.related_record) await linkDecision(data.related_record, cr.cr_id);
       return cr;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['change_requests'] })
   });
 
   const remove = useMutation({
-    mutationFn: (id) => base44.entities.ChangeRequest.delete(id),
+    mutationFn: (id) => changeRequestsApi.delete(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['change_requests'] }); setSelectedCR(null); }
   });
 

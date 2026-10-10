@@ -1,11 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { Star, Building2, FolderTree, ClipboardList, ClipboardCheck, Package, Folder } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFavorites } from '@/lib/favorites';
-import { base44 } from '@/api/base44Client';
-import { useAccountHierarchy } from '@/hooks/useAccountLookups';
+import { useAccountHierarchy, useAccountRequirements, useAccountSprints, useAccountTestCases } from '@/hooks/useAccountLookups';
 
 const TYPE_META = {
   requirement: { label: 'Requirement', icon: ClipboardList, link: (id) => `/Requirements?reqId=${id}` },
@@ -18,9 +16,9 @@ const NONE = '__none';
 export default function FavoritesView() {
   const { favorites, toggle } = useFavorites();
   const { projects, programs, portfolios } = useAccountHierarchy();
-  const { data: requirements = [] } = useQuery({ queryKey: ['requirements'], queryFn: () => base44.entities.Requirement.list() });
-  const { data: testCases = [] } = useQuery({ queryKey: ['test_cases'], queryFn: () => base44.entities.TestCase.list() });
-  const { data: sprints = [] } = useQuery({ queryKey: ['sprints_all'], queryFn: () => base44.entities.Sprint.list() });
+  const { requirements } = useAccountRequirements();
+  const { testCases } = useAccountTestCases();
+  const sprints = useAccountSprints();
 
   const projectById = Object.fromEntries(projects.map(p => [p.id, p]));
   const programById = Object.fromEntries(programs.map(p => [p.id, p]));

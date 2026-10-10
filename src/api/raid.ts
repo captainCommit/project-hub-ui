@@ -42,6 +42,7 @@ export const mapLogBase = (record: ApiRecord, numberField: string) => ({
   reference_number: record[numberField],
   project_id: record.project_id,
   program_id: record.program_id,
+  portfolio_id: record.portfolio_id,
   project_name: record.project?.name || '',
   title: record.title || '',
   description: record.description || '',

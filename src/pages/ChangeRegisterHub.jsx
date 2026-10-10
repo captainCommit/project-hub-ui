@@ -1,20 +1,18 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import DecisionLog from './DecisionLog';
 import ChangeRegister from './ChangeRegister';
 import { Scale, FileEdit, LayoutDashboard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ChangeOverview from '@/components/projects/ChangeOverview';
-import { useAccountHierarchy } from '@/hooks/useAccountLookups';
+import { useAccountChangeRequests, useAccountDecisions, useAccountHierarchy } from '@/hooks/useAccountLookups';
 
 export default function ChangeRegisterHub() {
   const [tab, setTab] = useState('overview');
 
   const { projects, programs, portfolios } = useAccountHierarchy();
-  const { data: decisions = [] } = useQuery({ queryKey: ['decisions'], queryFn: () => base44.entities.Decision.list('-created_date') });
-  const { data: changeRequests = [] } = useQuery({ queryKey: ['change_requests'], queryFn: () => base44.entities.ChangeRequest.list('-created_date') });
+  const decisions = useAccountDecisions();
+  const { changeRequests } = useAccountChangeRequests();
 
   return (
     <div className="h-screen flex bg-slate-50" style={{ fontFamily: 'Segoe UI, sans-serif' }}>

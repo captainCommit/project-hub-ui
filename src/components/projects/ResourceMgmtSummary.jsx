@@ -2,13 +2,12 @@ import React from 'react';
 
 import { createPageUrl } from '@/utils';
 import { Calendar, Clock, Users } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { parseISO, isValid, isBefore, isAfter, addDays } from 'date-fns';
+import { useAccountTasks, useAccountVacations } from '@/hooks/useAccountLookups';
 
 export default function ResourceMgmtSummary() {
-  const { data: vacations = [] } = useQuery({ queryKey: ['resource_vacations'], queryFn: () => base44.entities.ResourceVacation.list() });
-  const { data: tasks = [] } = useQuery({ queryKey: ['tasks_all'], queryFn: () => base44.entities.Task.list() });
+  const vacations = useAccountVacations();
+  const { tasks } = useAccountTasks();
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const in14 = addDays(today, 14);

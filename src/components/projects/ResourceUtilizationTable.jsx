@@ -1,10 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { parseISO, isValid } from 'date-fns';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
+import { useAccountHierarchy, useAccountResources, useAccountTasks } from '@/hooks/useAccountLookups';
 
 const STATUS_CLS = {
   over: 'text-red-600',
@@ -21,7 +19,7 @@ function statusOf(pct) {
 
 export default function ResourceUtilizationTable({ projectIds = [], scopeLabel = 'Scope' }) {
   const [tableCollapsed, setTableCollapsed] = useState(false);
-  const { data: tasks = [] } = useQuery({ queryKey: ['tasks_all'], queryFn: () => base44.entities.Task.list() });
+  const { tasks } = useAccountTasks();
   const resources = useAccountResources();
   const { projects } = useAccountHierarchy();
 

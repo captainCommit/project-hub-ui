@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,8 +10,9 @@ import { Plus, Trash2, X, AlertTriangle, Search, Edit2, Calendar, List, Download
 import { formatDate } from '@/lib/dateUtils';
 import { cn } from "@/lib/utils";
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
+import { mapTaskToUserStory, vacationsApi } from '@/api/accountData';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
+import { useAccountHierarchy, useAccountResources, useAccountSprints, useAccountTasks, useAccountVacations } from '@/hooks/useAccountLookups';
 
 const COLOR_DOTS = [
   'bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-orange-500',
@@ -38,16 +38,17 @@ export default function ResourceCalendarPage({ embedded = false }) {
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [conflictDialog, setConflictDialog] = useState(null);
 
-  const { data: vacations = [] } = useQuery({ queryKey: ['resource_vacations'], queryFn: () => base44.entities.ResourceVacation.list() });
-  const { data: tasks = [] } = useQuery({ queryKey: ['tasks_all'], queryFn: () => base44.entities.Task.list() });
+  const vacations = useAccountVacations();
+  const { tasks } = useAccountTasks();
   const { projects, programs, portfolios } = useAccountHierarchy();
-  const { data: sprints = [] } = useQuery({ queryKey: ['sprints_all'], queryFn: () => base44.entities.Sprint.list() });
-  const { data: stories = [] } = useQuery({ queryKey: ['user_stories_all'], queryFn: () => base44.entities.UserStory.list() });
+  const sprints = useAccountSprints();
+  const stories = useMemo(() => tasks.filter(t => t.sprint_id).map(mapTaskToUserStory), [tasks]);
   const resourceRecords = useAccountResources();
 
-  const createVacation = useMutation({ mutationFn: (data) => base44.entities.ResourceVacation.create(data), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['resource_vacations'] }); resetForm(); } });
-  const updateVacation = useMutation({ mutationFn: ({ id, data }) => base44.entities.ResourceVacation.update(id, data), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['resource_vacations'] }); resetForm(); } });
-  const deleteVacation = useMutation({ mutationFn: (id) => base44.entities.ResourceVacation.delete(id), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['resource_vacations'] }) });
+  const invalidateVacations = () => queryClient.invalidateQueries({ queryKey: ['account-time-off'] });
+  const createVacation = useMutation({ mutationFn: (data) => vacationsApi.create(resourceRecords, data), onSuccess: () => { invalidateVacations(); resetForm(); }, onError: (error) => window.alert(error.message) });
+  const updateVacation = useMutation({ mutationFn: ({ id, data }) => vacationsApi.update(resourceRecords, id, data, vacations.find(v => v.id === id)), onSuccess: () => { invalidateVacations(); resetForm(); }, onError: (error) => window.alert(error.message) });
+  const deleteVacation = useMutation({ mutationFn: (id) => vacationsApi.delete(id), onSuccess: invalidateVacations });
 
   const resetForm = () => { setFormData({ resource_name: '', start_date: '', end_date: '', notes: '' }); setEditingId(null); setShowForm(false); };
   const handleEdit = (v) => { setEditingId(v.id); setFormData({ resource_name: v.resource_name, start_date: v.start_date, end_date: v.end_date, notes: v.notes || '' }); setShowForm(true); };

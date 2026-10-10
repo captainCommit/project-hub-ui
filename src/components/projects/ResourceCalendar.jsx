@@ -85,8 +85,11 @@ export default function ResourceCalendar({ open, onOpenChange }) {
     refetch,
   } = useQuery({
     queryKey: ['account-resource-calendar', selectedAccountId, dateRange],
-    queryFn: () => resourcesApi.getAccountResourceCalendar(selectedAccountId),
-    enabled: Boolean(selectedAccountId),
+    queryFn: () => {
+      const [start_date, end_date] = dateRange.split('_');
+      return resourcesApi.getAccountResourceCalendar(selectedAccountId, { start_date, end_date });
+    },
+    enabled: Boolean(selectedAccountId) && dateRange !== 'unknown',
   });
 
   const resources = calendarData.resources || [];

@@ -1,12 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import { Wallet, TrendingUp, TrendingDown, DollarSign, PiggyBank, Percent, AlertTriangle, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
+import { useAccountHierarchy, useAccountResources, useAccountTasks } from '@/hooks/useAccountLookups';
 
 const fmtMoney = (n) => `$${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const fmtPct = (n) => `${Math.round((n || 0))}%`;
@@ -16,7 +14,7 @@ export default function Financials({ embedded = false }) {
   const [filterProgram, setFilterProgram] = useState('all');
   const [filterProject, setFilterProject] = useState('all');
 
-  const { data: tasks = [] } = useQuery({ queryKey: ['tasks_all'], queryFn: () => base44.entities.Task.list() });
+  const { tasks } = useAccountTasks();
   const resources = useAccountResources();
   const { projects, programs, portfolios } = useAccountHierarchy();
 

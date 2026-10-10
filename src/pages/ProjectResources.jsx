@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { resourcesApi } from '@/api/resources';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -10,7 +9,7 @@ import { Plus, Trash2, Edit2, Users, Check, X, Download, ChevronDown, ChevronRig
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, Cell, ReferenceLine } from 'recharts';
 import { parseISO, isValid } from 'date-fns';
-import { useAccountHierarchy } from '@/hooks/useAccountLookups';
+import { useAccountHierarchy, useAccountTasks } from '@/hooks/useAccountLookups';
 
 export default function ProjectResources({ embedded = false }) {
   const queryClient = useQueryClient();
@@ -78,7 +77,7 @@ export default function ProjectResources({ embedded = false }) {
     enabled: Boolean(editingId),
   });
   const { projects, programs, portfolios } = useAccountHierarchy();
-  const { data: allTasks = [] } = useQuery({ queryKey: ['tasks_all_resources'], queryFn: () => base44.entities.Task.list() });
+  const { tasks: allTasks } = useAccountTasks();
 
   const invalidateResources = (resourceId) => {
     queryClient.invalidateQueries({ queryKey: ['account-resources', selectedAccountId] });

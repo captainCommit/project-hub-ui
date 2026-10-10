@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { lookupsApi } from '@/api/lookups';
 import { resourcesApi } from '@/api/resources';
+import { accountDataApi } from '@/api/accountData';
 
 export const HIERARCHY_QUERY_KEY = 'account-hierarchy';
 export const RESOURCES_QUERY_KEY = 'account-resources';
@@ -41,3 +42,35 @@ export const invalidateHierarchy = (queryClient) => {
   queryClient.invalidateQueries({ queryKey: ['account-programs-projects'] });
   queryClient.invalidateQueries({ queryKey: ['account-portfolios'] });
 };
+
+/** Every task in the account with assignment (actual) and allocation (planned) hours. */
+export function useAccountTasks() {
+  const { selectedAccountId } = useAuth();
+  const query = useQuery({
+    queryKey: ['account-tasks', selectedAccountId],
+    queryFn: () => accountDataApi.listTasks(selectedAccountId),
+    enabled: !!selectedAccountId,
+  });
+  return { tasks: query.data ?? EMPTY, isLoading: query.isLoading };
+}
+
+export function useAccountSprints() {
+  const { selectedAccountId } = useAuth();
+  const query = useQuery({
+    queryKey: ['account-sprints', selectedAccountId],
+    queryFn: () => accountDataApi.listSprints(selectedAccountId),
+    enabled: !!selectedAccountId,
+  });
+  return query.data ?? EMPTY;
+}
+
+/** Resource time off in the Base44 ResourceVacation shape. */
+export function useAccountVacations() {
+  const { selectedAccountId } = useAuth();
+  const query = useQuery({
+    queryKey: ['account-time-off', selectedAccountId],
+    queryFn: () => accountDataApi.listVacations(selectedAccountId),
+    enabled: !!selectedAccountId,
+  });
+  return query.data ?? EMPTY;
+}

@@ -1,13 +1,11 @@
 import React, { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { cn } from '@/lib/utils';
-import { useAccountResources } from '@/hooks/useAccountLookups';
+import { useAccountResources, useAccountTasks } from '@/hooks/useAccountLookups';
 
 const fmt = (n) => (n || n === 0) ? `$${Math.round(n).toLocaleString()}` : '—';
 
 export default function BudgetForecast({ totalBudget = 0, projectIds = [] }) {
-  const { data: tasks = [] } = useQuery({ queryKey: ['tasks_all'], queryFn: () => base44.entities.Task.list() });
+  const { tasks } = useAccountTasks();
   const resources = useAccountResources();
 
   const { plannedCost, actualCost } = useMemo(() => {

@@ -99,7 +99,7 @@ const mapCalendarAllocation = (allocation: ApiResource, resource?: ApiResource) 
   const startDate = firstDefined(allocation.start_date, allocation.allocation_start_date, allocation.start, allocation.start_at);
   const endDate = firstDefined(allocation.end_date, allocation.allocation_end_date, allocation.end, allocation.end_at);
   const percentage = firstDefined(allocation.percentage, allocation.allocation_percentage, allocation.utilization, allocation.percent_allocated);
-  const hours = firstDefined(allocation.hours, allocation.allocation_hours, allocation.weekly_hours, allocation.capacity_hours);
+  const hours = firstDefined(allocation.allocated_hours, allocation.hours, allocation.allocation_hours, allocation.weekly_hours, allocation.capacity_hours);
 
   if (hasOwn(allocation, 'id')) mapped.id = allocation.id;
   if (hasOwn(allocation, 'allocation_id')) mapped.id = allocation.allocation_id;
@@ -141,42 +141,46 @@ const mapCalendarTimeOff = (timeOff: ApiResource, resource?: ApiResource) => {
 
 export const mapResourceTimeOffList = (response: any) => normalizeCollection(response?.data && !Array.isArray(response.data) ? response.data : response, ['time_off', 'timeOff', 'resource_time_off', 'items']).map((entry) => mapCalendarTimeOff(entry));
 
-export const mapResourceCalendar = (response: any) => {
-  const root = response?.data && !Array.isArray(response.data) ? response.data : response;
-  const rawResources = normalizeCollection(root, ['resources', 'items']);
-  const topLevelAllocations = normalizeCollection(root, ['allocations', 'resource_allocations']);
-  const topLevelTimeOff = normalizeCollection(root, ['time_off', 'timeOff', 'resource_time_off']);
+// API calendar rows are {resource, allocations[...]}; time off comes from /accounts/{id}/time-off.
+export const mapResourceCalendar = (response: any, timeOffEntries: ApiResource[] = []) => {
+  const rows = normalizeCollection(response, ['resources']);
+  const projectsById = new Map<string, ApiResource>();
 
-  const resources = rawResources.map((resource) => {
-    const name = firstDefined(resource.full_name, resource.name, resource.resource_name);
-    const role = firstDefined(resource.role, resource.title);
-    const capacity = firstDefined(resource.capacity, resource.weekly_capacity, resource.availability);
-    const allocations = normalizeCollection(resource, ['allocations', 'resource_allocations']).map((allocation) => mapCalendarAllocation(allocation, resource));
-    const timeOff = normalizeCollection(resource, ['time_off', 'timeOff', 'resource_time_off']).map((entry) => mapCalendarTimeOff(entry, resource));
-    const mapped: ApiResource = { allocations, timeOff };
+  const resources = rows.map((row) => {
+    const resource = row.resource || row;
+    const allocations = normalizeCollection(row, ['allocations']).map((allocation) => {
+      if (allocation.project?.id) projectsById.set(allocation.project.id, { id: allocation.project.id, name: allocation.project.name });
+      return {
+        ...mapCalendarAllocation(allocation, resource),
+        project_id: allocation.project?.id,
+        task_id: allocation.task?.id,
+        task_name: allocation.task?.name,
+      };
+    });
+    const capacity = numberOrUndefined(firstDefined(row.weekly_capacity_hours, resource.weekly_capacity_hours));
+    const timeOff = timeOffEntries
+      .filter((entry) => entry.resource_id === resource.id)
+      .map((entry) => mapCalendarTimeOff(entry, resource));
 
-    if (hasOwn(resource, 'id')) mapped.id = resource.id;
-    if (name !== undefined) mapped.name = name;
-    if (role !== undefined) mapped.role = role;
-    if (hasOwn(resource, 'team')) mapped.team = resource.team;
-    if (capacity !== undefined) {
-      mapped.availability = capacity;
-      mapped.capacity = capacity;
-    }
-
-    return mapped;
+    return {
+      id: resource.id,
+      name: resource.name,
+      role: resource.role,
+      capacity,
+      availability: capacity,
+      utilization: row.utilization_percent,
+      overallocated: row.overallocated,
+      allocations,
+      timeOff,
+    };
   });
 
-  const nestedAllocations = resources.flatMap((resource) => resource.allocations || []);
-  const nestedTimeOff = resources.flatMap((resource) => resource.timeOff || []);
-  const allocations = [...nestedAllocations, ...topLevelAllocations.map((allocation) => mapCalendarAllocation(allocation))];
-  const timeOff = [...nestedTimeOff, ...topLevelTimeOff.map((entry) => mapCalendarTimeOff(entry))];
-  const projects = normalizeCollection(root, ['projects']).map((project) => ({
-    ...(hasOwn(project, 'id') ? { id: project.id } : {}),
-    ...(firstDefined(project.name, project.project_name) !== undefined ? { name: firstDefined(project.name, project.project_name) } : {}),
-  }));
-
-  return { resources, allocations, timeOff, projects };
+  return {
+    resources,
+    allocations: resources.flatMap((resource) => resource.allocations),
+    timeOff: timeOffEntries.map((entry) => mapCalendarTimeOff(entry)),
+    projects: [...projectsById.values()],
+  };
 };
 
 export const resourcesApi = {
@@ -197,7 +201,13 @@ export const resourcesApi = {
   createResourceTimeOff: async (resourceId: string, data: ApiResource) => mapCalendarTimeOff(await apiClient.post(`/api/v1/resources/${resourceId}/time-off`, toResourceTimeOffPayload(data))),
   getCapacityForecast: (resourceId: string) => apiClient.get(`/api/v1/resources/${resourceId}/capacity-forecast`),
   getAccountCalendar: (accountId: string) => apiClient.get(`/api/v1/accounts/${accountId}/resource-calendar`),
-  getAccountResourceCalendar: async (accountId: string) => mapResourceCalendar(await apiClient.get(`/api/v1/accounts/${accountId}/resource-calendar`)),
+  getAccountResourceCalendar: async (accountId: string, range: { start_date: string; end_date: string }) => {
+    const [calendar, timeOff] = await Promise.all([
+      apiClient.get(`/api/v1/accounts/${accountId}/resource-calendar`, range),
+      apiClient.get(`/api/v1/accounts/${accountId}/time-off`),
+    ]);
+    return mapResourceCalendar(calendar, normalizeCollection(timeOff));
+  },
   getAccountCapacityForecast: (accountId: string) => apiClient.get(`/api/v1/accounts/${accountId}/capacity-forecast`),
   getAccountAnalysis: (accountId: string) => apiClient.get(`/api/v1/accounts/${accountId}/resource-analysis`),
   getTaskRecommendations: (taskId: string) => apiClient.get(`/api/v1/tasks/${taskId}/resource-recommendations`),

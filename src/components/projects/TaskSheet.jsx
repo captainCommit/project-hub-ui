@@ -33,6 +33,14 @@ const taskTypeOptions = [
   { value: 'phase', label: 'Phase', icon: Flag, color: 'text-cyan-600' }
 ];
 
+const normalizeTypeKey = (value) => typeof value === 'string' ? value.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+
+// Pair an API task type option with the local icon/color for the matching built-in type.
+const getTaskTypeStyle = (option) => {
+  const keys = [option?.code, option?.name, option?.label].map(normalizeTypeKey);
+  return taskTypeOptions.find(t => keys.includes(normalizeTypeKey(t.value))) || taskTypeOptions[1];
+};
+
 const shortName = (name) => {
   if (!name) return '';
   const parts = String(name).trim().split(/\s+/);
@@ -95,6 +103,14 @@ export default function TaskSheet({
   onDeleteTask,
   onReorderTasks,
   onUpdateTaskPriority,
+  onUpdateTaskTitle,
+  onUpdateTaskDuration,
+  onUpdateTaskSchedule,
+  onUpdateTaskProgress,
+  onUpdateTaskStatus,
+  taskStatusOptions = null,
+  onUpdateTaskType,
+  taskTypeOptions: apiTaskTypeOptions = null,
   onIndentTask,
   onOutdentTask,
   onAddPredecessor,
@@ -146,6 +162,7 @@ export default function TaskSheet({
   const [raidOpen, setRaidOpen] = useState(null);
   const [pmQuery, setPmQuery] = useState(null);
   const [pmDropOpen, setPmDropOpen] = useState(false);
+  const [resourcePicker, setResourcePicker] = useState(null);
   const [pendingResourceAssignmentTaskIds, setPendingResourceAssignmentTaskIds] = useState({});
   const [resourceAssignmentErrors, setResourceAssignmentErrors] = useState({});
   const pendingResourceAssignmentRequests = useRef(new Set());
@@ -156,6 +173,12 @@ export default function TaskSheet({
   const canUseHierarchyActions = Boolean(onIndentTask && onOutdentTask);
   const canEditPredecessors = Boolean(onAddPredecessor && onRemovePredecessor);
   const canEditResourceAssignments = Boolean(enableResourceAssignments && selectedAccountId && projectId);
+  const canEditTitle = !isReadOnly || Boolean(onUpdateTaskTitle);
+  const canEditDuration = !isReadOnly || Boolean(onUpdateTaskDuration);
+  const canEditSchedule = !isReadOnly || Boolean(onUpdateTaskSchedule);
+  const canEditProgress = !isReadOnly || Boolean(onUpdateTaskProgress);
+  const canEditStatus = !isReadOnly || Boolean(onUpdateTaskStatus);
+  const canEditResources = !isReadOnly || canEditResourceAssignments;
   const showPriorityColumn = Boolean(onUpdateTaskPriority || priorityOptionsState || priorityOptions.length > 0);
   const visibleColumns = showPriorityColumn ? columns : columns.filter(column => column.key !== 'priority');
 
@@ -488,6 +511,32 @@ export default function TaskSheet({
     return fallback;
   };
 
+  // API-backed cells save once on blur/Enter instead of on every keystroke; a failed save restores the old value.
+  const getCommitOnBlurProps = (currentValue, onCommit) => {
+    const initial = currentValue === null || currentValue === undefined ? '' : String(currentValue);
+    return {
+      defaultValue: initial,
+      onBlur: (e) => {
+        const input = e.target;
+        const next = input.value.trim();
+        if (next === initial) return;
+        Promise.resolve()
+          .then(() => onCommit(next))
+          .catch(error => {
+            input.value = initial;
+            alert(getBackendSafeMessage(error, error?.message || 'We could not save this change. Please try again.'));
+          });
+      },
+      onKeyDown: (e) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+        if (e.key === 'Escape') {
+          e.currentTarget.value = initial;
+          e.currentTarget.blur();
+        }
+      },
+    };
+  };
+
   const normalizeAssignmentName = (value) => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
   const getResourceName = (resource) => resource?.name || resource?.full_name || resource?.resource_name || '';
@@ -568,15 +617,8 @@ export default function TaskSheet({
     setEditingResources(taskId);
   };
 
-  const addResourceAssignmentSafe = async (task, resource) => {
-    const taskId = task?.id;
-    const resourceId = resource?.id;
-    if (!canEditResourceAssignments || !taskId || !resourceId) return;
-
-    const assignedResources = getDisplayedAssignments(task);
-    if (assignedResources.some(assigned => isSameAssignedResource(assigned, resource))) return;
-
-    const requestKey = `${taskId}:add:${resourceId}`;
+  const runResourceRequest = async (taskId, requestKey, request) => {
+    if (!canEditResourceAssignments || !taskId) return;
     if (pendingResourceAssignmentRequests.current.has(requestKey) || pendingResourceAssignmentTaskIds[taskId]) return;
 
     pendingResourceAssignmentRequests.current.add(requestKey);
@@ -584,10 +626,10 @@ export default function TaskSheet({
     clearResourceAssignmentError(taskId);
 
     try {
-      await tasksApi.createAssignment(taskId, resource, accountResources);
+      await request();
       await invalidateAssignmentCaches(taskId);
     } catch (error) {
-      const message = getBackendSafeMessage(error, 'We could not update this task assignment. Please try again.');
+      const message = getBackendSafeMessage(error, error?.message || 'We could not update this task assignment. Please try again.');
       setResourceAssignmentErrors(prev => ({ ...prev, [taskId]: message }));
       alert(message);
     } finally {
@@ -596,29 +638,154 @@ export default function TaskSheet({
     }
   };
 
-  const removeResourceAssignmentSafe = async (task, assignment) => {
-    const taskId = task?.id;
+  const addResourceAssignmentSafe = (task, resource) => {
+    const resourceId = resource?.id;
+    if (!resourceId) return;
+    if (getDisplayedAssignments(task).some(assigned => isSameAssignedResource(assigned, resource))) return;
+    return runResourceRequest(task?.id, `${task?.id}:add:${resourceId}`, () => tasksApi.createAssignment(task.id, resource, accountResources));
+  };
+
+  const removeResourceAssignmentSafe = (task, assignment) => {
     const assignmentId = assignment?.assignment_id || assignment?.id;
-    if (!canEditResourceAssignments || !taskId || !assignmentId) return;
+    if (!assignmentId) return;
+    return runResourceRequest(task?.id, `${task?.id}:delete:${assignmentId}`, () => tasksApi.deleteAssignment(task.id, assignmentId));
+  };
 
-    const requestKey = `${taskId}:delete:${assignmentId}`;
-    if (pendingResourceAssignmentRequests.current.has(requestKey) || pendingResourceAssignmentTaskIds[taskId]) return;
+  const parseHoursInput = (value) => {
+    const text = String(value ?? '').trim();
+    if (!text) return null;
+    const hours = Number(text);
+    if (!Number.isFinite(hours) || hours < 0) throw new Error('Enter hours as a non-negative number.');
+    return hours;
+  };
 
-    pendingResourceAssignmentRequests.current.add(requestKey);
-    setResourceAssignmentPending(taskId, true);
-    clearResourceAssignmentError(taskId);
+  const updateAssignmentHoursSafe = (task, entry, value) => runResourceRequest(
+    task?.id,
+    `${task?.id}:hours:${entry.id}`,
+    () => tasksApi.updateAssignment(entry.id, { hours: parseHoursInput(value) })
+  );
 
-    try {
-      await tasksApi.deleteAssignment(taskId, assignmentId);
-      await invalidateAssignmentCaches(taskId);
-    } catch (error) {
-      const message = getBackendSafeMessage(error, 'We could not update this task assignment. Please try again.');
-      setResourceAssignmentErrors(prev => ({ ...prev, [taskId]: message }));
-      alert(message);
-    } finally {
-      pendingResourceAssignmentRequests.current.delete(requestKey);
-      setResourceAssignmentPending(taskId, false);
-    }
+  const addResourceAllocationSafe = (task, resource) => {
+    if (!resource?.id) return;
+    return runResourceRequest(task?.id, `${task?.id}:allocate:${resource.id}`, () => tasksApi.createAllocation(task.id, {
+      resource_id: resource.id,
+      start_date: task.start_date || null,
+      end_date: task.due_date || null,
+    }));
+  };
+
+  const removeResourceAllocationSafe = (task, entry) => runResourceRequest(
+    task?.id,
+    `${task?.id}:deallocate:${entry.id}`,
+    () => tasksApi.deleteAllocation(entry.id)
+  );
+
+  const updateAllocationHoursSafe = (task, entry, value) => runResourceRequest(
+    task?.id,
+    `${task?.id}:allocation-hours:${entry.id}`,
+    () => tasksApi.updateAllocation(entry.id, { allocated_hours: parseHoursInput(value) })
+  );
+
+  const getAssignmentEntries = (task) => (task.assignments || [])
+    .map(assignment => {
+      const match = assignment?.user_id ? accountResources.find(resource => resource?.user_id === assignment.user_id) : null;
+      const resourceName = assignment?.resource_name || getResourceName(match);
+      if (!assignment?.id || !resourceName) return null;
+      return { id: assignment.id, resource_name: resourceName, user_id: assignment.user_id || null, resource_id: match?.id, hours: assignment.hours };
+    })
+    .filter(Boolean);
+
+  const getAllocationEntries = (task) => (task.allocations || [])
+    .filter(allocation => allocation?.id && allocation.resource_name)
+    .map(allocation => ({ id: allocation.id, resource_name: allocation.resource_name, resource_id: allocation.resource_id, hours: allocation.allocated_hours }));
+
+  // Shared cell for API-backed Resources (Actual) assignments and Resources (Planned) allocations.
+  const renderApiResourceCell = ({ task, kind, cellKey, cellClass, style, entries, chipClassName, hoursClassName, onAdd, onRemove, onSaveHours }) => {
+    const isPending = Boolean(pendingResourceAssignmentTaskIds[task.id]);
+    const candidates = getResourceCandidates(entries);
+    const pickerKey = `${kind}|${task.id}`;
+    const hasHours = (hours) => hours !== null && hours !== undefined && hours !== '';
+
+    return (
+      <td key={cellKey} className={cn(cellClass, "text-left")} onClick={() => setSelectedCell(cellKey)} style={style} title={resourceAssignmentErrors[task.id]}>
+        <div className="flex flex-wrap items-center gap-1 px-1">
+          {entries.map(entry => {
+            const hoursKey = `${pickerKey}|${entry.id}`;
+            return (
+              <Popover key={entry.id} open={editingHours === hoursKey} onOpenChange={open => {
+                if (open && !isPending) { setEditingHours(hoursKey); setHoursInput(hasHours(entry.hours) ? String(Number(entry.hours)) : ''); }
+                else setEditingHours(null);
+              }}>
+                <PopoverTrigger asChild>
+                  <button type="button" onClick={e => e.stopPropagation()} title="Click to set hours"
+                    className={cn("inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs transition-colors", chipClassName)}>
+                    {shortName(entry.resource_name)}
+                    {hasHours(entry.hours) && <span className={cn("text-[10px] font-semibold", hoursClassName)}>·{Number(entry.hours)}h</span>}
+                    <span
+                      title="Remove"
+                      onClick={(e) => { e.stopPropagation(); if (!isPending) onRemove(entry); }}
+                      className="hover:text-red-500 leading-none"
+                    >×</span>
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-44 p-2" onClick={e => e.stopPropagation()}>
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-slate-700">{entry.resource_name}</p>
+                    <p className="text-[10px] text-slate-400">{kind === 'planned' ? 'Planned hours for this task' : 'Hours allocated to this task'}</p>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      autoFocus
+                      value={hoursInput}
+                      onChange={e => setHoursInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') { onSaveHours(entry, hoursInput); setEditingHours(null); }
+                        if (e.key === 'Escape') setEditingHours(null);
+                      }}
+                      className="h-7 text-sm"
+                      placeholder="e.g. 8"
+                    />
+                    <div className="flex gap-1 justify-end">
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditingHours(null)}>Cancel</Button>
+                      <Button size="sm" className="h-7 text-xs" onClick={() => { onSaveHours(entry, hoursInput); setEditingHours(null); }}>Save</Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            );
+          })}
+          <Popover open={resourcePicker === pickerKey} onOpenChange={open => setResourcePicker(open && !isPending ? pickerKey : null)}>
+            <PopoverTrigger asChild>
+              <button type="button" onClick={e => e.stopPropagation()} disabled={isPending} className="text-xs text-slate-400 hover:text-indigo-600 disabled:cursor-not-allowed">
+                {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : '+'}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-1" onClick={e => e.stopPropagation()}>
+              <div className="max-h-48 overflow-y-auto">
+                {accountResourcesState?.isLoading ? (
+                  <p className="text-xs text-slate-400 px-2 py-1.5">Loading resources…</p>
+                ) : accountResourcesState?.isError ? (
+                  renderPrioritySafeState('Resources could not load.', accountResourcesState.onRetry)
+                ) : candidates.length === 0 ? (
+                  <p className="text-xs text-slate-400 px-2 py-1.5">No more resources to add.</p>
+                ) : candidates.map(resource => (
+                  <button
+                    key={resource.id}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setResourcePicker(null); onAdd(resource); }}
+                    className="w-full text-left px-2 py-1.5 text-xs hover:bg-indigo-50 rounded"
+                  >
+                    <span className="block text-slate-700">{getResourceName(resource)}</span>
+                    {getResourceRoleTeam(resource) && <span className="block text-[10px] text-slate-400">{getResourceRoleTeam(resource)}</span>}
+                  </button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </td>
+    );
   };
 
   const handleResourceRemove = (taskId, resource) => {
@@ -1081,15 +1248,30 @@ export default function TaskSheet({
           </td>
         );
 
-      case 'task_type':
-        const typeOption = taskTypeOptions.find(t => t.value === task.task_type) || taskTypeOptions[1];
+      case 'task_type': {
+        // API-backed sheets use the account's task type options, keyed by task_type_id.
+        const useApiTypes = Boolean(onUpdateTaskType && apiTaskTypeOptions?.length);
+        const rowTypeOptions = useApiTypes
+          ? apiTaskTypeOptions.map(option => ({ ...getTaskTypeStyle(option), value: option.value, label: option.label }))
+          : taskTypeOptions;
+        const typeValue = useApiTypes ? (task.task_type_id || undefined) : (task.task_type || 'activity');
+        const typeOption = rowTypeOptions.find(t => t.value === typeValue)
+          || (useApiTypes ? getTaskTypeStyle({ name: task.task_type }) : taskTypeOptions[1]);
         const TypeIcon = typeOption.icon;
         return (
           <td key={cellKey} className={cellClass} onClick={() => setSelectedCell(cellKey)} style={{ ...cellStyle, ...cellStyles }}>
             <Select 
-              value={task.task_type || 'activity'} 
-              onValueChange={(value) => handleTaskTypeChange(task.id, value)}
-              disabled={isReadOnly}
+              value={typeValue} 
+              onValueChange={(value) => {
+                if (!useApiTypes) {
+                  handleTaskTypeChange(task.id, value);
+                  return;
+                }
+                if (value === task.task_type_id) return;
+                Promise.resolve(onUpdateTaskType(task.id, { task_type_id: value }))
+                  .catch(error => alert(getBackendSafeMessage(error, 'We could not save this task type. Please try again.')));
+              }}
+              disabled={!useApiTypes && isReadOnly}
             >
               <SelectTrigger className="h-7 border-0 bg-transparent text-xs">
                 <SelectValue>
@@ -1099,7 +1281,7 @@ export default function TaskSheet({
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {taskTypeOptions.map(option => {
+                {rowTypeOptions.map(option => {
                   const Icon = option.icon;
                   return (
                     <SelectItem key={option.value} value={option.value}>
@@ -1114,6 +1296,7 @@ export default function TaskSheet({
             </Select>
           </td>
         );
+      }
       
       case 'title':
         const hasVacationConflict = isResourceOnVacation(task);
@@ -1166,9 +1349,17 @@ export default function TaskSheet({
                 );
               })()}
               <Input
-                value={task.title || ''}
-                readOnly={isReadOnly}
-                onChange={(e) => updateTaskSafe(task.id, { title: e.target.value })}
+                key={onUpdateTaskTitle ? `title:${task.title || ''}` : undefined}
+                {...(onUpdateTaskTitle ? {
+                  ...getCommitOnBlurProps(task.title, (value) => {
+                    if (!value) throw new Error('Task name cannot be empty.');
+                    return onUpdateTaskTitle(task.id, { title: value });
+                  }),
+                } : {
+                  value: task.title || '',
+                  readOnly: !canEditTitle,
+                  onChange: (e) => updateTaskSafe(task.id, { title: e.target.value }),
+                })}
                 className={cn(
                   "border-0 bg-transparent focus-visible:ring-0 h-7 px-1 text-sm",
                   (() => {
@@ -1192,9 +1383,11 @@ export default function TaskSheet({
             <input
               type="number"
               min="0"
-              value={durVal}
-              onChange={(e) => updateTaskSafe(task.id, { duration: parseInt(e.target.value) || 0 })}
-              disabled={isReadOnly || task.task_type === 'milestone'}
+              key={onUpdateTaskDuration ? `duration:${durVal}` : undefined}
+              {...(onUpdateTaskDuration
+                ? getCommitOnBlurProps(durVal, (value) => onUpdateTaskDuration(task.id, { duration: value }))
+                : { value: durVal, onChange: (e) => updateTaskSafe(task.id, { duration: parseInt(e.target.value) || 0 }) })}
+              disabled={!canEditDuration || task.task_type === 'milestone'}
               className="w-full h-full bg-transparent border-0 outline-none text-sm text-center px-1 focus:ring-1 focus:ring-inset focus:ring-blue-400"
             />
           </td>
@@ -1206,14 +1399,19 @@ export default function TaskSheet({
           <td key={cellKey} className={cellClass} onClick={() => setSelectedCell(cellKey)} style={{ ...cellStyle, ...cellStyles }}>
             <Input
               type="date"
-              value={task.start_date || ''}
-              readOnly={isReadOnly}
-              onChange={(e) => {
-                const newStart = e.target.value;
-                const updates = { start_date: newStart };
-                if (newStart && task.due_date) updates.duration = calculateDuration(newStart, task.due_date);
-                updateTaskSafe(task.id, updates);
-              }}
+              key={onUpdateTaskSchedule ? `start:${task.start_date || ''}` : undefined}
+              {...(onUpdateTaskSchedule
+                ? getCommitOnBlurProps(task.start_date, (value) => onUpdateTaskSchedule(task.id, { start_date: value }))
+                : {
+                  value: task.start_date || '',
+                  readOnly: !canEditSchedule,
+                  onChange: (e) => {
+                    const newStart = e.target.value;
+                    const updates = { start_date: newStart };
+                    if (newStart && task.due_date) updates.duration = calculateDuration(newStart, task.due_date);
+                    updateTaskSafe(task.id, updates);
+                  },
+                })}
               className="border-0 bg-transparent focus-visible:ring-0 h-7 text-xs w-full"
             />
           </td>
@@ -1224,14 +1422,19 @@ export default function TaskSheet({
           <td key={cellKey} className={cellClass} onClick={() => setSelectedCell(cellKey)} style={{ ...cellStyle, ...cellStyles }}>
             <Input
               type="date"
-              value={task.due_date || ''}
-              readOnly={isReadOnly}
-              onChange={(e) => {
-                const newEnd = e.target.value;
-                const updates = { due_date: newEnd };
-                if (task.start_date && newEnd) updates.duration = calculateDuration(task.start_date, newEnd);
-                updateTaskSafe(task.id, updates);
-              }}
+              key={onUpdateTaskSchedule ? `finish:${task.due_date || ''}` : undefined}
+              {...(onUpdateTaskSchedule
+                ? getCommitOnBlurProps(task.due_date, (value) => onUpdateTaskSchedule(task.id, { finish_date: value }))
+                : {
+                  value: task.due_date || '',
+                  readOnly: !canEditSchedule,
+                  onChange: (e) => {
+                    const newEnd = e.target.value;
+                    const updates = { due_date: newEnd };
+                    if (task.start_date && newEnd) updates.duration = calculateDuration(task.start_date, newEnd);
+                    updateTaskSafe(task.id, updates);
+                  },
+                })}
               className="border-0 bg-transparent focus-visible:ring-0 h-7 text-xs w-full"
             />
           </td>
@@ -1329,26 +1532,35 @@ export default function TaskSheet({
           </td>
         );
       
-      case 'status':
+      case 'status': {
+        // API-backed sheets use the account's status options, keyed by status_id.
+        const rowStatusOptions = onUpdateTaskStatus && taskStatusOptions ? taskStatusOptions : statusOptions;
+        const statusValue = onUpdateTaskStatus && taskStatusOptions ? (task.status_id || undefined) : (task.status || 'not_started');
+        const selectedStatus = rowStatusOptions.find(option => option.value === statusValue);
         return (
           <td key={cellKey} className={cellClass} onClick={() => setSelectedCell(cellKey)} style={{ ...cellStyle, ...cellStyles }}>
             <Select 
-              value={task.status || 'not_started'} 
-              onValueChange={(value) => updateTaskSafe(task.id, { status: value })}
-              disabled={isReadOnly}
+              value={statusValue} 
+              onValueChange={(value) => {
+                if (!onUpdateTaskStatus) {
+                  updateTaskSafe(task.id, { status: value });
+                  return;
+                }
+                if (value === task.status_id) return;
+                Promise.resolve(onUpdateTaskStatus(task.id, { status_id: value }))
+                  .catch(error => alert(getBackendSafeMessage(error, 'We could not save this status. Please try again.')));
+              }}
+              disabled={!canEditStatus}
             >
               <SelectTrigger className="h-7 border-0 bg-transparent text-xs">
                 <SelectValue>
-                  <span className={cn(
-                    "px-1.5 py-0.5 rounded text-xs",
-                    statusOptions.find(s => s.value === task.status)?.color
-                  )}>
-                    {statusOptions.find(s => s.value === task.status)?.label || 'Not Started'}
+                  <span className={cn("px-1.5 py-0.5 rounded text-xs", selectedStatus?.color)}>
+                    {selectedStatus?.label || task.status || 'Not Started'}
                   </span>
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {statusOptions.map(option => (
+                {rowStatusOptions.map(option => (
                   <SelectItem key={option.value} value={option.value}>
                     <span className={cn("px-1.5 py-0.5 rounded text-xs", option.color)}>
                       {option.label}
@@ -1359,6 +1571,7 @@ export default function TaskSheet({
             </Select>
           </td>
         );
+      }
 
       case 'priority': {
         const selectedPriorityOption = resolveTaskPriorityOption(task, priorityOptions, priorityDrafts);
@@ -1420,6 +1633,17 @@ export default function TaskSheet({
       }
       
       case 'resources':
+        if (canEditResourceAssignments) {
+          return renderApiResourceCell({
+            task, kind: 'actual', cellKey, cellClass, style: { ...cellStyle, ...cellStyles },
+            entries: getAssignmentEntries(task),
+            chipClassName: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200',
+            hoursClassName: 'text-indigo-500',
+            onAdd: (resource) => addResourceAssignmentSafe(task, resource),
+            onRemove: (entry) => removeResourceAssignmentSafe(task, entry),
+            onSaveHours: (entry, value) => updateAssignmentHoursSafe(task, entry, value),
+          });
+        }
         const resources = task.resources || [];
         const isEditing = editingResources === task.id;
         return (
@@ -1515,6 +1739,17 @@ export default function TaskSheet({
         );
 
       case 'resources_planned': {
+        if (canEditResourceAssignments) {
+          return renderApiResourceCell({
+            task, kind: 'planned', cellKey, cellClass, style: { ...cellStyle, ...cellStyles },
+            entries: getAllocationEntries(task),
+            chipClassName: 'bg-amber-100 text-amber-700 hover:bg-amber-200',
+            hoursClassName: 'text-amber-500',
+            onAdd: (resource) => addResourceAllocationSafe(task, resource),
+            onRemove: (entry) => removeResourceAllocationSafe(task, entry),
+            onSaveHours: (entry, value) => updateAllocationHoursSafe(task, entry, value),
+          });
+        }
         const planned = task.resources_planned || [];
         const getPlannedHours = (resource) => {
           const entry = (task.resource_hours_planned || []).find(h => h.resource === resource);
@@ -1553,9 +1788,14 @@ export default function TaskSheet({
                 type="number"
                 min="0"
                 max="100"
-                value={task.progress || 0}
-                readOnly={isReadOnly}
-                onChange={(e) => updateTaskSafe(task.id, { progress: parseInt(e.target.value) || 0 })}
+                key={onUpdateTaskProgress ? `progress:${task.progress || 0}` : undefined}
+                {...(onUpdateTaskProgress
+                  ? getCommitOnBlurProps(task.progress || 0, (value) => onUpdateTaskProgress(task.id, { progress: value }))
+                  : {
+                    value: task.progress || 0,
+                    readOnly: !canEditProgress,
+                    onChange: (e) => updateTaskSafe(task.id, { progress: parseInt(e.target.value) || 0 }),
+                  })}
                 className="border-0 bg-transparent focus-visible:ring-0 h-7 text-xs w-10 p-0 text-center"
               />
             </div>

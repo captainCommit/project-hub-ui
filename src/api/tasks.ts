@@ -17,6 +17,15 @@ type TaskAssignmentRead = {
   created_at?: string;
 };
 
+type TaskAllocationRead = {
+  id?: string;
+  resource_id?: string;
+  resource_name?: string | null;
+  allocated_hours?: string | number | null;
+  start_date?: string | null;
+  end_date?: string | null;
+};
+
 export type TaskSheetResourceAssignment = {
   id: string;
   assignment_id?: string;
@@ -59,6 +68,7 @@ export type ProjectHubTaskRead = {
   priority?: LookupSummary | string | null;
   predecessors?: TaskPredecessorRead[] | string[] | null;
   assignments?: TaskAssignmentRead[] | null;
+  allocations?: TaskAllocationRead[] | null;
   children?: ProjectHubTaskRead[];
   [key: string]: unknown;
 };
@@ -91,6 +101,7 @@ export type TaskSheetRow = {
   predecessors?: string[];
   predecessor_links?: TaskPredecessorRead[] | string[];
   assignments?: TaskAssignmentRead[];
+  allocations?: TaskAllocationRead[];
   resources?: string[];
   indent_level?: number;
   children?: string[];
@@ -515,6 +526,7 @@ export const mapTaskReadToTaskSheetRow = (task: ProjectHubTaskRead, depth = 0): 
     priority_summary: task.priority,
     predecessor_links: Array.isArray(task.predecessors) ? task.predecessors : undefined,
     assignments: Array.isArray(task.assignments) ? task.assignments : undefined,
+    allocations: Array.isArray(task.allocations) ? task.allocations : undefined,
     indent_level: depth,
   };
 
@@ -527,6 +539,13 @@ export const mapTaskReadToTaskSheetRow = (task: ProjectHubTaskRead, depth = 0): 
     row.resource_hours = task.assignments
       .filter((assignment) => assignment?.resource_name && assignment.hours !== null && assignment.hours !== undefined)
       .map((assignment) => ({ resource: assignment.resource_name as string, hours: Number(assignment.hours) }));
+  }
+  if (Array.isArray(task.allocations)) {
+    const allocations = task.allocations.filter((allocation) => allocation?.resource_name);
+    row.resources_planned = allocations.map((allocation) => allocation.resource_name as string);
+    row.resource_hours_planned = allocations
+      .filter((allocation) => allocation.allocated_hours !== null && allocation.allocated_hours !== undefined)
+      .map((allocation) => ({ resource: allocation.resource_name as string, hours: Number(allocation.allocated_hours) }));
   }
   if (childIds && childIds.length > 0) row.children = childIds;
 
@@ -763,10 +782,20 @@ const getTaskStatusOptionSets = (accountOptions: unknown): Record<string, unknow
   return sets;
 };
 
-const isTaskStatusOptionSet = (optionSet: Record<string, unknown>): boolean => {
-  const normalizedCandidates = ['key', 'code', 'name', 'label'].map((key) => normalizeOptionText(optionSet[key]));
-  return normalizedCandidates.some((candidate) => TASK_STATUS_OPTION_SET_KEYS.has(candidate));
+// The options API returns sets like { entity_type: 'TASK', name: 'STATUS' }, so also match on the combined key.
+const getOptionSetCandidates = (optionSet: Record<string, unknown>): string[] => [
+  ...['key', 'code', 'name', 'label'].map((key) => normalizeOptionText(optionSet[key])),
+  normalizeOptionText(optionSet.entity_type) + normalizeOptionText(optionSet.name),
+];
+
+// Sets with the same name exist per entity (e.g. RISK/ISSUE PRIORITY), so skip any set scoped to another entity.
+const isTaskOptionSet = (optionSet: Record<string, unknown>, keys: Set<string>): boolean => {
+  const entityType = normalizeOptionText(optionSet.entity_type);
+  if (entityType && entityType !== 'task') return false;
+  return getOptionSetCandidates(optionSet).some((candidate) => keys.has(candidate));
 };
+
+const isTaskStatusOptionSet = (optionSet: Record<string, unknown>): boolean => isTaskOptionSet(optionSet, TASK_STATUS_OPTION_SET_KEYS);
 
 const getOptionValues = (optionSet: Record<string, unknown>): unknown[] => {
   for (const key of ['values', 'options', 'option_values', 'optionValues', 'items']) {
@@ -826,10 +855,7 @@ export const mapAccountOptionsToTaskStatusOptions = (accountOptions: unknown): T
   };
 };
 
-const isTaskTypeOptionSet = (optionSet: Record<string, unknown>): boolean => {
-  const normalizedCandidates = ['key', 'code', 'name', 'label'].map((key) => normalizeOptionText(optionSet[key]));
-  return normalizedCandidates.some((candidate) => TASK_TYPE_OPTION_SET_KEYS.has(candidate));
-};
+const isTaskTypeOptionSet = (optionSet: Record<string, unknown>): boolean => isTaskOptionSet(optionSet, TASK_TYPE_OPTION_SET_KEYS);
 
 const mapTaskTypeOptionValue = (optionValueInput: unknown): TaskTypeOptionValue | null => {
   const optionValue = getObject(optionValueInput);
@@ -875,10 +901,7 @@ const PRIORITY_COLOR_CLASSES: Record<string, string> = {
   low: 'bg-slate-100 text-slate-600',
 };
 
-const isTaskPriorityOptionSet = (optionSet: Record<string, unknown>): boolean => {
-  const normalizedCandidates = ['key', 'code', 'name', 'label'].map((key) => normalizeOptionText(optionSet[key]));
-  return normalizedCandidates.some((candidate) => TASK_PRIORITY_OPTION_SET_KEYS.has(candidate));
-};
+const isTaskPriorityOptionSet = (optionSet: Record<string, unknown>): boolean => isTaskOptionSet(optionSet, TASK_PRIORITY_OPTION_SET_KEYS);
 
 const getPriorityColorClass = (optionValue: Record<string, unknown>, label: string): string | undefined => {
   const color = getString(optionValue, ['color_class', 'colorClass', 'className', 'color']);
@@ -1168,7 +1191,11 @@ export const tasksApi = {
   deletePredecessor: (taskId: string, predecessorId: string) => apiClient.delete(`/api/v1/tasks/${taskId}/predecessors/${predecessorId}`),
   listAssignments: async (taskId: string, accountResources: unknown[] = []) => mapTaskAssignmentsToTaskSheetResources(await apiClient.get(`/api/v1/tasks/${taskId}/assignments`), accountResources),
   createAssignment: async (taskId: string, data: unknown, accountResources: unknown[] = []) => mapTaskAssignmentToTaskSheetResource(await apiClient.post(`/api/v1/tasks/${taskId}/assignments`, mapTaskResourceToAssignmentCreatePayload(data)), accountResources),
+  updateAssignment: (assignmentId: string, data: unknown) => apiClient.patch(`/api/v1/task-assignments/${assignmentId}`, data),
   deleteAssignment: (taskId: string, assignmentId: string) => apiClient.delete(`/api/v1/tasks/${taskId}/assignments/${assignmentId}`),
+  createAllocation: (taskId: string, data: unknown) => apiClient.post(`/api/v1/tasks/${taskId}/resource-allocations`, data),
+  updateAllocation: (allocationId: string, data: unknown) => apiClient.patch(`/api/v1/resource-allocations/${allocationId}`, data),
+  deleteAllocation: (allocationId: string) => apiClient.delete(`/api/v1/resource-allocations/${allocationId}`),
   delete: (taskId: string) => apiClient.delete(`/api/v1/tasks/${taskId}`),
   listDue: (accountId: string, query?: Record<string, unknown>) => apiClient.get(`/api/v1/accounts/${accountId}/tasks/due`, query),
   listDueTasks: async (accountId: string, query?: Record<string, unknown>) => mapDueTasks(await apiClient.get(`/api/v1/accounts/${accountId}/tasks/due`, query)),

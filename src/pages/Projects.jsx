@@ -19,11 +19,12 @@ import ProjectDialog from '@/components/projects/ProjectDialog';
 import ViewToggle from '@/components/projects/ViewToggle';
 import ResourceCalendar from '@/components/projects/ResourceCalendar';
 import AuditView from '@/components/projects/AuditView';
-import { Loader2, Share2, Settings } from 'lucide-react';
+import { Loader2, Share2, Settings, Edit2 } from 'lucide-react';
 import { useState as _useState } from 'react';
 import ExportMenu from '@/components/projects/ExportMenu';
 import ShareDialog from '@/components/projects/ShareDialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import PortfolioOverview from '@/components/projects/PortfolioOverview';
 import ProgramsSummary from '@/components/projects/ProgramsSummary';
 import ProjectsSummary from '@/components/projects/ProjectsSummary';
@@ -267,6 +268,7 @@ export default function Projects() {
   const [dialogType, setDialogType] = useState('project');
   const [vacationCalendarOpen, setVacationCalendarOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [projectNameDraft, setProjectNameDraft] = useState(null);
   const [optimisticProjectBoard, setOptimisticProjectBoard] = useState(null);
   const [projectSheetPriorityDrafts, setProjectSheetPriorityDrafts] = useState({});
   const [projectSheetPriorityErrors, setProjectSheetPriorityErrors] = useState({});
@@ -720,6 +722,16 @@ export default function Projects() {
     onError: (error) => alert(error.message),
   });
 
+  const renameRouteProject = useMutation({
+    mutationFn: ({ id, name }) => projectsApi.update(id, { name }),
+    onSuccess: (_updatedProject, { id }) => {
+      setProjectNameDraft(null);
+      invalidateProjectQueries({ id, program_id: projectDetail?.program_id });
+      invalidateHierarchy(queryClient);
+    },
+    onError: (error) => alert(getBackendSafeMessage(error, 'We could not rename this project. Please try again.')),
+  });
+
   const invalidateAccountTasks = () => queryClient.invalidateQueries({ queryKey: ['account-tasks'] });
 
   const createTask = useMutation({
@@ -1131,6 +1143,19 @@ export default function Projects() {
 
   const handleUpdateProjectSheetTaskStatus = (id, data) => {
     return updateProjectSheetTaskStatus.mutateAsync({ id, data });
+  };
+
+  const handleUpdateProjectSheetTaskSchedule = (id, data) => {
+    return updateProjectGanttTaskSchedule.mutateAsync({ id, data });
+  };
+
+  const handleSaveProjectName = () => {
+    const name = projectNameDraft?.trim();
+    if (!projectDetail?.id || !name || name === projectDetail.name) {
+      setProjectNameDraft(null);
+      return;
+    }
+    renameRouteProject.mutate({ id: projectDetail.id, name });
   };
 
   const handleUpdateProjectSheetTaskPriority = async (id, data) => {
@@ -1609,9 +1634,29 @@ export default function Projects() {
               <div className="mb-4">
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h1 className="text-2xl font-bold text-slate-800">{projectDetail.name}</h1>
-                    </div>
+                    {projectNameDraft !== null ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={projectNameDraft}
+                          onChange={(e) => setProjectNameDraft(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleSaveProjectName(); if (e.key === 'Escape') setProjectNameDraft(null); }}
+                          disabled={renameRouteProject.isPending}
+                          className="text-2xl font-bold h-10 max-w-md"
+                          autoFocus
+                        />
+                        <Button size="sm" onClick={handleSaveProjectName} disabled={renameRouteProject.isPending}>
+                          {renameRouteProject.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save'}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setProjectNameDraft(null)} disabled={renameRouteProject.isPending}>Cancel</Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <h1 className="text-2xl font-bold text-slate-800">{projectDetail.name}</h1>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Rename project" onClick={() => setProjectNameDraft(projectDetail.name || '')}>
+                          <Edit2 className="w-3.5 h-3.5 text-slate-400" />
+                        </Button>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5 flex-wrap">
                       <button
                         onClick={() => projectDetail.program_id ? navigate(`/programs/${projectDetail.program_id}`) : navigate('/Projects?view=all_programs')}
@@ -1655,6 +1700,14 @@ export default function Projects() {
                     projects={[]}
                     programs={programs}
                     onUpdateTaskPriority={handleUpdateProjectSheetTaskPriority}
+                    onUpdateTaskTitle={handleUpdateProjectSheetTaskTitle}
+                    onUpdateTaskDuration={handleUpdateProjectSheetTaskDuration}
+                    onUpdateTaskSchedule={handleUpdateProjectSheetTaskSchedule}
+                    onUpdateTaskProgress={handleUpdateProjectSheetTaskProgress}
+                    onUpdateTaskStatus={projectSheetTaskStatusOptions.activeOptions.length > 0 ? handleUpdateProjectSheetTaskStatus : undefined}
+                    taskStatusOptions={projectSheetTaskStatusOptions.activeOptions}
+                    onUpdateTaskType={projectSheetTaskTypeOptions.activeOptions.length > 0 ? handleUpdateProjectSheetTaskType : undefined}
+                    taskTypeOptions={projectSheetTaskTypeOptions.activeOptions}
                     priorityOptions={projectSheetTaskPriorityOptions.activeOptions}
                     priorityOptionsState={{
                       isLoading: projectSheetAccountOptionsQuery.isLoading,
@@ -1677,6 +1730,7 @@ export default function Projects() {
                     onReorderTasks={handleReorderProjectSheetTasks}
                     isReorderingTasks={isReorderingProjectSheetTasks}
                     readOnly
+                    hideProjectHeader
                     viewMode="project"
                     vacations={vacations}
                     risks={routedProjectData.risks}

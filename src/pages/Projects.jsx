@@ -1,6 +1,5 @@
 // @ts-nocheck
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { portfoliosApi } from '@/api/portfolios';
@@ -8,7 +7,7 @@ import { programsApi } from '@/api/programs';
 import { projectsApi } from '@/api/projects';
 import { activityApi } from '@/api/activity';
 import { resourcesApi } from '@/api/resources';
-import { tasksApi, mapTaskTreeToSheetRows, mapTaskSheetInputToCreatePayload, mapTaskSheetInputToTitleUpdatePayload, mapTaskSheetInputToDurationUpdatePayload, mapTaskSheetInputToProgressUpdatePayload, mapTaskSheetInputToStatusUpdatePayload, mapTaskGanttDateUpdatePayload, mapProjectBoardToKanban, mapTaskBoardPositionToPayload, mapProjectGanttToGanttTasks, mapAccountOptionsToTaskStatusOptions, mapAccountOptionsToTaskTypeOptions, mapAccountOptionsToTaskPriorityOptions } from '@/api/tasks';
+import { tasksApi, mapTaskFormToPayload, mapTaskTreeToSheetRows, mapTaskSheetInputToCreatePayload, mapTaskSheetInputToTitleUpdatePayload, mapTaskSheetInputToDurationUpdatePayload, mapTaskSheetInputToProgressUpdatePayload, mapTaskSheetInputToStatusUpdatePayload, mapTaskGanttDateUpdatePayload, mapProjectBoardToKanban, mapTaskBoardPositionToPayload, mapProjectGanttToGanttTasks, mapAccountOptionsToTaskStatusOptions, mapAccountOptionsToTaskTypeOptions, mapAccountOptionsToTaskPriorityOptions } from '@/api/tasks';
 import { useAuth } from '@/lib/AuthContext';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import GanttChart from '@/components/projects/GanttChart';
@@ -41,6 +40,10 @@ import ReportGenerator from '@/components/projects/ReportGenerator';
 import ProgramsLanding from '@/components/projects/ProgramsLanding';
 import { parseISO, isValid, isBefore, isAfter, addDays } from 'date-fns';
 import AIAssistantWidget from '@/components/projects/AIAssistantWidget';
+import { mapIssueListFromApi, mapRiskListFromApi, raidApi } from '@/api/raid';
+import { raidEntityAdapters } from '@/api/raidEntities';
+import { mapTaskToUserStory } from '@/api/accountData';
+import { invalidateHierarchy, useAccountChangeRequests, useAccountDecisions, useAccountHierarchy, useAccountResources, useAccountSprints, useAccountTasks, useAccountVacations } from '@/hooks/useAccountLookups';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PROJECT_TABS = ['sheet', 'board', 'gantt', 'audit'];
@@ -567,20 +570,12 @@ export default function Projects() {
     return fallback;
   };
 
-  // Fetch all data
-  const { data: legacyProjects = [], isLoading: loadingProjects } = useQuery({
-    queryKey: ['projects'],
-    queryFn: () => base44.entities.Project.list('-created_date'),
-    enabled: legacyDataEnabled,
-    initialData: [],
-  });
-
-  const { data: legacyPrograms = [], isLoading: loadingPrograms } = useQuery({
-    queryKey: ['programs'],
-    queryFn: () => base44.entities.Program.list('-created_date'),
-    enabled: legacyDataEnabled,
-    initialData: [],
-  });
+  // Account-wide data for the non-routed views (landing pages, summaries, RAID rollups).
+  const accountHierarchy = useAccountHierarchy();
+  const legacyProjects = accountHierarchy.projects;
+  const legacyPrograms = accountHierarchy.programs;
+  const loadingProjects = legacyDataEnabled && accountHierarchy.isLoading;
+  const loadingPrograms = loadingProjects;
 
   const portfolios = accountPortfolios;
   const loadingPortfolios = loadingAccountPortfolios;
@@ -588,100 +583,70 @@ export default function Projects() {
   const programs = useProgramHierarchyData ? accountProgramsProjects.programs : legacyPrograms;
   const projects = useProgramHierarchyData ? accountProgramsProjects.projects : legacyProjects;
 
-  const { data: vacations = [] } = useQuery({
-    queryKey: ['resource_vacations'],
-    queryFn: () => base44.entities.ResourceVacation.list(),
-    initialData: [],
-    enabled: legacyDataEnabled,
-  });
-
+  const vacations = useAccountVacations();
+  const resources = useAccountResources();
   const { data: risks = [] } = useQuery({
-    queryKey: ['risks'],
-    queryFn: () => base44.entities.Risk.list(),
-    initialData: [],
-    enabled: legacyDataEnabled,
+    queryKey: ['account-risks', selectedAccountId],
+    queryFn: async () => mapRiskListFromApi(await raidApi.listAccountRisks(selectedAccountId)),
+    enabled: !!selectedAccountId,
   });
-
   const { data: issues = [] } = useQuery({
-    queryKey: ['issues'],
-    queryFn: () => base44.entities.Issue.list(),
-    initialData: [],
-    enabled: legacyDataEnabled,
+    queryKey: ['account-issues', selectedAccountId],
+    queryFn: async () => mapIssueListFromApi(await raidApi.listAccountIssues(selectedAccountId)),
+    enabled: !!selectedAccountId,
   });
-
   const { data: assumptions = [] } = useQuery({
-    queryKey: ['assumptions'],
-    queryFn: () => base44.entities.Assumption.list(),
-    initialData: [],
-    enabled: legacyDataEnabled,
+    queryKey: ['assumptions', selectedAccountId],
+    queryFn: () => raidEntityAdapters.Assumption.list(selectedAccountId),
+    enabled: !!selectedAccountId,
   });
+  const decisions = useAccountDecisions();
+  const { changeRequests } = useAccountChangeRequests();
+  const sprints = useAccountSprints();
+  const { tasks: accountTasks, isLoading: loadingAccountTasks } = useAccountTasks();
+  // Sprint-scoped tasks are the API's user stories.
+  const stories = useMemo(() => accountTasks.filter(t => t.sprint_id).map(mapTaskToUserStory), [accountTasks]);
 
-  const { data: decisions = [] } = useQuery({
-    queryKey: ['decisions'],
-    queryFn: () => base44.entities.Decision.list(),
-    initialData: [],
-    enabled: legacyDataEnabled,
-  });
+  // Tasks for the current non-routed selection
+  const tasks = useMemo(() => {
+    if (hasProjectRoute) return [];
+    if (viewMode === 'portfolio') return accountTasks;
+    if (viewMode === 'program' && selectedType === 'program' && selectedItem?.id) {
+      const programProjectIds = new Set(projects.filter(p => p.program_id === selectedItem.id).map(p => p.id));
+      return accountTasks.filter(t => programProjectIds.has(t.project_id));
+    }
+    if (selectedItem?.id) return accountTasks.filter(t => t.project_id === selectedItem.id);
+    return [];
+  }, [accountTasks, hasProjectRoute, viewMode, selectedType, selectedItem?.id, projects]);
+  const loadingTasks = loadingAccountTasks;
 
-  const { data: resources = [] } = useQuery({
-    queryKey: ['project_resources'],
-    queryFn: () => base44.entities.ProjectResource.list(),
-    initialData: [],
-    enabled: legacyDataEnabled,
-  });
-
-  const { data: changeRequests = [] } = useQuery({
-    queryKey: ['change_requests'],
-    queryFn: () => base44.entities.ChangeRequest.list(),
-    initialData: [],
-    enabled: legacyDataEnabled,
-  });
-
-  const { data: sprints = [] } = useQuery({
-    queryKey: ['sprints_all'],
-    queryFn: () => base44.entities.Sprint.list(),
-    initialData: [],
-    enabled: legacyDataEnabled,
-  });
-
-  const { data: stories = [] } = useQuery({
-    queryKey: ['stories_all'],
-    queryFn: () => base44.entities.UserStory.list(),
-    initialData: [],
-    enabled: legacyDataEnabled,
-  });
-
-  // Fetch tasks based on selection
-  const { data: tasks = [], isLoading: loadingTasks } = useQuery({
-    queryKey: ['tasks', selectedItem?.id, selectedType, viewMode],
-    queryFn: async () => {
-      if (viewMode === 'portfolio') {
-        // Get all tasks
-        return base44.entities.Task.list('order');
-      } else if (viewMode === 'program' && selectedType === 'program') {
-        // Get tasks for all projects in this program
-        const programProjects = projects.filter(p => p.program_id === selectedItem.id);
-        const allTasks = await Promise.all(
-          programProjects.map(p => base44.entities.Task.filter({ project_id: p.id }, 'order'))
-        );
-        return allTasks.flat();
-      } else if (selectedItem?.id) {
-        return base44.entities.Task.filter({ project_id: selectedItem.id }, 'order');
-      }
-      return [];
-    },
-    enabled: !hasProjectRoute && (!!selectedItem?.id || viewMode === 'portfolio')
-  });
+  // RAID and task data scoped to the routed project (reports, sheet indicators)
+  const routedProjectData = useMemo(() => {
+    const forProject = (items) => items.filter(item => item.project_id === projectId);
+    return {
+      tasks: forProject(accountTasks),
+      risks: forProject(risks),
+      issues: forProject(issues),
+      assumptions: forProject(assumptions),
+      decisions: forProject(decisions),
+      changeRequests: forProject(changeRequests),
+      sprints: forProject(sprints),
+      stories: forProject(stories),
+    };
+  }, [projectId, accountTasks, risks, issues, assumptions, decisions, changeRequests, sprints, stories]);
 
   // Mutations
   const createProject = useMutation({
-    mutationFn: (data) => base44.entities.Project.create(data),
+    mutationFn: (data) => {
+      // Projects always live under a program in Project Hub.
+      if (!data?.program_id) throw new Error('Choose a program for the new project.');
+      return programsApi.createProject(data.program_id, data);
+    },
     onSuccess: (newProject) => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      setSelectedItem(newProject);
-      setSelectedType('project');
-      setViewMode('project');
-    }
+      invalidateHierarchy(queryClient);
+      navigate(`/projects/${newProject.id}/sheet`);
+    },
+    onError: (error) => alert(error.message),
   });
 
   const createProgram = useMutation({
@@ -748,27 +713,31 @@ export default function Projects() {
   });
 
   const updateProject = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.Project.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      queryClient.invalidateQueries({ queryKey: ['programs'] });
-      queryClient.invalidateQueries({ queryKey: ['portfolios'] });
-    }
+    mutationFn: ({ id, data }) => projectsApi.update(id, data),
+    onSuccess: () => invalidateHierarchy(queryClient),
+    onError: (error) => alert(error.message),
   });
 
+  const invalidateAccountTasks = () => queryClient.invalidateQueries({ queryKey: ['account-tasks'] });
+
   const createTask = useMutation({
-    mutationFn: (data) => base44.entities.Task.create(data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    mutationFn: (data) => {
+      if (!data?.project_id) throw new Error('Choose a project for the new task.');
+      return tasksApi.create(data.project_id, { ...mapTaskFormToPayload(data), ...mapTaskSheetInputToCreatePayload(data) });
+    },
+    onSuccess: invalidateAccountTasks,
+    onError: (error) => alert(error.message),
   });
 
   const updateTask = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.Task.update(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    mutationFn: ({ id, data }) => tasksApi.update(id, mapTaskFormToPayload(data)),
+    onSuccess: invalidateAccountTasks,
+    onError: (error) => alert(error.message),
   });
 
   const deleteTask = useMutation({
-    mutationFn: (id) => base44.entities.Task.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    mutationFn: (id) => tasksApi.delete(id),
+    onSuccess: invalidateAccountTasks,
   });
 
   const createProjectSheetTask = useMutation({
@@ -1008,6 +977,8 @@ export default function Projects() {
       if (item?.id) navigate(`/programs/${item.id}`);
     } else {
       setViewMode('project');
+      // Projects open on their API-backed route, like programs.
+      if (item?.id) navigate(`/projects/${item.id}`);
     }
   };
 
@@ -1043,7 +1014,9 @@ export default function Projects() {
       alert('Portfolio delete is not available yet.');
       return;
     } else {
-      base44.entities.Project.delete(item.id).then(() => queryClient.invalidateQueries({ queryKey: ['projects'] }));
+      projectsApi.delete(item.id)
+        .then(() => invalidateHierarchy(queryClient))
+        .catch(error => alert(getBackendSafeMessage(error, 'The project could not be deleted.')));
     }
     if (selectedItem?.id === item.id) { setSelectedItem(null); setViewMode('project'); }
   };
@@ -1622,18 +1595,18 @@ export default function Projects() {
                   />
                 </div>
                 <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-1 py-1 bg-white shadow-sm">
-                  <ExportMenu tasks={[]} project={projectDetail} viewType={activeProjectTab} />
+                  <ExportMenu tasks={routedProjectData.tasks} project={projectDetail} viewType={activeProjectTab} />
                   <ReportGenerator
                     project={projectDetail}
-                    tasks={[]}
-                    risks={[]}
-                    issues={[]}
+                    tasks={routedProjectData.tasks}
+                    risks={routedProjectData.risks}
+                    issues={routedProjectData.issues}
                     programs={programs}
-                    assumptions={[]}
-                    decisions={[]}
-                    changeRequests={[]}
-                    sprints={[]}
-                    stories={[]}
+                    assumptions={routedProjectData.assumptions}
+                    decisions={routedProjectData.decisions}
+                    changeRequests={routedProjectData.changeRequests}
+                    sprints={routedProjectData.sprints}
+                    stories={routedProjectData.stories}
                   />
                   <Button size="sm" variant="ghost" onClick={() => setShareOpen(true)} className="h-9 gap-1.5 text-slate-600">
                     <Share2 className="w-3.5 h-3.5" /> Share
@@ -1720,11 +1693,11 @@ export default function Projects() {
                     isReorderingTasks={isReorderingProjectSheetTasks}
                     readOnly
                     viewMode="project"
-                    vacations={[]}
-                    risks={[]}
-                    issues={[]}
-                    assumptions={[]}
-                    decisions={[]}
+                    vacations={vacations}
+                    risks={routedProjectData.risks}
+                    issues={routedProjectData.issues}
+                    assumptions={routedProjectData.assumptions}
+                    decisions={routedProjectData.decisions}
                     resources={[]}
                     enableResourceAssignments={isProjectSheetRoute}
                     accountResources={projectSheetAccountResourcesQuery.data || []}
@@ -1923,7 +1896,7 @@ export default function Projects() {
             onEditItem={(item, type) => { setEditingProject(item); setDialogType(type); setProjectDialogOpen(true); }}
             onNewProject={(programId) => { setEditingProject({ program_id: programId }); setDialogType('project'); setProjectDialogOpen(true); }}
             onRenameItem={handleRenameItem}
-            onUpdateProject={() => queryClient.invalidateQueries({ queryKey: ['projects'] })}
+            onUpdateProject={() => invalidateHierarchy(queryClient)}
             onDeleteProgram={(prog) => { handleDeleteItem(prog, 'program'); setSelectedItem(null); setViewMode('all_portfolios'); }}
             onDeleteProject={(id) => handleDeleteItem({ id }, 'project')}
             onBackToInventory={() => { setSelectedItem(null); setViewMode('all_programs'); }}

@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Send, AtSign, Paperclip, Tag } from 'lucide-react';
 import { format } from 'date-fns';
-import { base44 } from '@/api/base44Client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { accountsApi } from '@/api/accounts';
+import { attachmentsApi } from '@/api/attachments';
+import { buildCommentThreads, commentsApi } from '@/api/comments';
+import { useAuth } from '@/lib/AuthContext';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
@@ -12,16 +16,28 @@ export default function TaskDetailPanel({ task, resources = [], onClose, onUpdat
   const [tagged, setTagged] = useState([]);
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const [users, setUsers] = useState([]);
   const [replyTo, setReplyTo] = useState(null);
   const [replyText, setReplyText] = useState('');
   const fileRef = useRef(null);
   const tagRef = useRef(null);
-  const comments = task?.comments || [];
+  const queryClient = useQueryClient();
+  const { selectedAccountId } = useAuth();
+  const threadKey = ['entity-comments', 'TASK', task?.id];
 
-  useEffect(() => {
-    base44.entities.User.list().then(setUsers).catch(() => {});
-  }, []);
+  const { data: comments = [] } = useQuery({
+    queryKey: threadKey,
+    queryFn: async () => buildCommentThreads(await commentsApi.listThread('TASK', task.id)),
+    enabled: !!task?.id,
+  });
+  const { data: users = [] } = useQuery({
+    queryKey: ['account-users', selectedAccountId],
+    queryFn: async () => {
+      const response = await accountsApi.listUsers(selectedAccountId);
+      const rows = Array.isArray(response) ? response : response?.items || [];
+      return rows.map(row => row.user || row);
+    },
+    enabled: !!selectedAccountId,
+  });
 
   useEffect(() => {
     const h = (e) => { if (tagRef.current && !tagRef.current.contains(e.target)) setTagOpen(false); };
@@ -35,47 +51,50 @@ export default function TaskDetailPanel({ task, resources = [], onClose, onUpdat
 
   const people = [...new Set(resources.map(r => r.full_name).filter(Boolean))];
 
-  const handleFileChange = async (e) => {
+  // Files are attached to the comment once it exists, so keep them local until send.
+  const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
-    setUploading(true);
-    const uploaded = await Promise.all(files.map(async (file) => {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      return { name: file.name, url: file_url, type: file.type };
-    }));
-    setAttachments(p => [...p, ...uploaded]);
-    setUploading(false);
+    setAttachments(p => [...p, ...files.map(file => ({ name: file.name, type: file.type, file }))]);
     e.target.value = '';
   };
 
-  const notify = async (names) => {
-    const recipients = users.filter(u => names.includes(u.full_name) && u.email);
-    for (const u of recipients) {
-      try {
-        await base44.integrations.Core.SendEmail({
-          to: u.email,
-          subject: `Task update: ${task?.title || 'Task'}`,
-          body: `${text}\n\nYou were tagged on task "${task?.title}".\n\nOpen the app to view the full conversation.`,
-        });
-      } catch {}
+  // Tagging @mentions a person; the API turns mentions of account users into in-app notifications.
+  const mentionFor = (name) => {
+    const resource = resources.find(r => r.full_name === name);
+    const user = users.find(u => (resource?.user_id && u.id === resource.user_id) || u.full_name === name);
+    return `@${user?.full_name || user?.email || name}`;
+  };
+
+  const handleSend = async () => {
+    if (!text.trim() && attachments.length === 0) return;
+    const body = [text.trim(), ...tagged.map(mentionFor)].filter(Boolean).join(' ') || attachments.map(a => a.name).join(', ');
+    setUploading(true);
+    try {
+      const comment = await commentsApi.addToThread('TASK', task.id, body);
+      await Promise.all(attachments.map(a => attachmentsApi.upload('COMMENT', comment.id, a.file)));
+      setText(''); setAttachments([]); setTagged([]); setTagOpen(false);
+    } catch (error) {
+      window.alert(error.message);
+    } finally {
+      setUploading(false);
+      queryClient.invalidateQueries({ queryKey: threadKey });
     }
   };
 
-  const handleSend = () => {
-    if (!text.trim() && attachments.length === 0) return;
-    const newComment = { text: text.trim(), author: 'You', date: new Date().toISOString(), attachments, tagged };
-    onUpdate(task.id, { comments: [...comments, newComment] });
-    if (tagged.length) notify(tagged);
-    setText(''); setAttachments([]); setTagged([]); setTagOpen(false);
+  const handleReply = async (i) => {
+    if (!replyText.trim()) return;
+    await commentsApi.addToThread('TASK', task.id, replyText.trim(), comments[i].id);
+    queryClient.invalidateQueries({ queryKey: threadKey });
+    setReplyText(''); setReplyTo(null);
   };
 
-  const handleReply = (i) => {
-    if (!replyText.trim()) return;
-    const updated = comments.map((c, idx) => idx === i
-      ? { ...c, replies: [...(c.replies || []), { text: replyText.trim(), author: 'You', date: new Date().toISOString() }] }
-      : c);
-    onUpdate(task.id, { comments: updated });
-    setReplyText(''); setReplyTo(null);
+  const openAttachment = async (attachmentId) => {
+    try {
+      window.open(await attachmentsApi.downloadUrl(attachmentId), '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      window.alert(error.message);
+    }
   };
 
   const toggleTag = (name) => setTagged(p => p.includes(name) ? p.filter(n => n !== name) : [...p, name]);
@@ -115,7 +134,7 @@ export default function TaskDetailPanel({ task, resources = [], onClose, onUpdat
             <div className="text-center text-xs text-slate-400 py-8">No updates yet. Share an update below.</div>
           )}
           {comments.map((c, i) => (
-            <div key={i} className="flex gap-2.5">
+            <div key={c.id || i} className="flex gap-2.5">
               <div className="w-6 h-6 rounded-full bg-[#002046] text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
                 {(c.author || 'U').charAt(0).toUpperCase()}
               </div>
@@ -131,7 +150,7 @@ export default function TaskDetailPanel({ task, resources = [], onClose, onUpdat
                   </div>
                 )}
                 {c.attachments?.map((att, j) => (
-                  <a key={j} href={att.url} target="_blank" rel="noopener noreferrer"
+                  <a key={att.id || j} href="#" onClick={e => { e.preventDefault(); openAttachment(att.id); }}
                     className="flex items-center gap-1.5 mt-1 px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs text-slate-600 hover:bg-slate-100 truncate">
                     <Paperclip className="w-3 h-3 flex-shrink-0 text-slate-400" />
                     <span className="truncate">{att.name}</span>
@@ -234,7 +253,7 @@ export default function TaskDetailPanel({ task, resources = [], onClose, onUpdat
                 className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50">
                 <Paperclip className="w-3.5 h-3.5" />
               </button>
-              <button onClick={handleSend} disabled={!text.trim() && attachments.length === 0}
+              <button onClick={handleSend} disabled={uploading || (!text.trim() && attachments.length === 0)}
                 className="p-1 rounded bg-[#002046] text-white hover:bg-[#002046]/90 disabled:opacity-40 transition-colors">
                 <Send className="w-3.5 h-3.5" />
               </button>

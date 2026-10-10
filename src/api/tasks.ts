@@ -1117,6 +1117,29 @@ export const mapProjectGanttToGanttTasks = (ganttResponse: unknown): GanttTask[]
     });
 };
 
+/**
+ * Task dialog / detail panel values (Base44 shape: title, due_date, progress, ...)
+ * -> TaskUpdate. Only fields present on the input are sent.
+ */
+export const mapTaskFormToPayload = (input: unknown): Record<string, unknown> => {
+  const data = typeof input === 'object' && input ? input as Record<string, unknown> : {};
+  const payload: Record<string, unknown> = {};
+  const name = data.name ?? data.title;
+  if (typeof name === 'string' && name.trim()) payload.name = name.trim();
+  if (data.description !== undefined) payload.description = data.description || null;
+  if (data.start_date !== undefined) payload.start_date = data.start_date || null;
+  const finish = data.finish_date ?? data.due_date;
+  if (finish !== undefined) payload.finish_date = finish || null;
+  const progress = data.percent_complete ?? data.progress;
+  if (progress !== undefined && progress !== '' && Number.isFinite(Number(progress))) payload.percent_complete = Number(progress);
+  const duration = data.duration_days ?? data.duration;
+  if (duration !== undefined && duration !== '' && Number.isFinite(Number(duration))) payload.duration_days = Number(duration);
+  ['status_id', 'priority_id', 'task_type_id', 'sprint_id', 'parent_task_id'].forEach((key) => {
+    if (typeof data[key] === 'string' && data[key]) payload[key] = data[key];
+  });
+  return payload;
+};
+
 export const tasksApi = {
   list: (projectId: string, query?: Record<string, unknown>) => apiClient.get(`/api/v1/projects/${projectId}/tasks`, query),
   create: (projectId: string, data: unknown) => apiClient.post(`/api/v1/projects/${projectId}/tasks`, data),

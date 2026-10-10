@@ -148,7 +148,12 @@ export const mapResourceCalendar = (response: any, timeOffEntries: ApiResource[]
 
   const resources = rows.map((row) => {
     const resource = row.resource || row;
-    const allocations = normalizeCollection(row, ['allocations']).map((allocation) => {
+    // Undated allocations inherit the task's schedule; ones with no dates at all can't be placed on the timeline.
+    const allocations = normalizeCollection(row, ['allocations']).map((allocation) => ({
+      ...allocation,
+      start_date: allocation.start_date ?? allocation.task?.start_date,
+      end_date: allocation.end_date ?? allocation.task?.finish_date,
+    })).filter((allocation) => allocation.start_date && allocation.end_date).map((allocation) => {
       if (allocation.project?.id) projectsById.set(allocation.project.id, { id: allocation.project.id, name: allocation.project.name });
       return {
         ...mapCalendarAllocation(allocation, resource),

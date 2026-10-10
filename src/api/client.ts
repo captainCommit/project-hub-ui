@@ -1,3 +1,8 @@
+import { clearSession, getIdToken, isCognitoMode } from '@/lib/cognitoSession';
+
+/** Fired when the API rejects the session; the auth provider sends the user to sign in. */
+export const AUTH_EXPIRED_EVENT = 'project-hub:auth-expired';
+
 export type QueryValue = string | number | boolean | null | undefined;
 export type QueryParams = Record<string, QueryValue | QueryValue[] | unknown>;
 
@@ -21,7 +26,8 @@ export class ProjectHubApiError extends Error {
 const API_BASE_URL = ((import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const AUTH_TOKEN_KEYS = ['project_hub_access_token', 'access_token', 'token'];
 
-export const getBearerToken = (): string | null => {
+/** Local mode: a manually stored dev token, if any (the API's local auth needs none). */
+const getStoredToken = (): string | null => {
   if (typeof window === 'undefined') return null;
   for (const key of AUTH_TOKEN_KEYS) {
     const token = window.localStorage.getItem(key);
@@ -29,6 +35,9 @@ export const getBearerToken = (): string | null => {
   }
   return null;
 };
+
+export const getBearerToken = async (forceRefresh = false): Promise<string | null> =>
+  isCognitoMode() ? getIdToken(forceRefresh) : getStoredToken();
 
 const appendQueryParams = (url: URL, query?: QueryParams) => {
   if (!query) return;
@@ -70,23 +79,33 @@ const parseResponseBody = async (response: Response): Promise<unknown> => {
 
 export const apiRequest = async <T = unknown>(path: string, options: ApiRequestOptions = {}): Promise<T> => {
   const { query, body, headers, ...requestOptions } = options;
-  const token = getBearerToken();
-  const requestHeaders = new Headers(headers);
-
-  if (token) {
-    requestHeaders.set('Authorization', `Bearer ${token}`);
-  }
-
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
-  if (body !== undefined && !isFormData && !requestHeaders.has('Content-Type')) {
-    requestHeaders.set('Content-Type', 'application/json');
-  }
 
-  const response = await fetch(buildUrl(path, query), {
-    ...requestOptions,
-    headers: requestHeaders,
-    body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
-  });
+  const send = async (forceRefresh: boolean) => {
+    const token = await getBearerToken(forceRefresh);
+    const requestHeaders = new Headers(headers);
+    if (token) {
+      requestHeaders.set('Authorization', `Bearer ${token}`);
+    }
+    if (body !== undefined && !isFormData && !requestHeaders.has('Content-Type')) {
+      requestHeaders.set('Content-Type', 'application/json');
+    }
+    return fetch(buildUrl(path, query), {
+      ...requestOptions,
+      headers: requestHeaders,
+      body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
+    });
+  };
+
+  let response = await send(false);
+  if (response.status === 401 && isCognitoMode()) {
+    // The token may have been revoked or expired early: refresh once, then ask the user to sign in.
+    response = await send(true);
+    if (response.status === 401) {
+      clearSession();
+      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+    }
+  }
 
   const responseBody = await parseResponseBody(response);
 

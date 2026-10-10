@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { clearSession } from '@/lib/cognitoSession';
 
 const TOKEN_KEY = 'project_hub_access_token';
 const LEGACY_TOKEN_KEYS = ['access_token', 'token'];
@@ -64,6 +65,7 @@ export const setAuthToken = (token: string) => {
 
 export const clearAuthToken = () => {
   if (typeof window === 'undefined') return;
+  clearSession();
   window.localStorage.removeItem(TOKEN_KEY);
   LEGACY_TOKEN_KEYS.forEach((key) => window.localStorage.removeItem(key));
 };

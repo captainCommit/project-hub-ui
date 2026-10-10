@@ -1,6 +1,8 @@
 import React, { createContext, useState, useContext, useEffect, useCallback, useMemo } from 'react';
 import { authApi, clearAuthToken } from '@/api/auth';
 import { accountsApi } from '@/api/accounts';
+import { AUTH_EXPIRED_EVENT, ProjectHubApiError } from '@/api/client';
+import { CALLBACK_PATH, beginLogin, completeLogin, hasSession, isCognitoMode, signOut } from '@/lib/cognitoSession';
 
 /** @typedef {import('@/api/accounts').ProjectHubAccount} ProjectHubAccount */
 
@@ -27,6 +29,13 @@ const createStartupError = () => ({
   message: 'We could not load your Project Hub user profile. Please refresh or sign in again.',
 });
 
+const AUTH_REQUIRED = { type: 'auth_required' };
+
+const createLoginError = (/** @type {unknown} */ error) => ({
+  type: 'login_error',
+  message: error instanceof Error && error.message ? error.message : 'Sign-in failed. Please try again.',
+});
+
 const createAccountError = () => ({
   type: 'account_error',
   message: 'We could not load your Project Hub accounts. Please refresh and try again.',
@@ -41,6 +50,7 @@ export const AuthProvider = (/** @type {{ children: React.ReactNode }} */ { chil
   const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
   const [authError, setAuthError] = useState(/** @type {unknown} */ (null));
   const [appPublicSettings, setAppPublicSettings] = useState(/** @type {unknown} */ (null)); // Contains only { id, public_settings }
+  const [postLoginPath, setPostLoginPath] = useState(/** @type {string | null} */ (null));
 
   const applyAccountSelection = useCallback((
     /** @type {ProjectHubAccount[]} */ nextAccounts,
@@ -67,7 +77,8 @@ export const AuthProvider = (/** @type {{ children: React.ReactNode }} */ { chil
       return currentUser;
     } catch (error) {
       console.warn('Project Hub startup user load failed:', error);
-      const friendlyError = createStartupError();
+      const sessionRejected = isCognitoMode() && error instanceof ProjectHubApiError && error.status === 401;
+      const friendlyError = sessionRejected ? AUTH_REQUIRED : createStartupError();
       setUser(null);
       setAccounts([]);
       setSelectedAccountIdState(null);
@@ -99,6 +110,23 @@ export const AuthProvider = (/** @type {{ children: React.ReactNode }} */ { chil
     setAppPublicSettings({ public_settings: {} });
     setIsLoadingPublicSettings(false);
 
+    if (isCognitoMode()) {
+      if (window.location.pathname === CALLBACK_PATH) {
+        try {
+          setPostLoginPath(await completeLogin());
+        } catch (error) {
+          setAuthError(createLoginError(error));
+          setIsLoadingAuth(false);
+          return;
+        }
+      }
+      if (!hasSession()) {
+        setAuthError(AUTH_REQUIRED);
+        setIsLoadingAuth(false);
+        return;
+      }
+    }
+
     try {
       await refreshUser();
       await refreshAccounts();
@@ -112,6 +140,17 @@ export const AuthProvider = (/** @type {{ children: React.ReactNode }} */ { chil
   useEffect(() => {
     checkAppState();
   }, [checkAppState]);
+
+  // The API client fires this when a refreshed session is still rejected.
+  useEffect(() => {
+    const onExpired = () => {
+      setUser(null);
+      setIsAuthenticated(false);
+      setAuthError(AUTH_REQUIRED);
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+  }, []);
 
   const selectedAccount = useMemo(
     () => accounts.find((account) => account.id === selectedAccountId) ?? null,
@@ -133,13 +172,22 @@ export const AuthProvider = (/** @type {{ children: React.ReactNode }} */ { chil
     clearAuthToken();
     persistSelectedAccountId(null);
 
+    if (isCognitoMode()) {
+      signOut();
+      return;
+    }
+
     if (shouldRedirect && typeof window !== 'undefined') {
       window.location.assign(window.location.pathname);
     }
   };
 
   const navigateToLogin = () => {
-    setAuthError(null);
+    if (!isCognitoMode()) {
+      setAuthError(null);
+      return;
+    }
+    beginLogin().catch((error) => setAuthError(createLoginError(error)));
   };
 
   const loading = isLoadingPublicSettings || isLoadingAuth;
@@ -162,6 +210,7 @@ export const AuthProvider = (/** @type {{ children: React.ReactNode }} */ { chil
       appPublicSettings,
       logout,
       navigateToLogin,
+      postLoginPath,
       checkAppState
     }}>
       {children}

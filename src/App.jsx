@@ -3,7 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import NavigationTracker from '@/lib/NavigationTracker'
 import { pagesConfig } from './pages.config'
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -35,7 +35,7 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   : <>{children}</>;
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, postLoginPath } = useAuth();
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -51,9 +51,29 @@ const AuthenticatedApp = () => {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     } else if (authError.type === 'auth_required') {
-      // Redirect to login automatically
+      // Redirect to the sign-in page
       navigateToLogin();
-      return null;
+      return (
+        <div className="fixed inset-0 flex items-center justify-center">
+          <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+        </div>
+      );
+    } else if (authError.type === 'login_error') {
+      return (
+        <div className="fixed inset-0 flex items-center justify-center p-6">
+          <div className="max-w-md rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm">
+            <h1 className="text-lg font-semibold text-slate-900">Sign-in didn't complete</h1>
+            <p className="mt-2 text-sm text-slate-600">{authError.message}</p>
+            <button
+              type="button"
+              onClick={() => { window.location.assign('/'); }}
+              className="mt-4 rounded-md bg-[#c87b14] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#a86610]"
+            >
+              Sign in again
+            </button>
+          </div>
+        </div>
+      );
     } else if (authError.type === 'startup_error' || authError.type === 'account_error') {
       return (
         <div className="fixed inset-0 flex items-center justify-center p-6">
@@ -114,6 +134,7 @@ const AuthenticatedApp = () => {
       <Route path="/Favorites" element={<LayoutWrapper currentPageName="Favorites"><Favorites /></LayoutWrapper>} />
       <Route path="/ResourceManagementHub" element={<LayoutWrapper currentPageName="ResourceManagementHub"><ResourceManagementHub /></LayoutWrapper>} />
       <Route path="/Account" element={<LayoutWrapper currentPageName="Account"><Account /></LayoutWrapper>} />
+      <Route path="/auth/callback" element={<Navigate to={postLoginPath || '/'} replace />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

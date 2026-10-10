@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   FolderTree, Building2, ChevronRight, ChevronDown,
   FileText, Shield, Users, Package, AlertTriangle,
-  Star, Folder, Compass, PanelLeftClose, PanelLeftOpen, LifeBuoy
+  Star, Folder, Compass, PanelLeftClose, PanelLeftOpen, LifeBuoy, LogOut
 } from "lucide-react";
 import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -29,7 +29,7 @@ export default function ProjectSidebar(/** @type {any} */ {
     try { return localStorage.getItem('sidebar_collapsed') === 'true'; } catch { return false; }
   });
   const scrollRef = useRef(/** @type {HTMLDivElement | null} */ (null));
-  const { user, selectedAccountId } = useAuth();
+  const { user, selectedAccountId, logout } = useAuth();
   const location = useLocation();
   const pathname = location.pathname.toLowerCase();
 
@@ -394,14 +394,18 @@ export default function ProjectSidebar(/** @type {any} */ {
       </div>
 
       {/* User profile */}
-      <div className="border-t border-white/10 px-3 py-3">
-        <Link to="/Account" className="flex items-center gap-2.5 rounded-lg hover:bg-white/10 px-1 py-1 -mx-1 transition-colors">
+      <div className="border-t border-white/10 px-3 py-3 flex items-center gap-1">
+        <Link to="/Account" className="flex flex-1 min-w-0 items-center gap-2.5 rounded-lg hover:bg-white/10 px-1 py-1 -mx-1 transition-colors">
           <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ color: ORANGE }}>{initials}</div>
           <div className="min-w-0">
             <p className="text-xs font-medium text-white truncate">{user?.full_name || 'User'}</p>
             <p className="text-[10px] text-white/80 truncate">{roleLabel}</p>
           </div>
         </Link>
+        <button type="button" onClick={() => logout()} title="Sign out" aria-label="Sign out"
+          className="p-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0">
+          <LogOut className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );

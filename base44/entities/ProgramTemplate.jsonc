@@ -1,0 +1,25 @@
+{
+  "name": "ProgramTemplate",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "color": {
+      "type": "string",
+      "default": "#8b5cf6"
+    },
+    "template_projects": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "name": "UserStory",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "acceptance_criteria": {
+      "type": "string"
+    },
+    "sprint_id": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "story",
+        "task",
+        "bug",
+        "epic"
+      ],
+      "default": "story"
+    },
+    "story_points": {
+      "type": "number",
+      "default": 1
+    },
+    "estimated_hours": {
+      "type": "number",
+      "default": 0
+    },
+    "actual_hours": {
+      "type": "number",
+      "default": 0
+    },
+    "assignee": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "backlog",
+        "todo",
+        "in_progress",
+        "in_review",
+        "done"
+      ],
+      "default": "backlog"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium"
+    },
+    "order": {
+      "type": "number",
+      "default": 0
+    },
+    "test_case_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "project_id"
+  ]
+}

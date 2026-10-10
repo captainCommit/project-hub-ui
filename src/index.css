@@ -1,0 +1,254 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Brand palette: Navy #002046 / Orange #c87b14 / White #ffffff */
+    --background: 0 0% 100%;
+    --foreground: 213 40% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 213 40% 16%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 213 40% 16%;
+    --primary: 213 100% 14%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 213 24% 96%;
+    --secondary-foreground: 213 40% 20%;
+    --muted: 213 16% 96%;
+    --muted-foreground: 213 12% 44%;
+    --accent: 34 86% 95%;
+    --accent-foreground: 34 82% 30%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 213 18% 90%;
+    --input: 213 18% 88%;
+    --ring: 34 82% 43%;
+    --chart-1: 213 100% 24%;
+    --chart-2: 34 82% 43%;
+    --chart-3: 213 60% 40%;
+    --chart-4: 34 70% 62%;
+    --chart-5: 213 40% 55%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 213 40% 20%;
+    --sidebar-primary: 213 100% 14%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 34 86% 95%;
+    --sidebar-accent-foreground: 34 82% 30%;
+    --sidebar-border: 213 18% 90%;
+    --sidebar-ring: 34 82% 43%;
+  }
+
+  .dark {
+    --background: 213 50% 9%;
+    --foreground: 0 0% 96%;
+    --card: 213 45% 12%;
+    --card-foreground: 0 0% 96%;
+    --popover: 213 45% 12%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 34 82% 52%;
+    --primary-foreground: 213 50% 9%;
+    --secondary: 213 35% 18%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 213 30% 18%;
+    --muted-foreground: 213 15% 65%;
+    --accent: 213 40% 22%;
+    --accent-foreground: 34 90% 80%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 213 30% 22%;
+    --input: 213 30% 22%;
+    --ring: 34 82% 52%;
+    --chart-1: 34 82% 52%;
+    --chart-2: 213 70% 60%;
+    --chart-3: 34 70% 65%;
+    --chart-4: 213 50% 70%;
+    --chart-5: 34 60% 75%;
+    --sidebar-background: 213 55% 10%;
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-primary: 34 82% 52%;
+    --sidebar-primary-foreground: 213 50% 9%;
+    --sidebar-accent: 213 40% 22%;
+    --sidebar-accent-foreground: 34 90% 80%;
+    --sidebar-border: 213 30% 22%;
+    --sidebar-ring: 34 82% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+
+  /* List markers (bullets & numbers) stay within the brand palette */
+  ul > li::marker,
+  ol > li::marker {
+    color: hsl(var(--primary));
+  }
+
+  ul > li::marker {
+    color: hsl(34 82% 43%);
+  }
+}
+
+@layer utilities {
+  /* Enforce the navy / orange / white brand palette by remapping off-brand
+     Tailwind hues to primary (navy) or accent (orange). Reds (destructive)
+     and neutrals (slate/gray/zinc) are intentionally left intact. */
+
+  /* Cool + green families → navy */
+  .text-indigo-300, .text-indigo-400, .text-indigo-500, .text-indigo-600, .text-indigo-700,
+  .text-violet-300, .text-violet-400, .text-violet-500, .text-violet-600, .text-violet-700,
+  .text-purple-300, .text-purple-400, .text-purple-500, .text-purple-600, .text-purple-700,
+  .text-fuchsia-300, .text-fuchsia-400, .text-fuchsia-500, .text-fuchsia-600, .text-fuchsia-700,
+  .text-blue-300, .text-blue-400, .text-blue-500, .text-blue-600, .text-blue-700,
+  .text-sky-300, .text-sky-400, .text-sky-500, .text-sky-600, .text-sky-700,
+  .text-cyan-300, .text-cyan-400, .text-cyan-500, .text-cyan-600, .text-cyan-700,
+  .text-teal-300, .text-teal-400, .text-teal-500, .text-teal-600, .text-teal-700,
+  .text-emerald-300, .text-emerald-400, .text-emerald-500, .text-emerald-600, .text-emerald-700,
+  .text-green-300, .text-green-400, .text-green-500, .text-green-600, .text-green-700,
+  .text-lime-300, .text-lime-400, .text-lime-500, .text-lime-600, .text-lime-700 {
+    color: hsl(var(--primary));
+  }
+
+  .bg-indigo-300, .bg-indigo-400, .bg-indigo-500, .bg-indigo-600, .bg-indigo-700,
+  .bg-violet-300, .bg-violet-400, .bg-violet-500, .bg-violet-600, .bg-violet-700,
+  .bg-purple-300, .bg-purple-400, .bg-purple-500, .bg-purple-600, .bg-purple-700,
+  .bg-fuchsia-300, .bg-fuchsia-400, .bg-fuchsia-500, .bg-fuchsia-600, .bg-fuchsia-700,
+  .bg-blue-300, .bg-blue-400, .bg-blue-500, .bg-blue-600, .bg-blue-700,
+  .bg-sky-300, .bg-sky-400, .bg-sky-500, .bg-sky-600, .bg-sky-700,
+  .bg-cyan-300, .bg-cyan-400, .bg-cyan-500, .bg-cyan-600, .bg-cyan-700,
+  .bg-teal-300, .bg-teal-400, .bg-teal-500, .bg-teal-600, .bg-teal-700,
+  .bg-emerald-300, .bg-emerald-400, .bg-emerald-500, .bg-emerald-600, .bg-emerald-700,
+  .bg-green-300, .bg-green-400, .bg-green-500, .bg-green-600, .bg-green-700,
+  .bg-lime-300, .bg-lime-400, .bg-lime-500, .bg-lime-600, .bg-lime-700 {
+    background-color: hsl(var(--primary));
+  }
+
+  .border-indigo-300, .border-indigo-400, .border-indigo-500, .border-indigo-600, .border-indigo-700,
+  .border-violet-300, .border-violet-400, .border-violet-500, .border-violet-600, .border-violet-700,
+  .border-purple-300, .border-purple-400, .border-purple-500, .border-purple-600, .border-purple-700,
+  .border-fuchsia-300, .border-fuchsia-400, .border-fuchsia-500, .border-fuchsia-600, .border-fuchsia-700,
+  .border-blue-300, .border-blue-400, .border-blue-500, .border-blue-600, .border-blue-700,
+  .border-sky-300, .border-sky-400, .border-sky-500, .border-sky-600, .border-sky-700,
+  .border-cyan-300, .border-cyan-400, .border-cyan-500, .border-cyan-600, .border-cyan-700,
+  .border-teal-300, .border-teal-400, .border-teal-500, .border-teal-600, .border-teal-700,
+  .border-emerald-300, .border-emerald-400, .border-emerald-500, .border-emerald-600, .border-emerald-700,
+  .border-green-300, .border-green-400, .border-green-500, .border-green-600, .border-green-700,
+  .border-lime-300, .border-lime-400, .border-lime-500, .border-lime-600, .border-lime-700 {
+    border-color: hsl(var(--primary));
+  }
+
+  .fill-indigo-300, .fill-indigo-400, .fill-indigo-500, .fill-indigo-600, .fill-indigo-700,
+  .fill-violet-300, .fill-violet-400, .fill-violet-500, .fill-violet-600, .fill-violet-700,
+  .fill-purple-300, .fill-purple-400, .fill-purple-500, .fill-purple-600, .fill-purple-700,
+  .fill-fuchsia-300, .fill-fuchsia-400, .fill-fuchsia-500, .fill-fuchsia-600, .fill-fuchsia-700,
+  .fill-blue-300, .fill-blue-400, .fill-blue-500, .fill-blue-600, .fill-blue-700,
+  .fill-sky-300, .fill-sky-400, .fill-sky-500, .fill-sky-600, .fill-sky-700,
+  .fill-cyan-300, .fill-cyan-400, .fill-cyan-500, .fill-cyan-600, .fill-cyan-700,
+  .fill-teal-300, .fill-teal-400, .fill-teal-500, .fill-teal-600, .fill-teal-700,
+  .fill-emerald-300, .fill-emerald-400, .fill-emerald-500, .fill-emerald-600, .fill-emerald-700,
+  .fill-green-300, .fill-green-400, .fill-green-500, .fill-green-600, .fill-green-700,
+  .fill-lime-300, .fill-lime-400, .fill-lime-500, .fill-lime-600, .fill-lime-700 {
+    fill: hsl(var(--primary));
+  }
+
+  .stroke-indigo-300, .stroke-indigo-400, .stroke-indigo-500, .stroke-indigo-600, .stroke-indigo-700,
+  .stroke-violet-300, .stroke-violet-400, .stroke-violet-500, .stroke-violet-600, .stroke-violet-700,
+  .stroke-purple-300, .stroke-purple-400, .stroke-purple-500, .stroke-purple-600, .stroke-purple-700,
+  .stroke-fuchsia-300, .stroke-fuchsia-400, .stroke-fuchsia-500, .stroke-fuchsia-600, .stroke-fuchsia-700,
+  .stroke-blue-300, .stroke-blue-400, .stroke-blue-500, .stroke-blue-600, .stroke-blue-700,
+  .stroke-sky-300, .stroke-sky-400, .stroke-sky-500, .stroke-sky-600, .stroke-sky-700,
+  .stroke-cyan-300, .stroke-cyan-400, .stroke-cyan-500, .stroke-cyan-600, .stroke-cyan-700,
+  .stroke-teal-300, .stroke-teal-400, .stroke-teal-500, .stroke-teal-600, .stroke-teal-700,
+  .stroke-emerald-300, .stroke-emerald-400, .stroke-emerald-500, .stroke-emerald-600, .stroke-emerald-700,
+  .stroke-green-300, .stroke-green-400, .stroke-green-500, .stroke-green-600, .stroke-green-700,
+  .stroke-lime-300, .stroke-lime-400, .stroke-lime-500, .stroke-lime-600, .stroke-lime-700 {
+    stroke: hsl(var(--primary));
+  }
+
+  .ring-indigo-300, .ring-indigo-400, .ring-indigo-500, .ring-indigo-600, .ring-indigo-700,
+  .ring-violet-300, .ring-violet-400, .ring-violet-500, .ring-violet-600, .ring-violet-700,
+  .ring-purple-300, .ring-purple-400, .ring-purple-500, .ring-purple-600, .ring-purple-700,
+  .ring-fuchsia-300, .ring-fuchsia-400, .ring-fuchsia-500, .ring-fuchsia-600, .ring-fuchsia-700,
+  .ring-blue-300, .ring-blue-400, .ring-blue-500, .ring-blue-600, .ring-blue-700,
+  .ring-sky-300, .ring-sky-400, .ring-sky-500, .ring-sky-600, .ring-sky-700,
+  .ring-cyan-300, .ring-cyan-400, .ring-cyan-500, .ring-cyan-600, .ring-cyan-700,
+  .ring-teal-300, .ring-teal-400, .ring-teal-500, .ring-teal-600, .ring-teal-700,
+  .ring-emerald-300, .ring-emerald-400, .ring-emerald-500, .ring-emerald-600, .ring-emerald-700,
+  .ring-green-300, .ring-green-400, .ring-green-500, .ring-green-600, .ring-green-700,
+  .ring-lime-300, .ring-lime-400, .ring-lime-500, .ring-lime-600, .ring-lime-700 {
+    --tw-ring-color: hsl(var(--primary));
+  }
+
+  .divide-indigo-300, .divide-indigo-400, .divide-indigo-500, .divide-indigo-600, .divide-indigo-700,
+  .divide-violet-300, .divide-violet-400, .divide-violet-500, .divide-violet-600, .divide-violet-700,
+  .divide-purple-300, .divide-purple-400, .divide-purple-500, .divide-purple-600, .divide-purple-700,
+  .divide-fuchsia-300, .divide-fuchsia-400, .divide-fuchsia-500, .divide-fuchsia-600, .divide-fuchsia-700,
+  .divide-blue-300, .divide-blue-400, .divide-blue-500, .divide-blue-600, .divide-blue-700,
+  .divide-sky-300, .divide-sky-400, .divide-sky-500, .divide-sky-600, .divide-sky-700,
+  .divide-cyan-300, .divide-cyan-400, .divide-cyan-500, .divide-cyan-600, .divide-cyan-700,
+  .divide-teal-300, .divide-teal-400, .divide-teal-500, .divide-teal-600, .divide-teal-700,
+  .divide-emerald-300, .divide-emerald-400, .divide-emerald-500, .divide-emerald-600, .divide-emerald-700,
+  .divide-green-300, .divide-green-400, .divide-green-500, .divide-green-600, .divide-green-700,
+  .divide-lime-300, .divide-lime-400, .divide-lime-500, .divide-lime-600, .divide-lime-700 {
+    border-color: hsl(var(--primary));
+  }
+
+  /* Light active/hover tints (50/100) → light navy wash */
+  .bg-indigo-50, .bg-indigo-100, .bg-violet-50, .bg-violet-100, .bg-purple-50, .bg-purple-100,
+  .bg-fuchsia-50, .bg-fuchsia-100, .bg-blue-50, .bg-blue-100, .bg-sky-50, .bg-sky-100,
+  .bg-cyan-50, .bg-cyan-100, .bg-teal-50, .bg-teal-100, .bg-emerald-50, .bg-emerald-100,
+  .bg-green-50, .bg-green-100, .bg-lime-50, .bg-lime-100 {
+    background-color: hsl(213 40% 96%);
+  }
+  .text-indigo-50, .text-indigo-100, .text-violet-50, .text-violet-100, .text-purple-50, .text-purple-100,
+  .text-fuchsia-50, .text-fuchsia-100, .text-blue-50, .text-blue-100, .text-sky-50, .text-sky-100,
+  .text-cyan-50, .text-cyan-100, .text-teal-50, .text-teal-100, .text-emerald-50, .text-emerald-100,
+  .text-green-50, .text-green-100, .text-lime-50, .text-lime-100 {
+    color: hsl(var(--primary));
+  }
+
+  /* Warm families (amber, yellow) → brand orange */
+  .text-amber-300, .text-amber-400, .text-amber-500, .text-amber-600, .text-amber-700,
+  .text-yellow-300, .text-yellow-400, .text-yellow-500, .text-yellow-600, .text-yellow-700 {
+    color: hsl(34 82% 43%);
+  }
+  .bg-amber-300, .bg-amber-400, .bg-amber-500, .bg-amber-600, .bg-amber-700,
+  .bg-yellow-300, .bg-yellow-400, .bg-yellow-500, .bg-yellow-600, .bg-yellow-700 {
+    background-color: hsl(34 82% 43%);
+  }
+  .border-amber-300, .border-amber-400, .border-amber-500, .border-amber-600, .border-amber-700,
+  .border-yellow-300, .border-yellow-400, .border-yellow-500, .border-yellow-600, .border-yellow-700 {
+    border-color: hsl(34 82% 43%);
+  }
+
+  /* Standardise all table headers to navy (#002046) with white text */
+  table thead {
+    background-color: #002046 !important;
+  }
+  table thead th {
+    background-color: #002046 !important;
+    color: #ffffff !important;
+  }
+
+  /* Outlined (non-filled) headers for specific detail-view tables */
+  table.outlined-header {
+    border-collapse: collapse;
+  }
+  table.outlined-header thead,
+  table.outlined-header thead tr {
+    background-color: transparent !important;
+  }
+  table.outlined-header thead th {
+    background-color: transparent !important;
+    color: hsl(var(--muted-foreground)) !important;
+    border: 1px solid hsl(var(--border)) !important;
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "ResourceVacation",
+  "type": "object",
+  "properties": {
+    "resource_name": {
+      "type": "string"
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "resource_name",
+    "start_date",
+    "end_date"
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "name": "ProjectResource",
+  "type": "object",
+  "properties": {
+    "full_name": {
+      "type": "string"
+    },
+    "rate": {
+      "type": "number",
+      "description": "Hourly billing rate"
+    },
+    "weekly_capacity": {
+      "type": "number",
+      "description": "Weekly capacity in hours"
+    },
+    "role": {
+      "type": "string"
+    },
+    "department": {
+      "type": "string"
+    },
+    "allocation": {
+      "type": "number",
+      "description": "Percentage allocation"
+    },
+    "non_project_hours": {
+      "type": "number",
+      "description": "Weekly hours spent on non-project work",
+      "default": 0
+    }
+  },
+  "required": [
+    "full_name"
+  ]
+}

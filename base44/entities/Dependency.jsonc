@@ -1,0 +1,80 @@
+{
+  "name": "Dependency",
+  "type": "object",
+  "properties": {
+    "dependency_id": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "program_id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium"
+    },
+    "description": {
+      "type": "string"
+    },
+    "impact_of_delay": {
+      "type": "string",
+      "description": "Impact of delay"
+    },
+    "fallback_plan": {
+      "type": "string",
+      "description": "Fallback plan if the dependency is not met"
+    },
+    "assigned_to": {
+      "type": "string"
+    },
+    "entered_by": {
+      "type": "string"
+    },
+    "date_entered": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "in_review",
+        "closed",
+        "escalated"
+      ],
+      "default": "open"
+    },
+    "comments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "title",
+    "project_id"
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "name": "Assumption",
+  "type": "object",
+  "properties": {
+    "assumption_id": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "program_id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium"
+    },
+    "description": {
+      "type": "string"
+    },
+    "entered_by": {
+      "type": "string"
+    },
+    "date_entered": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "validated",
+        "invalidated",
+        "closed",
+        "escalated"
+      ],
+      "default": "open"
+    },
+    "comments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "title",
+    "project_id"
+  ]
+}

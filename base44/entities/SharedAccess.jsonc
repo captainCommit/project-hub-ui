@@ -1,0 +1,34 @@
+{
+  "name": "SharedAccess",
+  "type": "object",
+  "properties": {
+    "item_id": {
+      "type": "string"
+    },
+    "item_type": {
+      "type": "string",
+      "enum": [
+        "project",
+        "program",
+        "portfolio"
+      ]
+    },
+    "shared_with_email": {
+      "type": "string"
+    },
+    "access_level": {
+      "type": "string",
+      "enum": [
+        "view",
+        "edit"
+      ],
+      "default": "view"
+    }
+  },
+  "required": [
+    "item_id",
+    "item_type",
+    "shared_with_email",
+    "access_level"
+  ]
+}

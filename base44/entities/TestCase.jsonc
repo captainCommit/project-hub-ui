@@ -1,0 +1,85 @@
+{
+  "name": "TestCase",
+  "type": "object",
+  "properties": {
+    "test_case_id": {
+      "type": "string"
+    },
+    "portfolio_id": {
+      "type": "string"
+    },
+    "program_id": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "sprint_id": {
+      "type": "string"
+    },
+    "requirement_id": {
+      "type": "string",
+      "description": "Associated Requirement ID"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium"
+    },
+    "designed_by": {
+      "type": "string"
+    },
+    "executed_by": {
+      "type": "string"
+    },
+    "execution_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "pass_fail": {
+      "type": "string",
+      "enum": [
+        "not_executed",
+        "pass",
+        "fail"
+      ],
+      "default": "not_executed"
+    },
+    "dependencies": {
+      "type": "string"
+    },
+    "test_steps": {
+      "type": "string"
+    },
+    "conditions": {
+      "type": "string"
+    },
+    "test_input": {
+      "type": "string"
+    },
+    "expected_results": {
+      "type": "string"
+    },
+    "actual_results": {
+      "type": "string"
+    },
+    "comments": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "project_id"
+  ]
+}

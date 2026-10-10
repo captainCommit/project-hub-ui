@@ -1,0 +1,58 @@
+{
+  "name": "ChangeRequest",
+  "type": "object",
+  "properties": {
+    "cr_id": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "program_id": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "proposed_by": {
+      "type": "string"
+    },
+    "proposed_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "open",
+        "in_review",
+        "approved",
+        "cancelled",
+        "deferred",
+        "implemented"
+      ],
+      "default": "draft"
+    },
+    "related_record": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "project_id"
+  ]
+}

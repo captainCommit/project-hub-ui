@@ -1,0 +1,46 @@
+{
+  "name": "Program",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "planning",
+        "active",
+        "on_hold",
+        "completed"
+      ],
+      "default": "planning"
+    },
+    "color": {
+      "type": "string",
+      "default": "#8b5cf6"
+    },
+    "portfolio_id": {
+      "type": "string"
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "budget": {
+      "type": "number"
+    },
+    "owner": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

@@ -1,0 +1,121 @@
+{
+  "name": "Decision",
+  "type": "object",
+  "properties": {
+    "decision_id": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "program_id": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium"
+    },
+    "decision": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "impact": {
+      "type": "string"
+    },
+    "work_effort": {
+      "type": "string"
+    },
+    "proposed_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "proposed_by": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "open",
+        "in_review",
+        "approved",
+        "cancelled",
+        "deferred"
+      ],
+      "default": "draft"
+    },
+    "related_record": {
+      "type": "string"
+    },
+    "approved_by": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "approved_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "comments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "decision_template": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "impact": {
+          "type": "string"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "pros": {
+                "type": "string"
+              },
+              "cons": {
+                "type": "string"
+              },
+              "effort": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "decision",
+    "project_id"
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "name": "Requirement",
+  "type": "object",
+  "properties": {
+    "requirement_id": {
+      "type": "string"
+    },
+    "test_case_id": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Linked Test Case IDs"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "program_id": {
+      "type": "string"
+    },
+    "portfolio_id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "in_review",
+        "validated",
+        "deferred",
+        "cancelled"
+      ],
+      "default": "in_review"
+    },
+    "entered_by": {
+      "type": "string"
+    },
+    "entered_date": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "title",
+    "project_id"
+  ]
+}

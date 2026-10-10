@@ -1,0 +1,159 @@
+{
+  "name": "Task",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "task_type": {
+      "type": "string",
+      "enum": [
+        "milestone",
+        "activity",
+        "deliverable",
+        "work_package",
+        "phase"
+      ],
+      "default": "activity"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "todo",
+        "in_progress",
+        "review",
+        "done"
+      ],
+      "default": "todo"
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Resources actually assigned (actual)"
+    },
+    "resources_planned": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Resources planned for the task"
+    },
+    "resource_hours": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "resource": {
+            "type": "string"
+          },
+          "hours": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "resource_hours_planned": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "resource": {
+            "type": "string"
+          },
+          "hours": {
+            "type": "number"
+          }
+        }
+      },
+      "description": "Planned hours per resource"
+    },
+    "assignee": {
+      "type": "string"
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "duration": {
+      "type": "number",
+      "default": 1
+    },
+    "progress": {
+      "type": "number",
+      "default": 0
+    },
+    "predecessors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "parent_task_id": {
+      "type": "string"
+    },
+    "indent_level": {
+      "type": "number",
+      "default": 0
+    },
+    "order": {
+      "type": "number",
+      "default": 0
+    },
+    "risk_id": {
+      "type": "string"
+    },
+    "issue_id": {
+      "type": "string"
+    },
+    "raid_ids": {
+      "type": "string"
+    },
+    "comments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "title",
+    "project_id"
+  ]
+}

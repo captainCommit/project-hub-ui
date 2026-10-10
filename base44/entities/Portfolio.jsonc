@@ -1,0 +1,37 @@
+{
+  "name": "Portfolio",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "on_hold",
+        "archived"
+      ],
+      "default": "active"
+    },
+    "color": {
+      "type": "string",
+      "default": "#f59e0b"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "fiscal_year": {
+      "type": "string"
+    },
+    "total_budget": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

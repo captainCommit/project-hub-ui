@@ -1,0 +1,79 @@
+{
+  "name": "Risk",
+  "type": "object",
+  "properties": {
+    "risk_id": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "program_id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "cause": {
+      "type": "string"
+    },
+    "effect": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium"
+    },
+    "assigned_to": {
+      "type": "string"
+    },
+    "logged_by": {
+      "type": "string"
+    },
+    "date_entered": {
+      "type": "string",
+      "format": "date"
+    },
+    "target_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "mitigation": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "default": "open"
+    },
+    "comments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "title",
+    "project_id"
+  ]
+}

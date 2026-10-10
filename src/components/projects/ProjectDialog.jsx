@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { templatesApi } from '@/api/collaboration';
+import { useAuth } from '@/lib/AuthContext';
 
 const colorOptions = [
   { value: '#6366f1', label: 'Indigo' },
@@ -33,10 +34,11 @@ export default function ProjectDialog({
 }) {
   const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
 
+  const { selectedAccountId } = useAuth();
   const { data: projectTemplates = [] } = useQuery({
-    queryKey: ['project_templates'],
-    queryFn: () => base44.entities.ProjectTemplate.list(),
-    enabled: type === 'project',
+    queryKey: ['project_templates', selectedAccountId],
+    queryFn: () => templatesApi.list(selectedAccountId),
+    enabled: type === 'project' && !!selectedAccountId,
   });
 
   const [formData, setFormData] = useState({

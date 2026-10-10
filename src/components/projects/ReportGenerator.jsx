@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { FileText, Loader2, Download } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import pptxgen from 'pptxgenjs';
+import { aiApi } from '@/api/ai';
 
 const REPORT_TYPES = [
   {
@@ -226,13 +226,13 @@ export default function ReportGenerator({ scope = 'project', project, program, p
           : projects.filter(p => p.portfolio_id === portfolio?.id || programs.filter(pg => pg.portfolio_id === portfolio?.id).some(pg => pg.id === p.program_id));
         const scopeLabel = reportType.id === 'program_health' ? 'Program' : 'Portfolio';
         const prompt = buildScopedHealthPrompt(scopeLabel, `${scopeLabel.toLowerCase()} "${entityName}"`, childProjects, risks, issues, assumptions, decisions, changeRequests);
-        const html = await base44.integrations.Core.InvokeLLM({ prompt });
+        const html = await aiApi.invokeLLM({ prompt });
         const htmlStr = typeof html === 'string' ? html : JSON.stringify(html);
         await generatePdf(htmlStr, `${reportType.id}_${entityName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`);
       } else if (format === 'ppt') {
         const proj_program = programs.find(p => p.id === project?.program_id);
         const pptPrompts = buildPptPrompts(project, proj_program, tasks, risks, issues, assumptions, decisions, changeRequests, sprints, stories);
-        const result = await base44.integrations.Core.InvokeLLM({
+        const result = await aiApi.invokeLLM({
           prompt: pptPrompts[reportType.id],
           response_json_schema: {
             type: 'object',
@@ -246,11 +246,13 @@ export default function ReportGenerator({ scope = 'project', project, program, p
       } else {
         const proj_program = programs.find(p => p.id === project?.program_id);
         const prompts = buildPrompts(project, proj_program, tasks, risks, issues, assumptions, decisions, changeRequests, sprints, stories);
-        const html = await base44.integrations.Core.InvokeLLM({ prompt: prompts[reportType.id] });
+        const html = await aiApi.invokeLLM({ prompt: prompts[reportType.id] });
         const htmlStr = typeof html === 'string' ? html : JSON.stringify(html);
         await generatePdf(htmlStr, `${reportType.id}_${entityName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`);
       }
       setOpen(false);
+    } catch (error) {
+      window.alert(error.message);
     } finally {
       setGenerating(null);
     }

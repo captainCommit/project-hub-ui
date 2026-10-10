@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { PlayCircle, BookOpen, LifeBuoy, Ticket, ChevronLeft, Plus, Inbox } from 'lucide-react';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import TicketForm from '@/components/support/TicketForm';
 import TicketConversation from '@/components/support/TicketConversation';
 import { useAccountHierarchy } from '@/hooks/useAccountLookups';
+import { supportTicketsApi } from '@/api/collaboration';
+import { useAuth } from '@/lib/AuthContext';
 
 const STATUS_STYLES = {
   open: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -22,9 +23,11 @@ export default function LearnSupport() {
   const [activeTicket, setActiveTicket] = useState(null);
 
   const { projects, programs, portfolios } = useAccountHierarchy();
+  const { selectedAccountId } = useAuth();
   const { data: tickets = [], isLoading } = useQuery({
-    queryKey: ['support_tickets'],
-    queryFn: () => base44.entities.SupportTicket.list('-updated_date')
+    queryKey: ['support_tickets', selectedAccountId],
+    queryFn: () => supportTicketsApi.list(selectedAccountId),
+    enabled: !!selectedAccountId,
   });
 
   const openTicket = (t) => { setActiveTicket(t); setView('conversation'); };

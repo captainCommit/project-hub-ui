@@ -6,9 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Share2, Trash2, Mail, Eye, Edit } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { sharedAccessApi } from '@/api/collaboration';
 
 export default function ShareDialog({ open, onOpenChange, item, itemType }) {
   const [email, setEmail] = useState('');
@@ -17,12 +17,12 @@ export default function ShareDialog({ open, onOpenChange, item, itemType }) {
 
   const { data: shares = [] } = useQuery({
     queryKey: ['shared_access', item?.id],
-    queryFn: () => base44.entities.SharedAccess.filter({ item_id: item?.id }),
-    enabled: !!item?.id
+    queryFn: () => sharedAccessApi.list(itemType, item?.id),
+    enabled: !!item?.id && !!itemType
   });
 
   const createShare = useMutation({
-    mutationFn: (data) => base44.entities.SharedAccess.create(data),
+    mutationFn: (data) => sharedAccessApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shared_access', item?.id] });
       setEmail('');
@@ -30,12 +30,12 @@ export default function ShareDialog({ open, onOpenChange, item, itemType }) {
   });
 
   const updateShare = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.SharedAccess.update(id, data),
+    mutationFn: ({ id, data }) => sharedAccessApi.update(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['shared_access', item?.id] })
   });
 
   const deleteShare = useMutation({
-    mutationFn: (id) => base44.entities.SharedAccess.delete(id),
+    mutationFn: (id) => sharedAccessApi.delete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['shared_access', item?.id] })
   });
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { base44 } from '@/api/base44Client';
+import { aiAgents } from '@/api/ai';
 import { Bot, Send, X, Plus, MessageSquare, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -74,7 +74,7 @@ export default function AIAssistantWidget() {
 
   useEffect(() => {
     if (!activeConvId) return;
-    const unsub = base44.agents.subscribeToConversation(activeConvId, (data) => {
+    const unsub = aiAgents.subscribeToConversation(activeConvId, (data) => {
       setMessages(data.messages || []);
       if (data.messages?.at(-1)?.role === 'assistant') setSending(false);
     });
@@ -82,12 +82,12 @@ export default function AIAssistantWidget() {
   }, [activeConvId]);
 
   const loadConversations = async () => {
-    const convs = await base44.agents.listConversations({ agent_name: AGENT });
+    const convs = await aiAgents.listConversations({ agent_name: AGENT });
     setConversations(convs || []);
   };
 
   const handleNewChat = async () => {
-    const conv = await base44.agents.createConversation({
+    const conv = await aiAgents.createConversation({
       agent_name: AGENT,
       metadata: { name: `Chat ${new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` }
     });
@@ -99,7 +99,7 @@ export default function AIAssistantWidget() {
 
   const handleSelectConv = async (convId) => {
     setActiveConvId(convId);
-    const conv = await base44.agents.getConversation(convId);
+    const conv = await aiAgents.getConversation(convId);
     setMessages(conv.messages || []);
     setShowConvList(false);
   };
@@ -108,7 +108,7 @@ export default function AIAssistantWidget() {
     if (!input.trim() || sending) return;
     let convId = activeConvId;
     if (!convId) {
-      const conv = await base44.agents.createConversation({
+      const conv = await aiAgents.createConversation({
         agent_name: AGENT,
         metadata: { name: input.trim().slice(0, 40) }
       });
@@ -116,12 +116,12 @@ export default function AIAssistantWidget() {
       setActiveConvId(convId);
       setConversations(prev => [conv, ...prev]);
     }
-    const conv = await base44.agents.getConversation(convId);
+    const conv = await aiAgents.getConversation(convId);
     const msg = { role: 'user', content: input.trim() };
     setMessages(prev => [...prev, msg, { role: 'assistant', content: '' }]);
     setInput('');
     setSending(true);
-    await base44.agents.addMessage(conv, msg);
+    await aiAgents.addMessage(conv, msg);
   };
 
   const SUGGESTIONS = [

@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, Send, Loader2, Paperclip, Headphones } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { attachmentsApi } from '@/api/attachments';
+import { supportTicketsApi } from '@/api/collaboration';
 
 const STATUS_STYLES = {
   open: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -31,12 +32,13 @@ export default function TicketConversation({ ticket, onBack }) {
     if (!reply.trim()) return;
     setSending(true);
     try {
-      const newMsgs = [...messages, { role: 'user', author: ticket.requester_name, content: reply.trim(), date: new Date().toISOString() }];
-      const updated = await base44.entities.SupportTicket.update(ticket.id, {
-        messages: newMsgs,
-        status: 'open'
-      });
-      setMessages(updated.messages || newMsgs);
+      const uploaded = await Promise.all(attachments.map(a => attachmentsApi.upload('SUPPORT_TICKET', ticket.id, a.file)));
+      const updated = await supportTicketsApi.addMessage(
+        ticket.id,
+        reply.trim(),
+        uploaded.map(u => ({ attachment_id: u.attachment_id, name: u.name })),
+      );
+      setMessages(updated.messages);
       setReply('');
       setAttachments([]);
     } catch (e) {
@@ -49,11 +51,9 @@ export default function TicketConversation({ ticket, onBack }) {
   const handleFile = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-    const uploaded = await Promise.all(files.map(async f => {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: f });
-      return { name: f.name, url: file_url };
-    }));
-    setAttachments(a => [...a, ...uploaded]);
+    // Uploaded when the reply is sent.
+    setAttachments(a => [...a, ...files.map(file => ({ name: file.name, file }))]);
+    e.target.value = '';
   };
 
   return (

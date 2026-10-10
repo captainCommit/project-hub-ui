@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Camera, Save, Loader2 } from 'lucide-react';
+import { authApi } from '@/api/auth';
 
 export default function ProfileEditor({ user }) {
   const [form, setForm] = useState({
@@ -21,7 +21,7 @@ export default function ProfileEditor({ user }) {
 
   // Refresh from server so saved fields show even if the auth context is stale
   useEffect(() => {
-    base44.auth.me().then(me => {
+    authApi.getCurrentUser().then(me => {
       if (!me) return;
       setForm({
         first_name: me.first_name || '',
@@ -42,8 +42,8 @@ export default function ProfileEditor({ user }) {
     if (!file) return;
     setUploading(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      setField('photo_url', file_url);
+      const me = await authApi.uploadPhoto(file);
+      setField('photo_url', me.photo_url);
     } catch (err) {
       console.error(err);
     } finally {
@@ -54,7 +54,7 @@ export default function ProfileEditor({ user }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await base44.auth.updateMe({
+      await authApi.updateMe({
         first_name: form.first_name,
         last_name: form.last_name,
         title: form.title,

@@ -5,7 +5,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, X, Loader2, Send } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { attachmentsApi } from '@/api/attachments';
+import { supportTicketsApi } from '@/api/collaboration';
+import { useAuth } from '@/lib/AuthContext';
 
 const CATEGORIES = [
   { value: 'general', label: 'General Inquiry' },
@@ -23,27 +25,18 @@ export default function TicketForm({ onSubmitted, onCancel }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    base44.auth.me().then(u => {
-      if (u) setForm(f => ({ ...f, name: u.full_name || '', email: u.email || '' }));
-    }).catch(() => {});
-  }, []);
+  const { user, selectedAccountId } = useAuth();
 
-  const handleFile = async (e) => {
+  useEffect(() => {
+    if (user) setForm(f => ({ ...f, name: f.name || user.full_name || '', email: f.email || user.email || '' }));
+  }, [user]);
+
+  // Files are uploaded once the ticket exists (attachments belong to a ticket).
+  const handleFile = (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-    setUploading(true);
-    try {
-      const uploaded = await Promise.all(files.map(async f => {
-        const { file_url } = await base44.integrations.Core.UploadFile({ file: f });
-        return { name: f.name, url: file_url };
-      }));
-      setAttachments(a => [...a, ...uploaded]);
-    } catch (err) {
-      setError('Could not upload file: ' + err.message);
-    } finally {
-      setUploading(false);
-    }
+    setAttachments(a => [...a, ...files.map(file => ({ name: file.name, file }))]);
+    e.target.value = '';
   };
 
   const removeAttachment = (idx) => setAttachments(a => a.filter((_, i) => i !== idx));
@@ -56,22 +49,21 @@ export default function TicketForm({ onSubmitted, onCancel }) {
     setSubmitting(true);
     setError('');
     try {
-      const existing = await base44.entities.SupportTicket.list('-created_date', 200);
-      const maxNum = existing.reduce((m, t) => {
-        const n = parseInt(String(t.ticket_number || '').replace(/\D/g, ''), 10);
-        return Number.isNaN(n) ? m : Math.max(m, n);
-      }, 0);
-      const ticket_number = `TK-${String(maxNum + 1).padStart(4, '0')}`;
-      const created = await base44.entities.SupportTicket.create({
+      const created = await supportTicketsApi.create(selectedAccountId, {
         ...form,
-        ticket_number,
-        attachments,
-        status: 'open',
-        messages: [
-          { role: 'user', author: form.name, content: form.description, date: new Date().toISOString() },
-          { role: 'support', author: 'Row Support', content: `Hi ${form.name}, thanks for reaching out. We've received your ticket and a specialist will respond shortly.`, date: new Date().toISOString() }
-        ]
+        requester_name: form.name,
+        requester_email: form.email,
       });
+      if (attachments.length) {
+        setUploading(true);
+        try {
+          await Promise.all(attachments.map(a => attachmentsApi.upload('SUPPORT_TICKET', created.id, a.file)));
+        } catch (err) {
+          setError('Ticket created, but a file could not be uploaded: ' + err.message);
+        } finally {
+          setUploading(false);
+        }
+      }
       onSubmitted?.(created);
     } catch (err) {
       setError('Failed to submit: ' + err.message);

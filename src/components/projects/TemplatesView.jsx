@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { Folder, Plus, Trash2, Star, X, ArrowLeft, GripVertical, Check } from 'lucide-react';
@@ -8,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { templatesApi } from '@/api/collaboration';
+import { useAuth } from '@/lib/AuthContext';
 
 const STANDARD_COLUMNS = [
   { key: 'task_type',    label: 'Type',         type: 'text' },
@@ -371,21 +372,23 @@ export default function TemplatesView() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [viewModalOpen, setViewModalOpen] = useState(false);
 
+  const { selectedAccountId } = useAuth();
   const { data: projectTemplates = [] } = useQuery({
-    queryKey: ['project_templates'],
-    queryFn: () => base44.entities.ProjectTemplate.list()
+    queryKey: ['project_templates', selectedAccountId],
+    queryFn: () => templatesApi.list(selectedAccountId),
+    enabled: !!selectedAccountId,
   });
 
   const createTemplate = useMutation({
-    mutationFn: d => base44.entities.ProjectTemplate.create(d),
+    mutationFn: d => templatesApi.create(selectedAccountId, d),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['project_templates'] })
   });
   const updateTemplate = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.ProjectTemplate.update(id, data),
+    mutationFn: ({ id, data }) => templatesApi.update(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['project_templates'] })
   });
   const deleteTemplate = useMutation({
-    mutationFn: id => base44.entities.ProjectTemplate.delete(id),
+    mutationFn: id => templatesApi.delete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['project_templates'] })
   });
 

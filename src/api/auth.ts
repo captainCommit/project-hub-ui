@@ -17,6 +17,8 @@ export interface ProjectHubUser {
   phone: string;
   photo_url: string;
   is_active: boolean;
+  /** Can create accounts and manage users in any account. */
+  is_platform_admin: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -48,6 +50,7 @@ export const mapUserResponse = (payload: unknown): ProjectHubUser => {
     phone: nullableString(payload.phone) ?? '',
     photo_url: nullableString(payload.photo_url) ?? '',
     is_active: Boolean(payload.is_active),
+    is_platform_admin: Boolean(payload.is_platform_admin),
     created_at: nullableString(payload.created_at) ?? undefined,
     updated_at: nullableString(payload.updated_at) ?? undefined,
   };

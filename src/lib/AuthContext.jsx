@@ -119,13 +119,15 @@ export const AuthProvider = (/** @type {{ children: React.ReactNode }} */ { chil
     }
   }, [clearUserState]);
 
-  const refreshAccounts = useCallback(async () => {
+  const refreshAccounts = useCallback(async (/** @type {{ is_platform_admin?: boolean } | null} */ currentUser = null) => {
     try {
       const nextAccounts = await accountsApi.list();
       setAccounts(nextAccounts);
       applyAccountSelection(nextAccounts);
-      // A signed-in Cognito user who belongs to no account can't do anything yet.
-      setAuthError(isCognitoMode() && nextAccounts.length === 0 ? { type: 'user_not_registered' } : null);
+      // A signed-in Cognito user who belongs to no account can't do anything yet,
+      // except a platform admin, who can still create accounts.
+      const stranded = isCognitoMode() && nextAccounts.length === 0 && !currentUser?.is_platform_admin;
+      setAuthError(stranded ? { type: 'user_not_registered' } : null);
       return nextAccounts;
     } catch (error) {
       console.warn('Project Hub account load failed:', error);
@@ -157,9 +159,9 @@ export const AuthProvider = (/** @type {{ children: React.ReactNode }} */ { chil
         }
         setPostLoginPath(returnTo);
       }
-      await refreshUser();
+      const currentUser = await refreshUser();
       if (isCognitoMode()) resetLoginAttempts();
-      await refreshAccounts();
+      await refreshAccounts(currentUser);
     } catch (error) {
       // refreshUser/refreshAccounts store their own friendly errors; classify the rest (callback exchange).
       if (error && typeof error === 'object' && 'type' in error) return;

@@ -3,11 +3,14 @@ import { useAuth } from '@/lib/AuthContext';
 import { cn } from '@/lib/utils';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import SettingsContent from '@/components/projects/SettingsContent';
-import { UserCircle, Settings as SettingsIcon } from 'lucide-react';
+import { UserCircle, Settings as SettingsIcon, Users, Building2 } from 'lucide-react';
 import ProfileEditor from '@/components/Account/ProfileEditor';
+import AccountUsers from '@/components/Account/AccountUsers';
+import PlatformAccounts from '@/components/Account/PlatformAccounts';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
-const ACCOUNT_NAME = 'TaskFlow';
+const USER_ADMIN_ROLES = ['OWNER', 'ADMIN'];
 
 function InfoRow({ label, value }) {
   return (
@@ -22,12 +25,20 @@ function InfoRow({ label, value }) {
 
 export default function Account() {
   const [tab, setTab] = useState('account');
-  const { user, appPublicSettings } = useAuth();
+  const { user, appPublicSettings, accounts, selectedAccount, selectedAccountId, setSelectedAccountId } = useAuth();
 
   const { projects, programs, portfolios } = useAccountHierarchy();
 
-  const roleLabel = user?.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1)) : 'User';
-  const isAdmin = user?.role === 'admin';
+  const accountRole = selectedAccount?.role;
+  const roleLabel = accountRole ? accountRole.charAt(0) + accountRole.slice(1).toLowerCase() : '—';
+  const isAdmin = USER_ADMIN_ROLES.includes(accountRole);
+  const canManageUsers = !!selectedAccountId && (isAdmin || user?.is_platform_admin);
+  const tabs = [
+    { id: 'account', label: 'Account', icon: UserCircle },
+    canManageUsers && { id: 'users', label: 'Users', icon: Users },
+    user?.is_platform_admin && { id: 'accounts', label: 'All Accounts', icon: Building2 },
+    { id: 'settings', label: 'Settings', icon: SettingsIcon },
+  ].filter(Boolean);
   const sheetsOwned = projects.filter(p => p.created_by_id === user?.id || p.owner === user?.full_name).length;
   const plan = appPublicSettings?.public_settings?.plan_name || appPublicSettings?.public_settings?.plan || '—';
 
@@ -42,12 +53,11 @@ export default function Account() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Tabs */}
         <div className="flex items-center gap-1 border-b-2 border-slate-200 bg-white px-0">
-          <button onClick={() => setTab('account')} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', tab === 'account' ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
-            <UserCircle className="w-4 h-4" /> Account
-          </button>
-          <button onClick={() => setTab('settings')} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', tab === 'settings' ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
-            <SettingsIcon className="w-4 h-4" /> Settings
-          </button>
+          {tabs.map(({ id, label, icon: Icon }) => (
+            <button key={id} onClick={() => setTab(id)} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', tab === id ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
+              <Icon className="w-4 h-4" /> {label}
+            </button>
+          ))}
         </div>
 
         {tab === 'account' ? (
@@ -58,7 +68,21 @@ export default function Account() {
                 <div className="px-5 py-3">
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Account Information</p>
                 </div>
-                <InfoRow label="Account Name" value={ACCOUNT_NAME} />
+                {accounts.length > 1 ? (
+                  <div className="flex items-center justify-between px-5 py-4">
+                    <p className="text-sm font-medium text-slate-800">Account</p>
+                    <Select value={selectedAccountId ?? undefined} onValueChange={setSelectedAccountId}>
+                      <SelectTrigger className="h-9 w-64"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {accounts.map((account) => (
+                          <SelectItem key={account.id} value={account.id}>{account.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <InfoRow label="Account Name" value={selectedAccount?.name || '—'} />
+                )}
                 <InfoRow label="Email" value={user?.email || '—'} />
                 <div className="flex items-center justify-between px-5 py-4">
                   <p className="text-sm font-medium text-slate-800">Role</p>
@@ -67,6 +91,18 @@ export default function Account() {
                 <InfoRow label="Plan" value={plan} />
                 <InfoRow label="Sheets Owned" value={sheetsOwned} />
               </div>
+            </div>
+          </div>
+        ) : tab === 'users' && canManageUsers ? (
+          <div className="flex-1 overflow-auto p-8">
+            <div className="max-w-3xl">
+              <AccountUsers accountId={selectedAccountId} />
+            </div>
+          </div>
+        ) : tab === 'accounts' && user?.is_platform_admin ? (
+          <div className="flex-1 overflow-auto p-8">
+            <div className="max-w-3xl">
+              <PlatformAccounts />
             </div>
           </div>
         ) : (

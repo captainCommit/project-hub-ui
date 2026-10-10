@@ -11,6 +11,8 @@ export interface ApiRequestOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
   /** Internal: skip the refresh-and-retry on 401 (used by the auth endpoints themselves). */
   skipAuthRetry?: boolean;
+  /** Background request (e.g. polling): don't show the global loading indicator. */
+  silent?: boolean;
 }
 
 export class ProjectHubApiError extends Error {
@@ -121,8 +123,34 @@ export const refreshSession = (): Promise<boolean> => {
   return refreshInFlight;
 };
 
+/** In-flight request counts, split into reads (GET) and writes, for the global loading indicator. */
+export type ApiActivity = { reads: number; writes: number };
+let apiActivity: ApiActivity = { reads: 0, writes: 0 };
+const apiActivityListeners = new Set<() => void>();
+
+export const getApiActivity = (): ApiActivity => apiActivity;
+export const subscribeApiActivity = (listener: () => void) => {
+  apiActivityListeners.add(listener);
+  return () => { apiActivityListeners.delete(listener); };
+};
+const trackApiActivity = (kind: keyof ApiActivity, delta: number) => {
+  apiActivity = { ...apiActivity, [kind]: Math.max(0, apiActivity[kind] + delta) };
+  apiActivityListeners.forEach((listener) => listener());
+};
+
 export const apiRequest = async <T = unknown>(path: string, options: ApiRequestOptions = {}): Promise<T> => {
-  const { query, body, headers, skipAuthRetry, ...requestOptions } = options;
+  if (options.silent) return sendApiRequest<T>(path, options);
+  const kind: keyof ApiActivity = (options.method || 'GET').toUpperCase() === 'GET' ? 'reads' : 'writes';
+  trackApiActivity(kind, 1);
+  try {
+    return await sendApiRequest<T>(path, options);
+  } finally {
+    trackApiActivity(kind, -1);
+  }
+};
+
+const sendApiRequest = async <T>(path: string, options: ApiRequestOptions): Promise<T> => {
+  const { query, body, headers, skipAuthRetry, silent: _silent, ...requestOptions } = options;
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
 
   const send = () => {

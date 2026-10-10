@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/toaster"
+import GlobalLoader from '@/components/GlobalLoader';
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import NavigationTracker from '@/lib/NavigationTracker'
@@ -151,6 +152,7 @@ function App() {
           <AuthenticatedApp />
         </Router>
         <Toaster />
+        <GlobalLoader />
       </QueryClientProvider>
     </AuthProvider>
   )

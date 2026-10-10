@@ -78,10 +78,16 @@ module.exports = {
   					height: '0'
   				}
   			}
+ ,
+  			'global-loader': {
+  				'0%': { transform: 'translateX(-100%)' },
+  				'100%': { transform: 'translateX(300%)' }
+  			}
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out'
+  			'accordion-up': 'accordion-up 0.2s ease-out',
+  			'global-loader': 'global-loader 1.1s ease-in-out infinite'
   		}
   	}
   },

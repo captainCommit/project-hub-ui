@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { cn } from "@/lib/utils";
 import { useAuth } from '@/lib/AuthContext';
 import { accountsApi } from '@/api/accounts';
@@ -21,11 +21,28 @@ const EMPTY_SIDEBAR_HIERARCHY = { portfolios: [], programs: [], projects: [] };
 /** @typedef {import('@/api/accounts').ProjectHubSidebarProgram} ProjectHubSidebarProgram */
 /** @typedef {import('@/api/accounts').ProjectHubSidebarProject} ProjectHubSidebarProject */
 
+const DEFAULT_EXPANDED_FOLDERS = ['favorites', 'raid', 'resource_mgmt', 'delivery', 'sprint_mgmt'];
+const SCROLL_KEY = 'sidebar_scroll_top';
+
+const hierarchyFolderIdsOf = (hierarchy) => [
+  ...hierarchy.portfolios.map(portfolio => `portfolio:${portfolio.id}`),
+  ...hierarchy.programs.map(program => `program:${program.id}`),
+];
+
+const readSavedScrollTop = () => {
+  try {
+    const saved = parseInt(localStorage.getItem(SCROLL_KEY) || '', 10);
+    return Number.isFinite(saved) && saved > 0 ? saved : null;
+  } catch {
+    return null;
+  }
+};
+
 export default function ProjectSidebar(/** @type {any} */ {
   projects, programs = [], portfolios = [], selectedItem, selectedType,
   onSelectItem, onNewProject, onNewProgram, onNewPortfolio, onRenameItem, onDeleteItem, onEditItem,
 }) {
-  const [expandedFolders, setExpandedFolders] = useState(['favorites', 'raid', 'resource_mgmt', 'delivery', 'sprint_mgmt']);
+  const [expandedFolders, setExpandedFolders] = useState(DEFAULT_EXPANDED_FOLDERS);
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('sidebar_collapsed') === 'true'; } catch { return false; }
   });
@@ -45,11 +62,10 @@ export default function ProjectSidebar(/** @type {any} */ {
     enabled: !!selectedAccountId,
   });
 
-  useEffect(() => {
-    const hierarchyFolderIds = [
-      ...sidebarHierarchy.portfolios.map(portfolio => `portfolio:${portfolio.id}`),
-      ...sidebarHierarchy.programs.map(program => `program:${program.id}`),
-    ];
+  // Portfolios and programs start expanded. Done in a layout effect so a remount (every page renders its own
+  // sidebar) paints the full-height list straight away and the saved scroll position below still fits.
+  useLayoutEffect(() => {
+    const hierarchyFolderIds = hierarchyFolderIdsOf(sidebarHierarchy);
     if (!hierarchyFolderIds.length) return;
     setExpandedFolders(prev => Array.from(new Set([...prev, ...hierarchyFolderIds])));
   }, [sidebarHierarchy]);
@@ -66,15 +82,30 @@ export default function ProjectSidebar(/** @type {any} */ {
     try { return JSON.parse(localStorage.getItem('sidebar_favorites') || '[]'); } catch { return []; }
   });
 
+  // Keep the sidebar's scroll position across page changes. The saved position is only restored once the
+  // hierarchy has loaded and expanded; until then the list is shorter, the browser would clamp the position,
+  // and saving that clamped value would lose the real one.
+  const pendingScrollTop = useRef(/** @type {number | null} */ (readSavedScrollTop()));
+  const hierarchyExpanded = !sidebarLoading
+    && hierarchyFolderIdsOf(sidebarHierarchy).every(id => expandedFolders.includes(id));
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el || pendingScrollTop.current === null) return;
+    el.scrollTop = pendingScrollTop.current;
+    if (hierarchyExpanded || el.scrollTop === pendingScrollTop.current) pendingScrollTop.current = null;
+  }, [hierarchyExpanded, collapsed]);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const saved = localStorage.getItem('sidebar_scroll_top');
-    if (saved) el.scrollTop = parseInt(saved, 10);
-    const onScroll = () => localStorage.setItem('sidebar_scroll_top', String(el.scrollTop));
+    const onScroll = () => {
+      if (pendingScrollTop.current !== null) return;
+      try { localStorage.setItem(SCROLL_KEY, String(el.scrollTop)); } catch {}
+    };
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
-  }, []);
+  }, [collapsed]);
 
   const toggleFolder = (/** @type {string} */ folder) => {
     setExpandedFolders(prev => prev.includes(folder) ? prev.filter(f => f !== folder) : [...prev, folder]);

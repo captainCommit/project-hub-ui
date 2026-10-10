@@ -1,6 +1,6 @@
 import React from 'react';
 
-const UserNotRegisteredError = () => {
+const UserNotRegisteredError = ({ onSignOut }) => {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-white to-slate-50">
       <div className="max-w-md w-full p-8 bg-white rounded-lg shadow-lg border border-slate-100">
@@ -22,6 +22,12 @@ const UserNotRegisteredError = () => {
               <li>Try logging out and back in again</li>
             </ul>
           </div>
+          {onSignOut && (
+            <button type="button" onClick={onSignOut}
+              className="mt-6 rounded-md bg-[#c87b14] px-4 py-2 text-sm font-medium text-white hover:bg-[#a86610]">
+              Sign out
+            </button>
+          )}
         </div>
       </div>
     </div>

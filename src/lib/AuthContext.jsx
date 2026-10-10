@@ -1,8 +1,16 @@
 import React, { createContext, useState, useContext, useEffect, useCallback, useMemo } from 'react';
 import { authApi, clearAuthToken } from '@/api/auth';
 import { accountsApi } from '@/api/accounts';
-import { AUTH_EXPIRED_EVENT, ProjectHubApiError } from '@/api/client';
-import { CALLBACK_PATH, beginLogin, completeLogin, hasSession, isCognitoMode, signOut } from '@/lib/cognitoSession';
+import { AUTH_EXPIRED_EVENT, ProjectHubApiError, ProjectHubNetworkError } from '@/api/client';
+import {
+  CALLBACK_PATH,
+  SignInError,
+  beginLogin,
+  isCognitoMode,
+  redirectToCognitoLogout,
+  resetLoginAttempts,
+  takeCallbackCode,
+} from '@/lib/cognitoSession';
 
 /** @typedef {import('@/api/accounts').ProjectHubAccount} ProjectHubAccount */
 
@@ -24,22 +32,42 @@ const persistSelectedAccountId = (/** @type {string | null} */ accountId) => {
   }
 };
 
-const createStartupError = () => ({
-  type: 'startup_error',
-  message: 'We could not load your Project Hub user profile. Please refresh or sign in again.',
-});
-
 const AUTH_REQUIRED = { type: 'auth_required' };
 
-const createLoginError = (/** @type {unknown} */ error) => ({
-  type: 'login_error',
-  message: error instanceof Error && error.message ? error.message : 'Sign-in failed. Please try again.',
-});
-
-const createAccountError = () => ({
-  type: 'account_error',
-  message: 'We could not load your Project Hub accounts. Please refresh and try again.',
-});
+/**
+ * Turn anything thrown while signing in or loading the user into one of the
+ * states App renders: auth_required, login_error, service_unavailable,
+ * network_error, user_disabled, account_conflict, startup_error.
+ */
+const classifyAuthError = (/** @type {unknown} */ error, fallbackType = 'startup_error') => {
+  if (error instanceof SignInError) return { type: 'login_error', message: error.message };
+  if (error instanceof ProjectHubNetworkError) return { type: 'network_error', message: error.message };
+  if (error instanceof ProjectHubApiError) {
+    switch (error.code) {
+      case 'AUTH_REQUIRED':
+      case 'TOKEN_EXPIRED':
+      case 'TOKEN_INVALID':
+      case 'SESSION_EXPIRED':
+        return AUTH_REQUIRED;
+      case 'LOGIN_FAILED':
+      case 'CSRF_CHECK_FAILED':
+        return { type: 'login_error', message: error.message };
+      case 'AUTH_UNAVAILABLE':
+      case 'AUTH_NOT_CONFIGURED':
+        return { type: 'service_unavailable', message: error.message };
+      case 'USER_DISABLED':
+        return { type: 'user_disabled', message: error.message };
+      case 'ACCOUNT_CONFLICT':
+        return { type: 'account_conflict', message: error.message };
+      default:
+        if (error.status === 401) return AUTH_REQUIRED;
+        if (error.status >= 500) return { type: 'service_unavailable', title: 'Project Hub is temporarily unavailable', message: 'Project Hub is having trouble right now. Please try again shortly.' };
+    }
+  }
+  return fallbackType === 'account_error'
+    ? { type: 'account_error', message: 'We could not load your Project Hub accounts. Please refresh and try again.' }
+    : { type: 'startup_error', message: 'We could not load your Project Hub user profile. Please refresh or sign in again.' };
+};
 
 export const AuthProvider = (/** @type {{ children: React.ReactNode }} */ { children }) => {
   const [user, setUser] = useState(/** @type {unknown} */ (null));
@@ -48,7 +76,7 @@ export const AuthProvider = (/** @type {{ children: React.ReactNode }} */ { chil
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
-  const [authError, setAuthError] = useState(/** @type {unknown} */ (null));
+  const [authError, setAuthError] = useState(/** @type {any} */ (null));
   const [appPublicSettings, setAppPublicSettings] = useState(/** @type {unknown} */ (null)); // Contains only { id, public_settings }
   const [postLoginPath, setPostLoginPath] = useState(/** @type {string | null} */ (null));
 
@@ -68,6 +96,13 @@ export const AuthProvider = (/** @type {{ children: React.ReactNode }} */ { chil
     return selected;
   }, []);
 
+  const clearUserState = useCallback(() => {
+    setUser(null);
+    setAccounts([]);
+    setSelectedAccountIdState(null);
+    setIsAuthenticated(false);
+  }, []);
+
   const refreshUser = useCallback(async () => {
     try {
       const currentUser = await authApi.getCurrentUser();
@@ -77,27 +112,24 @@ export const AuthProvider = (/** @type {{ children: React.ReactNode }} */ { chil
       return currentUser;
     } catch (error) {
       console.warn('Project Hub startup user load failed:', error);
-      const sessionRejected = isCognitoMode() && error instanceof ProjectHubApiError && error.status === 401;
-      const friendlyError = sessionRejected ? AUTH_REQUIRED : createStartupError();
-      setUser(null);
-      setAccounts([]);
-      setSelectedAccountIdState(null);
-      setIsAuthenticated(false);
+      const friendlyError = classifyAuthError(error);
+      clearUserState();
       setAuthError(friendlyError);
       throw friendlyError;
     }
-  }, []);
+  }, [clearUserState]);
 
   const refreshAccounts = useCallback(async () => {
     try {
       const nextAccounts = await accountsApi.list();
       setAccounts(nextAccounts);
       applyAccountSelection(nextAccounts);
-      setAuthError(null);
+      // A signed-in Cognito user who belongs to no account can't do anything yet.
+      setAuthError(isCognitoMode() && nextAccounts.length === 0 ? { type: 'user_not_registered' } : null);
       return nextAccounts;
     } catch (error) {
       console.warn('Project Hub account load failed:', error);
-      const friendlyError = createAccountError();
+      const friendlyError = classifyAuthError(error, 'account_error');
       setAuthError(friendlyError);
       throw friendlyError;
     }
@@ -110,47 +142,47 @@ export const AuthProvider = (/** @type {{ children: React.ReactNode }} */ { chil
     setAppPublicSettings({ public_settings: {} });
     setIsLoadingPublicSettings(false);
 
-    if (isCognitoMode()) {
-      if (window.location.pathname === CALLBACK_PATH) {
-        try {
-          setPostLoginPath(await completeLogin());
-        } catch (error) {
-          setAuthError(createLoginError(error));
-          setIsLoadingAuth(false);
-          return;
-        }
-      }
-      if (!hasSession()) {
-        setAuthError(AUTH_REQUIRED);
-        setIsLoadingAuth(false);
-        return;
-      }
-    }
-
     try {
+      if (isCognitoMode() && window.location.pathname === CALLBACK_PATH) {
+        const { returnTo, ...session } = takeCallbackCode();
+        try {
+          await authApi.createSession(session);
+        } catch (error) {
+          // Never bounce a failed exchange back to Cognito: its session would hand us a fresh
+          // code that fails the same way. Show the problem instead.
+          const classified = classifyAuthError(error);
+          throw classified.type === 'auth_required'
+            ? new SignInError(error instanceof Error && error.message ? error.message : 'Sign-in could not be completed.')
+            : error;
+        }
+        setPostLoginPath(returnTo);
+      }
       await refreshUser();
+      if (isCognitoMode()) resetLoginAttempts();
       await refreshAccounts();
-    } catch {
-      // Friendly errors are already stored by refreshUser/refreshAccounts.
+    } catch (error) {
+      // refreshUser/refreshAccounts store their own friendly errors; classify the rest (callback exchange).
+      if (error && typeof error === 'object' && 'type' in error) return;
+      clearUserState();
+      setAuthError(classifyAuthError(error));
     } finally {
       setIsLoadingAuth(false);
     }
-  }, [refreshAccounts, refreshUser]);
+  }, [clearUserState, refreshAccounts, refreshUser]);
 
   useEffect(() => {
     checkAppState();
   }, [checkAppState]);
 
-  // The API client fires this when a refreshed session is still rejected.
+  // The API client fires this when a session could not be renewed mid-use.
   useEffect(() => {
     const onExpired = () => {
-      setUser(null);
-      setIsAuthenticated(false);
+      clearUserState();
       setAuthError(AUTH_REQUIRED);
     };
     window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
-  }, []);
+  }, [clearUserState]);
 
   const selectedAccount = useMemo(
     () => accounts.find((account) => account.id === selectedAccountId) ?? null,
@@ -164,16 +196,15 @@ export const AuthProvider = (/** @type {{ children: React.ReactNode }} */ { chil
     setSelectedAccountIdState(nextAccountId);
   }, [accounts]);
 
-  const logout = (shouldRedirect = true) => {
-    setUser(null);
-    setAccounts([]);
-    setSelectedAccountIdState(null);
-    setIsAuthenticated(false);
+  const logout = async (shouldRedirect = true) => {
+    clearUserState();
     clearAuthToken();
     persistSelectedAccountId(null);
 
     if (isCognitoMode()) {
-      signOut();
+      // Clear the cookies and revoke the refresh token; sign out of Cognito even if the API is unreachable.
+      await authApi.endSession().catch((error) => console.warn('Sign-out request failed:', error));
+      redirectToCognitoLogout();
       return;
     }
 
@@ -182,19 +213,19 @@ export const AuthProvider = (/** @type {{ children: React.ReactNode }} */ { chil
     }
   };
 
-  const navigateToLogin = () => {
+  const navigateToLogin = (/** @type {string | undefined} */ returnTo) => {
     if (!isCognitoMode()) {
       setAuthError(null);
       return;
     }
-    beginLogin().catch((error) => setAuthError(createLoginError(error)));
+    beginLogin(returnTo).catch((error) => setAuthError(classifyAuthError(error)));
   };
 
   const loading = isLoadingPublicSettings || isLoadingAuth;
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
+    <AuthContext.Provider value={{
+      user,
       accounts,
       selectedAccount,
       selectedAccountId,
@@ -203,7 +234,7 @@ export const AuthProvider = (/** @type {{ children: React.ReactNode }} */ { chil
       error: authError,
       refreshUser,
       refreshAccounts,
-      isAuthenticated, 
+      isAuthenticated,
       isLoadingAuth,
       isLoadingPublicSettings,
       authError,

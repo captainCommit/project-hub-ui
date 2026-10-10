@@ -1,6 +1,7 @@
-// Cognito hosted login (OAuth 2.0 Authorization Code + PKCE) for the browser.
-// The app client is public (no secret). The API is called with the ID token,
-// which carries the email/name claims the API syncs users from.
+// Cognito hosted login (OAuth 2.0 Authorization Code + PKCE).
+// The browser only starts the redirect and hands the returned code to the API,
+// which exchanges it and keeps the session in an HttpOnly, SameSite=Strict cookie.
+// No tokens are ever visible to JavaScript.
 
 type Env = Record<string, string | undefined>;
 const env: Env = (import.meta as ImportMeta & { env?: Env }).env || {};
@@ -16,40 +17,25 @@ const config = {
 };
 
 export const CALLBACK_PATH = '/auth/callback';
-const SESSION_KEY = 'project_hub_session';
 const PKCE_KEY = 'project_hub_pkce';
-const REFRESH_MARGIN_MS = 60_000;
-
-interface Session {
-  idToken: string;
-  accessToken: string;
-  refreshToken?: string;
-  expiresAt: number;
-}
+const ATTEMPTS_KEY = 'project_hub_login_attempts';
+const MAX_ATTEMPTS = 3;
+const ATTEMPT_WINDOW_MS = 2 * 60_000;
 
 export const isCognitoMode = () => AUTH_MODE === 'cognito';
 
-export const assertCognitoConfigured = () => {
+export class SignInError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SignInError';
+  }
+}
+
+const assertConfigured = () => {
   if (!config.domain || !config.clientId) {
-    throw new Error('Sign-in is not configured. Set VITE_COGNITO_DOMAIN and VITE_COGNITO_CLIENT_ID.');
+    throw new SignInError('Sign-in is not configured for this site (missing VITE_COGNITO_DOMAIN / VITE_COGNITO_CLIENT_ID).');
   }
 };
-
-const readSession = (): Session | null => {
-  try {
-    const raw = window.localStorage.getItem(SESSION_KEY);
-    return raw ? JSON.parse(raw) as Session : null;
-  } catch {
-    return null;
-  }
-};
-
-const writeSession = (session: Session | null) => {
-  if (session) window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  else window.localStorage.removeItem(SESSION_KEY);
-};
-
-export const hasSession = () => Boolean(readSession());
 
 const base64Url = (bytes: Uint8Array) =>
   btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -59,17 +45,40 @@ const randomString = (byteLength = 32) => base64Url(crypto.getRandomValues(new U
 const sha256 = async (value: string) =>
   base64Url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))));
 
-/** Send the browser to the Cognito login page; it returns to /auth/callback. */
+/** Recent redirects to the login page; used to stop an endless sign-in loop. */
+const recentAttempts = (): number[] => {
+  try {
+    const now = Date.now();
+    return (JSON.parse(window.sessionStorage.getItem(ATTEMPTS_KEY) || '[]') as number[]).filter((t) => now - t < ATTEMPT_WINDOW_MS);
+  } catch {
+    return [];
+  }
+};
+
+/** Call after a session is confirmed so later expiries can redirect again. */
+export const resetLoginAttempts = () => window.sessionStorage.removeItem(ATTEMPTS_KEY);
+
 let redirecting = false;
 
+/** Send the browser to the Cognito login page; it returns to /auth/callback. */
 export const beginLogin = async (returnTo = `${window.location.pathname}${window.location.search}`) => {
-  assertCognitoConfigured();
+  assertConfigured();
   // Renders can ask more than once; a second call would overwrite the PKCE state mid-redirect.
   if (redirecting) return;
+  const attempts = recentAttempts();
+  if (attempts.length >= MAX_ATTEMPTS) {
+    throw new SignInError("We couldn't keep you signed in. Your browser may be blocking cookies for this site.");
+  }
   redirecting = true;
+  window.sessionStorage.setItem(ATTEMPTS_KEY, JSON.stringify([...attempts, Date.now()]));
+
   const verifier = randomString(48);
   const state = randomString(16);
-  window.sessionStorage.setItem(PKCE_KEY, JSON.stringify({ verifier, state, returnTo }));
+  window.sessionStorage.setItem(PKCE_KEY, JSON.stringify({
+    verifier,
+    state,
+    returnTo: returnTo.startsWith(CALLBACK_PATH) ? '/' : returnTo,
+  }));
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: config.clientId,
@@ -82,90 +91,35 @@ export const beginLogin = async (returnTo = `${window.location.pathname}${window
   window.location.assign(`${config.domain}/oauth2/authorize?${params}`);
 };
 
-const requestTokens = async (body: Record<string, string>) => {
-  const response = await fetch(`${config.domain}/oauth2/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: config.clientId, ...body }),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error_description || payload.error || 'Sign-in failed.');
-  return payload as { id_token: string; access_token: string; refresh_token?: string; expires_in: number };
-};
-
-const storeTokens = (tokens: Awaited<ReturnType<typeof requestTokens>>, previousRefreshToken?: string) => {
-  writeSession({
-    idToken: tokens.id_token,
-    accessToken: tokens.access_token,
-    // Refresh grants don't return a new refresh token; keep the existing one.
-    refreshToken: tokens.refresh_token || previousRefreshToken,
-    expiresAt: Date.now() + tokens.expires_in * 1000,
-  });
-};
-
-/** Finish the redirect from Cognito. Returns the path the user was trying to reach. */
-export const completeLogin = async (): Promise<string> => {
+/** Read and consume the code Cognito sent back. Throws SignInError for cancelled/forged/expired logins. */
+export const takeCallbackCode = () => {
   const params = new URLSearchParams(window.location.search);
-  const error = params.get('error_description') || params.get('error');
-  if (error) throw new Error(error);
-
   const pending = JSON.parse(window.sessionStorage.getItem(PKCE_KEY) || 'null');
   window.sessionStorage.removeItem(PKCE_KEY);
+
+  const cognitoError = params.get('error');
+  if (cognitoError) {
+    const description = params.get('error_description');
+    throw new SignInError(cognitoError === 'access_denied'
+      ? description || 'Sign-in was cancelled or denied.'
+      : description || `Sign-in failed (${cognitoError}).`);
+  }
   const code = params.get('code');
   if (!pending || !code || params.get('state') !== pending.state) {
-    throw new Error('This sign-in link is invalid or has expired. Please sign in again.');
+    throw new SignInError('This sign-in link is invalid or has expired. Please sign in again.');
   }
-
-  storeTokens(await requestTokens({
-    grant_type: 'authorization_code',
+  // The code is single-use: drop it from the address bar so a reload can't replay it.
+  window.history.replaceState(null, '', pending.returnTo || '/');
+  return {
     code,
-    redirect_uri: config.redirectUri(),
-    code_verifier: pending.verifier,
-  }));
-  return pending.returnTo && !pending.returnTo.startsWith(CALLBACK_PATH) ? pending.returnTo : '/';
+    codeVerifier: pending.verifier as string,
+    redirectUri: config.redirectUri(),
+    returnTo: (pending.returnTo as string) || '/',
+  };
 };
 
-let refreshInFlight: Promise<Session | null> | null = null;
-
-const refreshSession = (session: Session) => {
-  if (!refreshInFlight) {
-    refreshInFlight = (async () => {
-      if (!session.refreshToken) return null;
-      try {
-        storeTokens(await requestTokens({ grant_type: 'refresh_token', refresh_token: session.refreshToken }), session.refreshToken);
-        return readSession();
-      } catch {
-        writeSession(null);
-        return null;
-      }
-    })().finally(() => { refreshInFlight = null; });
-  }
-  return refreshInFlight;
-};
-
-/** A non-expired ID token, refreshing when close to expiry. Null when signed out. */
-export const getIdToken = async (forceRefresh = false): Promise<string | null> => {
-  const session = readSession();
-  if (!session) return null;
-  if (!forceRefresh && session.expiresAt - Date.now() > REFRESH_MARGIN_MS) return session.idToken;
-  return (await refreshSession(session))?.idToken ?? null;
-};
-
-export const clearSession = () => writeSession(null);
-
-/** Clear local tokens and end the Cognito session. */
-export const signOut = () => {
-  const refreshToken = readSession()?.refreshToken;
-  clearSession();
-  if (refreshToken && config.domain && config.clientId) {
-    // Best effort: invalidate the refresh token so it can't mint new sessions.
-    fetch(`${config.domain}/oauth2/revoke`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ token: refreshToken, client_id: config.clientId }),
-      keepalive: true,
-    }).catch(() => undefined);
-  }
+/** End the Cognito hosted session too, so the next sign-in asks for credentials. */
+export const redirectToCognitoLogout = () => {
   if (!config.domain || !config.clientId) {
     window.location.assign('/');
     return;

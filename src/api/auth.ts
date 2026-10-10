@@ -1,5 +1,4 @@
 import { apiClient } from './client';
-import { clearSession } from '@/lib/cognitoSession';
 
 const TOKEN_KEY = 'project_hub_access_token';
 const LEGACY_TOKEN_KEYS = ['access_token', 'token'];
@@ -65,7 +64,6 @@ export const setAuthToken = (token: string) => {
 
 export const clearAuthToken = () => {
   if (typeof window === 'undefined') return;
-  clearSession();
   window.localStorage.removeItem(TOKEN_KEY);
   LEGACY_TOKEN_KEYS.forEach((key) => window.localStorage.removeItem(key));
 };
@@ -74,6 +72,15 @@ const PROFILE_FIELDS = ['first_name', 'last_name', 'title', 'department', 'compa
 
 export const authApi = {
   getCurrentUser: async () => mapUserResponse(await apiClient.get('/api/v1/me')),
+  /** Trade the hosted-login code for a session cookie set by the API. */
+  createSession: async (data: { code: string; codeVerifier: string; redirectUri: string }) =>
+    mapUserResponse(await apiClient.post('/api/v1/auth/session', {
+      code: data.code,
+      code_verifier: data.codeVerifier,
+      redirect_uri: data.redirectUri,
+    }, { skipAuthRetry: true })),
+  /** Clear the session cookies and revoke the refresh token. */
+  endSession: () => apiClient.post('/api/v1/auth/logout', undefined, { skipAuthRetry: true }),
   updateMe: async (data: Record<string, unknown>) => {
     const payload = Object.fromEntries(
       PROFILE_FIELDS.filter((field) => data[field] !== undefined).map((field) => [field, data[field] || null])

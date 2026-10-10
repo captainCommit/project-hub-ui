@@ -7,6 +7,8 @@ import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-d
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import AuthStatusScreen from '@/components/AuthStatusScreen';
+import { isCognitoMode, resetLoginAttempts } from '@/lib/cognitoSession';
 import DecisionLog from './pages/DecisionLog';
 import ResourceTaskPulse from './pages/ResourceTaskPulse';
 import AssumptionLog from './pages/AssumptionLog';
@@ -35,7 +37,7 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   : <>{children}</>;
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, postLoginPath } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, postLoginPath, checkAppState, logout } = useAuth();
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -48,41 +50,39 @@ const AuthenticatedApp = () => {
 
   // Handle authentication errors
   if (authError) {
-    if (authError.type === 'user_not_registered') {
-      return <UserNotRegisteredError />;
-    } else if (authError.type === 'auth_required') {
-      // Redirect to the sign-in page
-      navigateToLogin();
-      return (
-        <div className="fixed inset-0 flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-        </div>
-      );
-    } else if (authError.type === 'login_error') {
-      return (
-        <div className="fixed inset-0 flex items-center justify-center p-6">
-          <div className="max-w-md rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm">
-            <h1 className="text-lg font-semibold text-slate-900">Sign-in didn't complete</h1>
-            <p className="mt-2 text-sm text-slate-600">{authError.message}</p>
-            <button
-              type="button"
-              onClick={() => { window.location.assign('/'); }}
-              className="mt-4 rounded-md bg-[#c87b14] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#a86610]"
-            >
-              Sign in again
-            </button>
+    const signInAgain = () => { resetLoginAttempts(); navigateToLogin('/'); };
+    const signOut = () => { logout(); };
+    switch (authError.type) {
+      case 'auth_required':
+        // Redirect to the sign-in page
+        navigateToLogin();
+        return (
+          <div className="fixed inset-0 flex items-center justify-center">
+            <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
           </div>
-        </div>
-      );
-    } else if (authError.type === 'startup_error' || authError.type === 'account_error') {
-      return (
-        <div className="fixed inset-0 flex items-center justify-center p-6">
-          <div className="max-w-md rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm">
-            <h1 className="text-lg font-semibold text-slate-900">Project Hub could not start</h1>
-            <p className="mt-2 text-sm text-slate-600">{authError.message}</p>
-          </div>
-        </div>
-      );
+        );
+      case 'user_not_registered':
+        return <UserNotRegisteredError onSignOut={signOut} />;
+      case 'login_error':
+        return <AuthStatusScreen title="Sign-in didn't complete" message={authError.message}
+          actions={[{ label: 'Sign in again', onClick: signInAgain, primary: true }]} />;
+      case 'service_unavailable':
+        return <AuthStatusScreen title={authError.title || 'Sign-in is temporarily unavailable'} message={authError.message}
+          actions={[{ label: 'Try again', onClick: checkAppState, primary: true }]} />;
+      case 'network_error':
+        return <AuthStatusScreen title="Can't reach Project Hub" message={authError.message}
+          actions={[{ label: 'Try again', onClick: checkAppState, primary: true }]} />;
+      case 'user_disabled':
+        return <AuthStatusScreen title="Your access is disabled" message={authError.message}
+          actions={[{ label: 'Sign out', onClick: signOut, primary: true }]} />;
+      case 'account_conflict':
+        return <AuthStatusScreen title="We couldn't link your sign-in" message={authError.message}
+          actions={[{ label: 'Sign out', onClick: signOut, primary: true }]} />;
+      case 'startup_error':
+      case 'account_error':
+      default:
+        return <AuthStatusScreen title="Project Hub could not start" message={authError.message}
+          actions={[{ label: 'Try again', onClick: checkAppState, primary: true }, ...(isCognitoMode() ? [{ label: 'Sign out', onClick: signOut }] : [])]} />;
     }
   }
 

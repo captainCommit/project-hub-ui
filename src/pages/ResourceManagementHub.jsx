@@ -3,12 +3,12 @@ import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import ProjectResources from '@/pages/ProjectResources';
 import ResourceCalendarPage from '@/pages/ResourceCalendarPage';
 import Financials from '@/pages/Financials';
-import { Users, Calendar, Wallet } from 'lucide-react';
+import { Users, Gauge, Calendar, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
 export default function ResourceManagementHub() {
-  const [tab, setTab] = useState('capacity');
+  const [tab, setTab] = useState('overview');
   const { projects, programs, portfolios } = useAccountHierarchy();
 
   return (
@@ -26,8 +26,11 @@ export default function ResourceManagementHub() {
           </div>
         </div>
         <div className="flex items-center gap-1 border-b-2 border-slate-200 bg-white px-0">
+          <button onClick={() => setTab('overview')} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', tab === 'overview' ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
+            <Users className="w-4 h-4" /> Overview
+          </button>
           <button onClick={() => setTab('capacity')} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', tab === 'capacity' ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
-            <Users className="w-4 h-4" /> Capacity
+            <Gauge className="w-4 h-4" /> Capacity
           </button>
           <button onClick={() => setTab('availability')} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', tab === 'availability' ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
             <Calendar className="w-4 h-4" /> Availability
@@ -36,8 +39,10 @@ export default function ResourceManagementHub() {
             <Wallet className="w-4 h-4" /> Costs
           </button>
         </div>
-        {tab === 'capacity' ? (
-          <ProjectResources embedded />
+        {tab === 'overview' ? (
+          <ProjectResources embedded section="overview" />
+        ) : tab === 'capacity' ? (
+          <ProjectResources embedded section="capacity" />
         ) : tab === 'availability' ? (
           <ResourceCalendarPage embedded />
         ) : (

@@ -5,19 +5,21 @@ import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, Edit2, Users, Check, X, Download, ChevronDown, ChevronRight, BarChart2, ArrowUp, ArrowDown, ArrowUpDown, Search } from 'lucide-react';
+import { Plus, Trash2, Edit2, Users, Check, X, Download, BarChart2, ArrowUp, ArrowDown, ArrowUpDown, Search } from 'lucide-react';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, Cell, ReferenceLine } from 'recharts';
 import { parseISO, isValid } from 'date-fns';
 import { useAccountHierarchy, useAccountTasks } from '@/hooks/useAccountLookups';
 
-export default function ProjectResources({ embedded = false }) {
+// section: 'overview' (summary + utilization dashboard), 'capacity' (resource directory) or 'all'.
+export default function ProjectResources({ embedded = false, section = 'all' }) {
+  const showOverview = section !== 'capacity';
+  const showCapacity = section !== 'overview';
   const queryClient = useQueryClient();
   const { selectedAccountId } = useAuth();
   const [newRow, setNewRow] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({});
-  const [tableOpen, setTableOpen] = useState(true);
   const [customColumns, setCustomColumns] = useState(() => {
     try { return JSON.parse(localStorage.getItem('resource_custom_columns') || '[]'); } catch { return []; }
   });
@@ -107,11 +109,25 @@ export default function ProjectResources({ embedded = false }) {
     if (resourceDetail && editingId) setEditData(getEditableResourceData(resourceDetail));
   }, [resourceDetail, editingId]);
 
+  // A task involves a resource through assignments or planned resource allocations.
+  const taskResourceNames = (t) => [
+    ...(t.assignee ? [t.assignee] : []),
+    ...(Array.isArray(t.resources) ? t.resources : []),
+    ...(Array.isArray(t.resources_planned) ? t.resources_planned : []),
+  ];
+  // Planned allocation hours win; assignment hours are the fallback so a task is never counted twice.
+  const taskHoursFor = (t, name) => {
+    const sumFor = (entries) => (Array.isArray(entries) ? entries : [])
+      .filter(h => h && h.resource === name)
+      .reduce((s, h) => s + (Number(h.hours) || 0), 0);
+    return sumFor(t.resource_hours_planned) || sumFor(t.resource_hours);
+  };
+
   // Compute projects assigned to each resource
   const getProjectsAssigned = (resourceName) => {
     const pids = new Set();
     allTasks.forEach(t => {
-      if (t.assignee === resourceName || (Array.isArray(t.resources) && t.resources.includes(resourceName))) {
+      if (taskResourceNames(t).includes(resourceName)) {
         if (t.project_id) pids.add(t.project_id);
       }
     });
@@ -125,14 +141,8 @@ export default function ProjectResources({ embedded = false }) {
       const name = r.full_name;
       const byProject = {};
       allTasks.forEach(t => {
-        const involved = t.assignee === name || (Array.isArray(t.resources) && t.resources.includes(name));
-        if (!involved || !t.project_id) return;
-        let hrs = 0;
-        if (Array.isArray(t.resource_hours)) {
-          hrs = t.resource_hours.filter(h => h && h.resource === name).reduce((s, h) => s + (Number(h.hours) || 0), 0);
-        }
-        if (hrs === 0 && t.assignee === name) hrs = 0; // still count project even if 0
-        byProject[t.project_id] = (byProject[t.project_id] || 0) + hrs;
+        if (!t.project_id || !taskResourceNames(t).includes(name)) return;
+        byProject[t.project_id] = (byProject[t.project_id] || 0) + taskHoursFor(t, name);
       });
       const projectsList = Object.entries(byProject).map(([pid, hours]) => {
         const proj = projects.find(p => p.id === pid);
@@ -170,8 +180,7 @@ export default function ProjectResources({ embedded = false }) {
     const names = new Set();
     allTasks.forEach(t => {
       if (t.project_id && scopedProjectIds.has(t.project_id)) {
-        if (t.assignee) names.add(t.assignee);
-        if (Array.isArray(t.resources)) t.resources.forEach(rn => names.add(rn));
+        taskResourceNames(t).forEach(rn => names.add(rn));
       }
     });
     return names;
@@ -245,8 +254,8 @@ export default function ProjectResources({ embedded = false }) {
   const SortIcon = ({ col }) => {
     if (sortKey !== col) return <ArrowUpDown className="w-3 h-3 text-slate-300 cursor-pointer" onClick={() => toggleSort(col)} />;
     return sortDir === 'asc'
-      ? <ArrowUp className="w-3 h-3 text-emerald-600 cursor-pointer" onClick={() => toggleSort(col)} />
-      : <ArrowDown className="w-3 h-3 text-emerald-600 cursor-pointer" onClick={() => toggleSort(col)} />;
+      ? <ArrowUp className="w-3 h-3 text-emerald-300 cursor-pointer" onClick={() => toggleSort(col)} />
+      : <ArrowDown className="w-3 h-3 text-emerald-300 cursor-pointer" onClick={() => toggleSort(col)} />;
   };
 
   // Allocation chart data — mirrors the Resource Directory (weekly allocation, capacity, % allocation)
@@ -340,6 +349,7 @@ export default function ProjectResources({ embedded = false }) {
         )}
 
         <div className="flex-1 overflow-auto p-6 space-y-6">
+          {showOverview && (<>
           {/* Summary tiles */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white rounded-xl border border-slate-200 p-4">
@@ -436,9 +446,6 @@ export default function ProjectResources({ embedded = false }) {
                 </div>
                 <div className="flex items-center gap-2 ml-auto">
                   <Button size="sm" variant="outline" onClick={exportToCSV} className="h-9"><Download className="w-3.5 h-3.5 mr-1.5" /> Export</Button>
-                  <Button size="sm" disabled={!selectedAccountId} onClick={() => setNewRow({ full_name: '', rate: '', weekly_capacity: '', role: '', department: '', allocation: '', non_project_hours: '' })} className="bg-[#c87b14] hover:bg-[#a86610] text-white">
-                    <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Resource
-                  </Button>
                 </div>
               </div>
             </div>
@@ -458,7 +465,7 @@ export default function ProjectResources({ embedded = false }) {
                   <ResponsiveContainer width="100%" height={Math.max(260, allocChartData.length * 36)}>
                     <BarChart data={allocChartData} layout="vertical" margin={{ top: 0, right: 30, bottom: 0, left: 10 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                      <XAxis type="number" tick={{ fontSize: 10 }} unit="%" domain={[0, 'dataMax + 20']} />
+                      <XAxis type="number" tick={{ fontSize: 10 }} unit="%" domain={[0, max => Math.max(100, Math.ceil((max + 20) / 25) * 25)]} />
                       <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={90} />
                       <Tooltip formatter={(v) => [`${v}%`, 'Allocation']} labelFormatter={(l) => allocChartData.find(d => d.name === l)?.fullName || l} />
                       <ReferenceLine x={100} stroke="#ef4444" strokeDasharray="4 4" />
@@ -478,7 +485,7 @@ export default function ProjectResources({ embedded = false }) {
                     <BarChart data={deptAllocData} margin={{ top: 0, right: 10, bottom: 0, left: -10 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                       <XAxis dataKey="dept" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" height={60} interval={0} />
-                      <YAxis tick={{ fontSize: 10 }} unit="%" />
+                      <YAxis tick={{ fontSize: 10 }} unit="%" domain={[0, max => Math.max(100, Math.ceil(max / 25) * 25)]} />
                       <Tooltip formatter={(v) => [`${v}%`, 'Avg Allocation']} />
                       <ReferenceLine y={100} stroke="#ef4444" strokeDasharray="4 4" />
                       <Bar dataKey="avgPct" name="Avg Allocation" radius={[3, 3, 0, 0]}>
@@ -491,14 +498,19 @@ export default function ProjectResources({ embedded = false }) {
             </div>
           </div>
 
-          {/* Collapsible resource table */}
+          </>)}
+
+          {showCapacity && (
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <button onClick={() => setTableOpen(p => !p)} className="w-full flex items-center justify-between px-5 py-3 hover:bg-slate-50 transition-colors">
+            <div className="flex items-center justify-between px-5 py-3">
               <span className="text-sm font-semibold text-slate-700">Resource Directory</span>
-              {tableOpen ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
-            </button>
-            {tableOpen && (
-              <>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={exportToCSV} className="h-9"><Download className="w-3.5 h-3.5 mr-1.5" /> Export</Button>
+                <Button size="sm" disabled={!selectedAccountId} onClick={() => setNewRow({ full_name: '', rate: '', weekly_capacity: '', role: '', department: '', allocation: '', non_project_hours: '' })} className="h-9 bg-[#c87b14] hover:bg-[#a86610] text-white">
+                  <Plus className="w-3.5 h-3.5 mr-1.5" /> New Resource
+                </Button>
+              </div>
+            </div>
               <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100 bg-slate-50/50 flex-wrap">
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -517,7 +529,7 @@ export default function ProjectResources({ embedded = false }) {
                 <span className="ml-auto text-xs text-slate-400">{dirResources.length} of {resources.length}</span>
               </div>
               <table className="w-full text-sm border-t border-slate-100" style={{ minWidth: '1000px' }}>
-                <thead className="bg-slate-50 border-b border-slate-100">
+                <thead className="bg-[#002046] [&_th]:text-white">
                   <tr>
                     <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">
                       <span className="flex items-center gap-1">Full Name <SortIcon col="full_name" /></span>
@@ -553,7 +565,7 @@ export default function ProjectResources({ embedded = false }) {
                   {!selectedAccountId && <tr><td colSpan={9 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">Select an account to view resources.</td></tr>}
                   {selectedAccountId && isLoading && <tr><td colSpan={9 + customColumns.length} className="text-center py-8 text-slate-400 text-xs">Loading resources...</td></tr>}
                   {selectedAccountId && isError && <tr><td colSpan={9 + customColumns.length} className="text-center py-8 text-xs"><div className="flex flex-col items-center gap-2 text-slate-500"><span>{error?.message || 'Unable to load resources.'}</span><Button size="sm" variant="outline" onClick={() => refetch()}>Retry</Button></div></td></tr>}
-                  {selectedAccountId && !isLoading && !isError && resources.length === 0 && !newRow && <tr><td colSpan={9 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">No resources yet. Click "Add Resource" to get started.</td></tr>}
+                  {selectedAccountId && !isLoading && !isError && resources.length === 0 && !newRow && <tr><td colSpan={9 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">No resources yet. Click "New Resource" to get started.</td></tr>}
                   {dirResources.map(r => {
                     const rw = resourceWeekly[r.full_name] || { projects: [], weekly: 0 };
                     const pctAlloc = r.weekly_capacity ? Math.round((rw.weekly / r.weekly_capacity) * 100) : null;
@@ -639,9 +651,8 @@ export default function ProjectResources({ embedded = false }) {
                   )}
                 </tbody>
               </table>
-              </>
-            )}
           </div>
+          )}
 
         </div>
       </div>

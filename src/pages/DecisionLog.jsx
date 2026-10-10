@@ -82,6 +82,13 @@ export default function DecisionLog({ embedded = false }) {
       if (updated?.id) setSelectedDecision(updated);
     },
   });
+  const remove = useMutation({
+    mutationFn: (id) => raidApi.deleteDecision(id),
+    onSuccess: () => {
+      invalidateDecisionQueries(selectedDecision?.project_id);
+      setSelectedDecision(null);
+    },
+  });
 
   const handleAdd = (data) => {
     const id = `DL-${String(decisions.length + 1).padStart(3, '0')}`;
@@ -258,7 +265,7 @@ export default function DecisionLog({ embedded = false }) {
             resources={resources}
             onUpdate={handleUpdate}
             onClose={() => setSelectedDecision(null)}
-            onDelete={undefined}
+            onDelete={() => remove.mutate(selectedDecision.id)}
           />
         )}
         <AddDecisionDialog

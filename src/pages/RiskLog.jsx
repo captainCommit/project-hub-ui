@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/AuthContext';
-import { raidApi, mapRiskFromApi, mapRiskInputToPayload, mapRiskListFromApi } from '@/api/raid';
+import { raidApi, mapRiskFromApi, mapRiskInputToPayload, mapRiskListFromApi, mapIssueFromApi, mapIssueInputToPayload, mapIssueListFromApi } from '@/api/raid';
+import { raidEntityAdapters } from '@/api/raidEntities';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import RiskIssueSheet from '@/components/projects/RiskIssueSheet';
 import RiskIssueDetail from '@/components/projects/RiskIssueDetail';
@@ -32,11 +32,20 @@ export default function RiskLog() {
     enabled: !!selectedAccountId,
   });
   const { data: issues = [], isLoading: loadingIssues } = useQuery({
-    queryKey: ['issues'],
-    queryFn: () => base44.entities.Issue.list('-created_date')
+    queryKey: ['account-issues', selectedAccountId],
+    queryFn: async () => mapIssueListFromApi(await raidApi.listAccountIssues(selectedAccountId)),
+    enabled: !!selectedAccountId,
   });
-  const { data: assumptions = [], isLoading: loadingAssumptions } = useQuery({ queryKey: ['assumptions'], queryFn: () => base44.entities.Assumption.list('-created_date') });
-  const { data: dependencies = [], isLoading: loadingDependencies } = useQuery({ queryKey: ['dependencies'], queryFn: () => base44.entities.Dependency.list('-created_date') });
+  const { data: assumptions = [], isLoading: loadingAssumptions } = useQuery({
+    queryKey: ['assumptions', selectedAccountId],
+    queryFn: () => raidEntityAdapters.Assumption.list(selectedAccountId),
+    enabled: !!selectedAccountId,
+  });
+  const { data: dependencies = [], isLoading: loadingDependencies } = useQuery({
+    queryKey: ['dependencies', selectedAccountId],
+    queryFn: () => raidEntityAdapters.Dependency.list(selectedAccountId),
+    enabled: !!selectedAccountId,
+  });
   const { projects, programs, portfolios } = useAccountHierarchy();
 
   const riskDetailId = activeTab === 'risks' && detailOpen ? selectedItem?.id : null;
@@ -75,17 +84,29 @@ export default function RiskLog() {
     },
   });
 
+  const deleteRisk = useMutation({
+    mutationFn: (id) => raidApi.deleteRisk(id),
+    onSuccess: () => invalidateRiskQueries(selectedItem?.project_id),
+  });
+
+  const invalidateIssueQueries = () => queryClient.invalidateQueries({ queryKey: ['account-issues', selectedAccountId] });
   const createIssue = useMutation({
-    mutationFn: (data) => base44.entities.Issue.create(data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['issues'] })
+    mutationFn: async (data) => {
+      if (!data?.project_id) throw new Error('Select a project before creating an issue.');
+      return mapIssueFromApi(await raidApi.createIssue(data.project_id, mapIssueInputToPayload(data)));
+    },
+    onSuccess: invalidateIssueQueries,
   });
   const updateIssue = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.Issue.update(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['issues'] })
+    mutationFn: async ({ id, data }) => mapIssueFromApi(await raidApi.updateIssue(id, mapIssueInputToPayload(data))),
+    onSuccess: (updatedIssue) => {
+      invalidateIssueQueries();
+      if (updatedIssue?.id && selectedItem?.id === updatedIssue.id) setSelectedItem(updatedIssue);
+    },
   });
   const deleteIssue = useMutation({
-    mutationFn: (id) => base44.entities.Issue.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['issues'] })
+    mutationFn: (id) => raidApi.deleteIssue(id),
+    onSuccess: invalidateIssueQueries,
   });
 
   const handleItemClick = (item) => { setSelectedItem(item); setDetailOpen(true); };
@@ -198,7 +219,7 @@ export default function RiskLog() {
             resources={resources}
             onAddItem={(data) => (activeTab === 'risks' ? createRisk : createIssue).mutate(data)}
             onUpdateItem={(id, data) => (activeTab === 'risks' ? updateRisk : updateIssue).mutate({ id, data })}
-            onDeleteItem={activeTab === 'risks' ? undefined : (id) => deleteIssue.mutate(id)}
+            onDeleteItem={(id) => (activeTab === 'risks' ? deleteRisk : deleteIssue).mutate(id)}
           />
         ) : activeTab === 'assumptions' ? (
           <SimpleRaidSheet
@@ -250,7 +271,7 @@ export default function RiskLog() {
           projects={projects}
           resources={resources}
           onUpdate={(id, data) => (activeTab === 'risks' ? updateRisk : updateIssue).mutate({ id, data })}
-          onDelete={activeTab === 'risks' ? undefined : (id) => { deleteIssue.mutate(id); setDetailOpen(false); }}
+          onDelete={(id) => { (activeTab === 'risks' ? deleteRisk : deleteIssue).mutate(id); setDetailOpen(false); }}
         />
       )}
     </div>

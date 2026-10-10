@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { raidEntityAdapters } from '@/api/raidEntities';
+import { useAuth } from '@/lib/AuthContext';
+import { useEntityComments } from '@/hooks/useEntityComments';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -172,16 +174,15 @@ function AddRecordDialog({ open, onOpenChange, projects, programs, resources, no
   );
 }
 
-function DetailPanel({ record, noun, idField, descriptionLabel, statuses, statusMap, showImpactDelay, showFallbackPlan, showAssignedTo, resources, onUpdate, onClose, onDelete }) {
+function DetailPanel({ record, noun, idField, descriptionLabel, statuses, statusMap, showImpactDelay, showFallbackPlan, showAssignedTo, resources, commentEntityType, onUpdate, onClose, onDelete }) {
   const [local, setLocal] = useState(record);
   const [commentText, setCommentText] = useState('');
+  const { comments, addComment: postComment } = useEntityComments(commentEntityType, record.id);
   useEffect(() => { setLocal(record); }, [record.id]);
   const save = (field, value) => onUpdate(record.id, { [field]: value });
-  const addComment = () => {
+  const addComment = async () => {
     if (!commentText.trim()) return;
-    const comments = [...(local.comments || []), { text: commentText, author: 'You', date: new Date().toISOString() }];
-    setLocal(p => ({ ...p, comments }));
-    onUpdate(record.id, { comments });
+    await postComment(commentText.trim());
     setCommentText('');
   };
   return (
@@ -253,11 +254,11 @@ function DetailPanel({ record, noun, idField, descriptionLabel, statuses, status
             <div className="flex items-center gap-2 mb-3">
               <MessageSquare className="w-4 h-4 text-slate-500" />
               <span className="text-sm font-medium text-slate-700">Comments</span>
-              <span className="text-xs text-slate-400 bg-slate-100 px-1.5 rounded">{(local.comments || []).length}</span>
+              <span className="text-xs text-slate-400 bg-slate-100 px-1.5 rounded">{comments.length}</span>
             </div>
             <div className="space-y-2 mb-3">
-              {(local.comments || []).map((c, i) => (
-                <div key={i} className="bg-slate-50 rounded-lg p-2">
+              {comments.map((c, i) => (
+                <div key={c.id || i} className="bg-slate-50 rounded-lg p-2">
                   <p className="text-xs text-slate-800">{c.text}</p>
                   <p className="text-[10px] text-slate-400 mt-1">{c.author} · {new Date(c.date).toLocaleDateString()}</p>
                 </div>
@@ -315,12 +316,15 @@ export default function SimpleRaidSheet({
   const [filterProjects, setFilterProjects] = useState([]);
   const [addOpen, setAddOpen] = useState(false);
 
-  const entity = base44.entities[entityType];
+  const { selectedAccountId } = useAuth();
+  const entity = raidEntityAdapters[entityType];
   const statusMap = Object.fromEntries(statuses.map(s => [s.value, s]));
+  const accountQueryKey = [...queryKey, selectedAccountId];
 
   const { data: records = [], isLoading } = useQuery({
-    queryKey,
-    queryFn: () => entity.list('-created_date'),
+    queryKey: accountQueryKey,
+    queryFn: () => entity.list(selectedAccountId),
+    enabled: !!selectedAccountId,
   });
 
   const create = useMutation({
@@ -332,7 +336,7 @@ export default function SimpleRaidSheet({
     onSuccess: (updated) => { qc.invalidateQueries({ queryKey }); setSelected(prev => prev?.id === updated.id ? updated : prev); },
   });
   const remove = useMutation({
-    mutationFn: (id) => entity.delete(id),
+    mutationFn: (id) => entity.remove(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey }); setSelected(null); },
   });
 
@@ -500,6 +504,7 @@ export default function SimpleRaidSheet({
           showFallbackPlan={showFallbackPlan}
           showAssignedTo={showAssignedTo}
           resources={resources}
+          commentEntityType={entity.commentEntityType}
           onUpdate={(id, data) => update.mutate({ id, data })}
           onClose={() => setSelected(null)}
           onDelete={() => remove.mutate(selected.id)}

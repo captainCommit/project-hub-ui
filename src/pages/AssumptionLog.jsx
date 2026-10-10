@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { raidApi, mapAssumptionFromApi, mapAssumptionInputToPayload, mapAssumptionListFromApi } from '@/api/raid';
+import { useEntityComments } from '@/hooks/useEntityComments';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -177,6 +178,13 @@ export default function AssumptionLog() {
       if (updated?.id) setSelectedAssumption(updated);
     },
   });
+  const remove = useMutation({
+    mutationFn: (id) => raidApi.deleteAssumption(id),
+    onSuccess: () => {
+      invalidateAssumptionQueries(selectedAssumption?.project_id);
+      setSelectedAssumption(null);
+    },
+  });
 
   const getProjectName = (id) => projects.find(p => p.id === id)?.name || '—';
   const getProgramName = (id) => programs.find(p => p.id === id)?.name || '—';
@@ -339,7 +347,7 @@ export default function AssumptionLog() {
                     <td className="px-3 py-2 max-w-xs"><p className="truncate text-slate-800">{a.description}</p></td>
                     <td className="px-3 py-2 text-xs text-slate-600 whitespace-nowrap">{a.date_entered || '\u2014'}</td>
                     <td className="px-3 py-2 text-xs text-slate-600 whitespace-nowrap">{a.entered_by || '\u2014'}</td>
-                    <td className="px-3 py-2 text-xs text-slate-500">{(a.comments || []).length}</td>
+                    <td className="px-3 py-2 text-xs text-slate-500">{a.comment_count ?? 0}</td>
                     </tr>
                 ))}
               </tbody>
@@ -349,7 +357,7 @@ export default function AssumptionLog() {
       </div>
 
       {selectedAssumption && (
-        <AssumptionDetailPanel assumption={selectedAssumptionDetail || selectedAssumption} onUpdate={handleUpdate} onClose={() => setSelectedAssumption(null)} onDelete={undefined} />
+        <AssumptionDetailPanel assumption={selectedAssumptionDetail || selectedAssumption} onUpdate={handleUpdate} onClose={() => setSelectedAssumption(null)} onDelete={() => remove.mutate(selectedAssumption.id)} />
       )}
 
       <AddAssumptionDialog open={addDialogOpen} onOpenChange={setAddDialogOpen}
@@ -361,13 +369,12 @@ export default function AssumptionLog() {
 function AssumptionDetailPanel({ assumption, onUpdate, onClose, onDelete }) {
   const [local, setLocal] = useState(assumption);
   const [commentText, setCommentText] = useState('');
+  const { comments, addComment: postComment } = useEntityComments('ASSUMPTION', assumption.id);
   React.useEffect(() => { setLocal(assumption); }, [assumption.id]);
   const save = (field, value) => onUpdate(assumption.id, { [field]: value });
-  const addComment = () => {
+  const addComment = async () => {
     if (!commentText.trim()) return;
-    const comments = [...(local.comments || []), { text: commentText, author: 'You', date: new Date().toISOString() }];
-    setLocal(p => ({ ...p, comments }));
-    onUpdate(assumption.id, { comments });
+    await postComment(commentText.trim());
     setCommentText('');
   };
   return (
@@ -408,11 +415,11 @@ function AssumptionDetailPanel({ assumption, onUpdate, onClose, onDelete }) {
             <div className="flex items-center gap-2 mb-3">
               <MessageSquare className="w-4 h-4 text-slate-500" />
               <span className="text-sm font-medium text-slate-700">Comments</span>
-              <span className="text-xs text-slate-400 bg-slate-100 px-1.5 rounded">{(local.comments || []).length}</span>
+              <span className="text-xs text-slate-400 bg-slate-100 px-1.5 rounded">{comments.length}</span>
             </div>
             <div className="space-y-2 mb-3">
-              {(local.comments || []).map((c, i) => (
-                <div key={i} className="bg-slate-50 rounded-lg p-2">
+              {comments.map((c, i) => (
+                <div key={c.id || i} className="bg-slate-50 rounded-lg p-2">
                   <p className="text-xs text-slate-800">{c.text}</p>
                   <p className="text-[10px] text-slate-400 mt-1">{c.author} · {new Date(c.date).toLocaleDateString()}</p>
                 </div>

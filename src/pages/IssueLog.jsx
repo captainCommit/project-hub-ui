@@ -63,6 +63,10 @@ export default function IssueLog() {
       if (updatedIssue?.id) setSelectedItem(updatedIssue);
     },
   });
+  const deleteIssue = useMutation({
+    mutationFn: (id) => raidApi.deleteIssue(id),
+    onSuccess: () => invalidateIssueQueries(selectedItem?.project_id),
+  });
 
   const handleItemClick = (item) => { setSelectedItem(item); setDetailOpen(true); };
 
@@ -134,7 +138,7 @@ export default function IssueLog() {
             resources={resources}
             onAddItem={(data) => createIssue.mutate(data)}
             onUpdateItem={(id, data) => updateIssue.mutate({ id, data })}
-            onDeleteItem={undefined}
+            onDeleteItem={(id) => deleteIssue.mutate(id)}
           />
         )}
       </div>
@@ -146,7 +150,7 @@ export default function IssueLog() {
         projects={projects}
         resources={resources}
         onUpdate={(id, data) => updateIssue.mutate({ id, data })}
-        onDelete={undefined}
+        onDelete={(id) => { deleteIssue.mutate(id); setDetailOpen(false); }}
       />
     </div>
   );

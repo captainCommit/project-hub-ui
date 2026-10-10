@@ -1,249 +1,168 @@
 import { apiClient } from './client';
+import { optionKey } from './lookups';
 
 const projectCollection = (projectId: string, collection: string) => `/api/v1/projects/${projectId}/${collection}`;
 const accountCollection = (accountId: string, collection: string) => `/api/v1/accounts/${accountId}/${collection}`;
 
-type RiskApiRecord = Record<string, any>;
+export type ApiRecord = Record<string, any>;
 
-const asArray = (response: any): RiskApiRecord[] => {
+export const asArray = (response: any): ApiRecord[] => {
   if (Array.isArray(response)) return response;
   if (Array.isArray(response?.items)) return response.items;
-  if (Array.isArray(response?.data)) return response.data;
-  if (Array.isArray(response?.risks)) return response.risks;
-  if (Array.isArray(response?.issues)) return response.issues;
-  if (Array.isArray(response?.assumptions)) return response.assumptions;
-  if (Array.isArray(response?.decisions)) return response.decisions;
-  if (Array.isArray(response?.options)) return response.options;
   return [];
 };
 
-const firstValue = (record: RiskApiRecord, keys: string[]) => {
-  for (const key of keys) {
-    if (record?.[key] !== undefined && record?.[key] !== null) return record[key];
-  }
-  return undefined;
-};
-
-const dateOnly = (value: any) => {
+export const dateOnly = (value: any) => {
   if (!value || typeof value !== 'string') return value || '';
   return value.includes('T') ? value.split('T')[0] : value;
 };
 
-const compact = (record: RiskApiRecord) => Object.fromEntries(
-  Object.entries(record).filter(([, value]) => value !== undefined && value !== null && value !== '')
-);
-
-export const mapRiskFromApi = (risk: RiskApiRecord = {}) => {
-  const id = firstValue(risk, ['id', 'risk_id', 'uuid']);
-  const reference = firstValue(risk, ['risk_id', 'reference_number', 'reference', 'risk_number', 'number']);
-  const status = firstValue(risk, ['status', 'status_id']);
-  const priority = firstValue(risk, ['priority', 'priority_id']);
-  const assignedTo = firstValue(risk, ['assigned_to', 'owner']);
-  const createdBy = firstValue(risk, ['created_by', 'logged_by']);
-
-  return {
-    id,
-    risk_id: reference || id,
-    reference_number: reference,
-    project_id: risk.project_id,
-    program_id: risk.program_id,
-    title: risk.title || risk.description || reference || 'Untitled risk',
-    description: risk.description || '',
-    status,
-    status_id: risk.status_id,
-    priority,
-    priority_id: risk.priority_id,
-    probability: risk.probability,
-    impact: risk.impact,
-    owner: risk.owner,
-    assigned_to: assignedTo || '',
-    logged_by: createdBy || '',
-    created_by: createdBy,
-    date_entered: dateOnly(firstValue(risk, ['date_entered', 'created_at', 'created_date'])),
-    target_date: dateOnly(risk.target_date),
-    mitigation: risk.mitigation || '',
-    created_at: risk.created_at,
-    updated_at: risk.updated_at,
-    raw: risk,
-  };
+/**
+ * Build a create/update payload from UI form values. Only keys present on the
+ * input are sent, so partial updates stay partial. `spec` maps UI key -> API key.
+ * Empty strings become null (clearing a field); for option keys they are skipped.
+ */
+export const buildPayload = (input: ApiRecord, spec: Record<string, string>) => {
+  const payload: ApiRecord = {};
+  Object.entries(spec).forEach(([uiKey, apiKey]) => {
+    if (!Object.prototype.hasOwnProperty.call(input, uiKey) || input[uiKey] === undefined) return;
+    const value = input[uiKey];
+    if (apiKey === 'status' || apiKey === 'priority') {
+      if (value) payload[apiKey] = String(value);
+      return;
+    }
+    payload[apiKey] = value === '' ? null : value;
+  });
+  return payload;
 };
+
+/** Fields every project-scoped log record exposes to the UI. */
+export const mapLogBase = (record: ApiRecord, numberField: string) => ({
+  id: record.id,
+  reference_number: record[numberField],
+  project_id: record.project_id,
+  program_id: record.program_id,
+  project_name: record.project?.name || '',
+  title: record.title || '',
+  description: record.description || '',
+  status: optionKey(record.status) || '',
+  status_id: record.status_id,
+  priority: optionKey(record.priority) || '',
+  priority_id: record.priority_id,
+  logged_by: record.created_by_name || '',
+  comment_count: record.comment_count ?? 0,
+  created_by: record.created_by,
+  created_date: record.created_at,
+  created_at: record.created_at,
+  updated_date: record.updated_at,
+  updated_at: record.updated_at,
+  raw: record,
+});
+
+export const mapRiskFromApi = (risk: ApiRecord = {}) => ({
+  ...mapLogBase(risk, 'risk_number'),
+  risk_id: risk.risk_number || risk.id,
+  cause: risk.cause || '',
+  effect: risk.effect || '',
+  assigned_to: risk.assigned_to_name || '',
+  date_entered: dateOnly(risk.created_at),
+  target_date: dateOnly(risk.target_resolution_date),
+});
 
 export const mapRiskListFromApi = (response: any) => asArray(response).map(mapRiskFromApi);
 
-export const mapRiskInputToPayload = (input: RiskApiRecord = {}) => compact({
-  title: input.title,
-  description: input.description,
-  status: input.status,
-  status_id: input.status_id,
-  priority: input.priority,
-  priority_id: input.priority_id,
-  probability: input.probability,
-  impact: input.impact,
-  assigned_to: input.assigned_to,
-  owner: input.owner,
-  date_entered: input.date_entered,
-  target_date: input.target_date,
-  mitigation: input.mitigation,
+export const mapRiskInputToPayload = (input: ApiRecord = {}) => buildPayload(input, {
+  title: 'title',
+  cause: 'cause',
+  effect: 'effect',
+  status: 'status',
+  priority: 'priority',
+  assigned_to: 'assigned_to_name',
+  target_date: 'target_resolution_date',
 });
 
-export const mapIssueFromApi = (issue: RiskApiRecord = {}) => {
-  const id = firstValue(issue, ['id', 'issue_id', 'uuid']);
-  const reference = firstValue(issue, ['issue_id', 'reference_number', 'reference', 'issue_number', 'number']);
-  const status = firstValue(issue, ['status', 'status_id']);
-  const priority = firstValue(issue, ['priority', 'priority_id']);
-  const assignedTo = firstValue(issue, ['assigned_to', 'owner']);
-  const createdBy = firstValue(issue, ['created_by', 'logged_by']);
-
-  return {
-    id,
-    issue_id: reference || id,
-    reference_number: reference,
-    project_id: issue.project_id,
-    program_id: issue.program_id,
-    title: issue.title || issue.description || reference || 'Untitled issue',
-    description: issue.description || '',
-    status,
-    status_id: issue.status_id,
-    priority,
-    priority_id: issue.priority_id,
-    owner: issue.owner,
-    assigned_to: assignedTo || '',
-    logged_by: createdBy || '',
-    created_by: createdBy,
-    date_entered: dateOnly(firstValue(issue, ['date_entered', 'created_at', 'created_date'])),
-    target_date: dateOnly(issue.target_date),
-    resolution: issue.resolution || '',
-    created_at: issue.created_at,
-    updated_at: issue.updated_at,
-    raw: issue,
-  };
-};
+export const mapIssueFromApi = (issue: ApiRecord = {}) => ({
+  ...mapLogBase(issue, 'issue_number'),
+  issue_id: issue.issue_number || issue.id,
+  what_happening: issue.description || '',
+  assigned_to: issue.assigned_to_name || '',
+  date_entered: dateOnly(issue.created_at),
+  target_date: dateOnly(issue.target_resolution_date),
+});
 
 export const mapIssueListFromApi = (response: any) => asArray(response).map(mapIssueFromApi);
 
-export const mapIssueInputToPayload = (input: RiskApiRecord = {}) => compact({
-  title: input.title,
-  description: input.description,
-  status: input.status,
-  status_id: input.status_id,
-  priority: input.priority,
-  priority_id: input.priority_id,
-  assigned_to: input.assigned_to,
-  owner: input.owner,
-  date_entered: input.date_entered,
-  target_date: input.target_date,
-  resolution: input.resolution,
-});
-
-export const mapAssumptionFromApi = (assumption: RiskApiRecord = {}) => {
-  const id = firstValue(assumption, ['id', 'assumption_id', 'uuid']);
-  const reference = firstValue(assumption, ['assumption_id', 'reference_number', 'reference', 'assumption_number', 'number']);
-  const description = firstValue(assumption, ['description', 'assumption_description']);
-  const status = firstValue(assumption, ['status', 'status_id']);
-  const assignedTo = firstValue(assumption, ['assigned_to', 'owner']);
-  const enteredBy = firstValue(assumption, ['entered_by', 'created_by']);
-
-  return {
-    id,
-    assumption_id: reference || id,
-    reference_number: reference,
-    project_id: assumption.project_id,
-    program_id: assumption.program_id,
-    title: assumption.title || description || reference || 'Untitled assumption',
-    description: description || '',
-    assumption_description: assumption.assumption_description,
-    status,
-    status_id: assumption.status_id,
-    owner: assumption.owner,
-    assigned_to: assignedTo || '',
-    entered_by: enteredBy || '',
-    created_by: assumption.created_by,
-    date_entered: dateOnly(firstValue(assumption, ['date_entered', 'created_at', 'created_date'])),
-    target_date: dateOnly(assumption.target_date),
-    comments: Array.isArray(assumption.comments) ? assumption.comments : [],
-    created_at: assumption.created_at,
-    updated_at: assumption.updated_at,
-    raw: assumption,
-  };
+export const mapIssueInputToPayload = (input: ApiRecord = {}) => {
+  const normalized = { ...input };
+  if (!normalized.description && normalized.what_happening) {
+    normalized.description = normalized.impact
+      ? `${normalized.what_happening}\n\nImpact: ${normalized.impact}`
+      : normalized.what_happening;
+  }
+  return buildPayload(normalized, {
+    title: 'title',
+    description: 'description',
+    status: 'status',
+    priority: 'priority',
+    assigned_to: 'assigned_to_name',
+    target_date: 'target_resolution_date',
+  });
 };
+
+export const mapAssumptionFromApi = (assumption: ApiRecord = {}) => ({
+  ...mapLogBase(assumption, 'assumption_number'),
+  assumption_id: assumption.assumption_number || assumption.id,
+  title: assumption.description || '',
+  entered_by: assumption.entered_by_name || assumption.created_by_name || '',
+  date_entered: dateOnly(assumption.date_entered || assumption.created_at),
+});
 
 export const mapAssumptionListFromApi = (response: any) => asArray(response).map(mapAssumptionFromApi);
 
-export const mapAssumptionInputToPayload = (input: RiskApiRecord = {}) => compact({
-  title: input.title,
-  description: input.description || input.assumption_description,
-  assumption_description: input.assumption_description,
-  status: input.status,
-  status_id: input.status_id,
-  owner: input.owner,
-  assigned_to: input.assigned_to,
-  entered_by: input.entered_by,
-  date_entered: input.date_entered,
-  target_date: input.target_date,
-  comments: input.comments,
+export const mapAssumptionInputToPayload = (input: ApiRecord = {}) => buildPayload(input, {
+  description: 'description',
+  status: 'status',
+  entered_by: 'entered_by_name',
+  date_entered: 'date_entered',
 });
 
-export const mapDecisionFromApi = (decision: RiskApiRecord = {}) => {
-  const id = firstValue(decision, ['id', 'decision_id', 'uuid']);
-  const reference = firstValue(decision, ['decision_id', 'reference_number', 'reference', 'decision_number', 'number']);
-  const decisionText = firstValue(decision, ['decision', 'description', 'title']);
-  const status = firstValue(decision, ['status', 'status_id']);
-  const priority = firstValue(decision, ['priority', 'priority_id']);
-
-  return {
-    id,
-    decision_id: reference || id,
-    reference_number: reference,
-    project_id: decision.project_id,
-    program_id: decision.program_id,
-    title: decision.title || decisionText || reference || 'Untitled decision',
-    decision: decisionText || '',
-    description: decision.description || '',
-    status,
-    status_id: decision.status_id,
-    priority,
-    priority_id: decision.priority_id,
-    proposed_date: dateOnly(decision.proposed_date),
-    proposed_by: decision.proposed_by || '',
-    decided_date: dateOnly(decision.decided_date),
-    decided_by: decision.decided_by || '',
-    approved_date: dateOnly(decision.decided_date),
-    approved_by: Array.isArray(decision.decided_by) ? decision.decided_by : (decision.decided_by ? [decision.decided_by] : []),
-    rationale: decision.rationale || '',
-    outcome: decision.outcome || '',
-    created_by: decision.created_by,
-    created_at: decision.created_at,
-    updated_at: decision.updated_at,
-    raw: decision,
-  };
-};
+export const mapDecisionFromApi = (decision: ApiRecord = {}) => ({
+  ...mapLogBase(decision, 'decision_number'),
+  decision_id: decision.decision_number || decision.id,
+  decision: decision.title || '',
+  impact: decision.impact || '',
+  proposed_date: dateOnly(decision.proposed_date),
+  proposed_by: decision.proposed_by_name || '',
+  approved_date: dateOnly(decision.approved_date),
+  related_record: decision.related_record || '',
+});
 
 export const mapDecisionListFromApi = (response: any) => asArray(response).map(mapDecisionFromApi);
 
-export const mapDecisionInputToPayload = (input: RiskApiRecord = {}) => compact({
-  title: input.title || input.decision,
-  decision: input.decision,
-  description: input.description,
-  status: input.status,
-  status_id: input.status_id,
-  priority: input.priority,
-  priority_id: input.priority_id,
-  proposed_date: input.proposed_date,
-  proposed_by: input.proposed_by,
-  decided_date: input.decided_date || input.approved_date,
-  decided_by: input.decided_by || (Array.isArray(input.approved_by) ? input.approved_by.join(', ') : input.approved_by),
-  rationale: input.rationale,
-  outcome: input.outcome,
-});
+export const mapDecisionInputToPayload = (input: ApiRecord = {}) => {
+  const normalized = { ...input };
+  if (normalized.decision !== undefined && normalized.title === undefined) normalized.title = normalized.decision;
+  return buildPayload(normalized, {
+    title: 'title',
+    description: 'description',
+    impact: 'impact',
+    status: 'status',
+    priority: 'priority',
+    proposed_date: 'proposed_date',
+    proposed_by: 'proposed_by_name',
+    approved_date: 'approved_date',
+    related_record: 'related_record',
+  });
+};
 
-export const mapDecisionOptionFromApi = (option: RiskApiRecord = {}) => ({
+export const mapDecisionOptionFromApi = (option: ApiRecord = {}) => ({
   id: option.id,
   decision_id: option.decision_id,
-  title: option.title || option.name || '',
+  title: option.title || '',
   pros: option.pros || '',
   cons: option.cons || '',
-  effort: firstValue(option, ['effort', 'work_effort']) || '',
-  description: option.description || '',
+  effort: option.work_effort || '',
+  sort_order: option.sort_order,
   created_at: option.created_at,
   updated_at: option.updated_at,
   raw: option,
@@ -251,13 +170,12 @@ export const mapDecisionOptionFromApi = (option: RiskApiRecord = {}) => ({
 
 export const mapDecisionOptionListFromApi = (response: any) => asArray(response).map(mapDecisionOptionFromApi);
 
-export const mapDecisionOptionInputToPayload = (input: RiskApiRecord = {}) => compact({
-  title: input.title,
-  pros: input.pros,
-  cons: input.cons,
-  effort: input.effort,
-  work_effort: input.work_effort,
-  description: input.description,
+export const mapDecisionOptionInputToPayload = (input: ApiRecord = {}) => buildPayload(input, {
+  title: 'title',
+  pros: 'pros',
+  cons: 'cons',
+  effort: 'work_effort',
+  sort_order: 'sort_order',
 });
 
 export const raidApi = {

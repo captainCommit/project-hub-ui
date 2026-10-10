@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import NotificationBell from '@/components/NotificationBell';
 
 const NAVY = '#002046';
 const ORANGE = '#d97706';
@@ -228,10 +229,11 @@ export default function ProjectSidebar(/** @type {any} */ {
   if (collapsed) {
     return (
       <div className="w-12 border-r border-white/10 flex flex-col select-none transition-all" style={{ background: NAVY, fontFamily: 'Segoe UI, sans-serif' }}>
-        <div className="px-2 py-4 border-b border-white/10 flex justify-center">
+        <div className="px-2 py-4 border-b border-white/10 flex flex-col items-center gap-2">
           <button onClick={toggleCollapsed} className="p-1.5 hover:bg-white/10 rounded-lg" title="Expand sidebar">
             <PanelLeftOpen className="w-4 h-4 text-white/80" />
           </button>
+          <NotificationBell compact />
         </div>
         <div className="flex-1 flex flex-col items-center py-3 gap-1 overflow-y-auto">
           <Link to="/Favorites" title="Favorites" className={cn('p-2 rounded-lg', pathname === '/favorites' ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-[#d97706]')}><Star className="w-4 h-4" fill="currentColor" /></Link>
@@ -278,9 +280,12 @@ export default function ProjectSidebar(/** @type {any} */ {
           <h1 className="text-lg font-bold text-white">Project Hub</h1>
           <p className="text-[10px] text-white/40 font-medium tracking-wider uppercase mt-0.5">All-in-one Project Management</p>
         </div>
-        <button onClick={toggleCollapsed} className="p-1.5 hover:bg-white/10 rounded-lg flex-shrink-0" title="Collapse sidebar">
-          <PanelLeftClose className="w-4 h-4 text-white/40" />
-        </button>
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          <NotificationBell />
+          <button onClick={toggleCollapsed} className="p-1.5 hover:bg-white/10 rounded-lg flex-shrink-0" title="Collapse sidebar">
+            <PanelLeftClose className="w-4 h-4 text-white/40" />
+          </button>
+        </div>
       </div>
 
       <div ref={scrollRef} className="flex-1 px-2 py-3 overflow-y-auto">

@@ -1,13 +1,10 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import FavoritesView from '@/components/projects/FavoritesView';
+import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
 export default function Favorites() {
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
 
   return (
     <div className="h-screen flex bg-slate-50" style={{ fontFamily: 'Segoe UI, sans-serif' }}>

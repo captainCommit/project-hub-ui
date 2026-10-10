@@ -7,13 +7,12 @@ import ChangeRegister from './ChangeRegister';
 import { Scale, FileEdit, LayoutDashboard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ChangeOverview from '@/components/projects/ChangeOverview';
+import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
 export default function ChangeRegisterHub() {
   const [tab, setTab] = useState('overview');
 
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
   const { data: decisions = [] } = useQuery({ queryKey: ['decisions'], queryFn: () => base44.entities.Decision.list('-created_date') });
   const { data: changeRequests = [] } = useQuery({ queryKey: ['change_requests'], queryFn: () => base44.entities.ChangeRequest.list('-created_date') });
 

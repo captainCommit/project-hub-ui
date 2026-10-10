@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { raidApi, mapDecisionFromApi, mapDecisionInputToPayload, mapDecisionListFromApi, mapDecisionOptionFromApi, mapDecisionOptionInputToPayload, mapDecisionOptionListFromApi } from '@/api/raid';
@@ -17,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
 
 const getDecisionStatuses = () => getRaidStatuses('decision');
 const statusOptions = getDecisionStatuses();
@@ -44,10 +44,8 @@ export default function DecisionLog({ embedded = false }) {
     queryFn: async () => mapDecisionListFromApi(await raidApi.listAccountDecisions(selectedAccountId)),
     enabled: !!selectedAccountId,
   });
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
-  const { data: resources = [] } = useQuery({ queryKey: ['project_resources'], queryFn: () => base44.entities.ProjectResource.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
+  const resources = useAccountResources();
 
   const decisionDetailId = selectedDecision?.id || null;
   const { data: selectedDecisionDetail } = useQuery({

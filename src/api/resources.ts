@@ -14,77 +14,72 @@ const normalizeResourceCollection = (response: any): ApiResource[] => {
   return [];
 };
 
+const numberOrUndefined = (value: any) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+// API Resource -> Base44 ProjectResource shape (full_name, weekly_capacity, rate, ...).
 export const mapResource = (resource: ApiResource | null | undefined) => {
   if (!resource) return null;
 
-  const mapped: ApiResource = {};
-  const fullName = firstDefined(resource.full_name, resource.name);
-  const capacity = firstDefined(resource.capacity, resource.weekly_capacity);
-  const utilization = firstDefined(resource.utilization, resource.allocation);
+  const fullName = firstDefined(resource.name, resource.full_name);
+  const capacity = numberOrUndefined(firstDefined(resource.weekly_capacity_hours, resource.weekly_capacity, resource.capacity));
+  const isActive = firstDefined(resource.is_active, resource.active);
 
-  if (hasOwn(resource, 'id')) mapped.id = resource.id;
-  if (hasOwn(resource, 'account_id')) mapped.account_id = resource.account_id;
-  if (fullName !== undefined) mapped.full_name = fullName;
-  if (hasOwn(resource, 'name')) mapped.name = resource.name;
-  if (hasOwn(resource, 'email')) mapped.email = resource.email;
-  if (hasOwn(resource, 'role')) mapped.role = resource.role;
-  if (hasOwn(resource, 'team')) mapped.team = resource.team;
-  if (hasOwn(resource, 'department')) mapped.department = resource.department;
-  if (hasOwn(resource, 'title')) mapped.title = resource.title;
-  if (hasOwn(resource, 'user_id')) mapped.user_id = resource.user_id;
-  if (capacity !== undefined) {
-    mapped.capacity = capacity;
-    mapped.weekly_capacity = capacity;
-  }
-  if (utilization !== undefined) {
-    mapped.utilization = utilization;
-    mapped.allocation = utilization;
-  }
-  if (hasOwn(resource, 'active')) mapped.active = resource.active;
-  if (hasOwn(resource, 'is_active')) {
-    mapped.is_active = resource.is_active;
-    mapped.active = resource.is_active;
-  }
-  if (hasOwn(resource, 'status')) mapped.status = resource.status;
-  if (hasOwn(resource, 'created_at')) mapped.created_at = resource.created_at;
-  if (hasOwn(resource, 'updated_at')) mapped.updated_at = resource.updated_at;
-
-  return mapped;
+  return {
+    id: resource.id,
+    account_id: resource.account_id,
+    user_id: resource.user_id ?? null,
+    full_name: fullName,
+    name: fullName,
+    role: resource.role ?? '',
+    department: resource.department ?? '',
+    rate: numberOrUndefined(firstDefined(resource.hourly_rate, resource.rate)) ?? null,
+    weekly_capacity: capacity ?? null,
+    capacity: capacity ?? null,
+    non_project_hours: numberOrUndefined(resource.non_project_hours) ?? 0,
+    active: isActive !== false,
+    is_active: isActive !== false,
+    created_at: resource.created_at,
+    updated_at: resource.updated_at,
+  };
 };
 
 export const mapResources = (response: any) => normalizeResourceCollection(response).map(mapResource).filter(Boolean);
 
+// Base44 ProjectResource form values -> API ResourceCreate/ResourceUpdate.
 export const toResourcePayload = (data: ApiResource) => {
   const payload: ApiResource = {};
   const fullName = firstDefined(data.full_name, data.name);
-  const capacity = firstDefined(data.capacity, data.weekly_capacity);
-  const utilization = firstDefined(data.utilization, data.allocation);
+  const capacity = numberOrUndefined(firstDefined(data.weekly_capacity, data.capacity));
+  const rate = firstDefined(data.rate, data.hourly_rate);
 
-  if (fullName !== undefined) payload.full_name = fullName;
-  if (hasOwn(data, 'email')) payload.email = data.email || null;
+  if (fullName !== undefined) payload.name = String(fullName).trim();
   if (hasOwn(data, 'role')) payload.role = data.role || null;
-  if (hasOwn(data, 'team')) payload.team = data.team || null;
   if (hasOwn(data, 'department')) payload.department = data.department || null;
-  if (hasOwn(data, 'title')) payload.title = data.title || null;
-  if (capacity !== undefined && capacity !== '') payload.capacity = Number(capacity);
-  if (utilization !== undefined && utilization !== '') payload.utilization = Number(utilization);
-  if (hasOwn(data, 'active')) payload.active = data.active;
-  if (hasOwn(data, 'status')) payload.status = data.status || null;
+  if (capacity !== undefined && capacity > 0) payload.weekly_capacity_hours = capacity;
+  if (rate !== undefined) payload.hourly_rate = numberOrUndefined(rate) ?? null;
+  if (hasOwn(data, 'non_project_hours')) {
+    const nonProject = numberOrUndefined(data.non_project_hours);
+    if (nonProject !== undefined) payload.non_project_hours = nonProject;
+  }
+  if (hasOwn(data, 'active')) payload.is_active = Boolean(data.active);
+  if (hasOwn(data, 'user_id')) payload.user_id = data.user_id || null;
 
   return payload;
 };
 
+// Base44 ResourceVacation form values -> API ResourceTimeOffCreate/Update.
 export const toResourceTimeOffPayload = (data: ApiResource) => {
   const payload: ApiResource = {};
 
   if (hasOwn(data, 'start_date')) payload.start_date = data.start_date;
   if (hasOwn(data, 'end_date')) payload.end_date = data.end_date;
-  if (hasOwn(data, 'time_off_type_id') && data.time_off_type_id) payload.time_off_type_id = data.time_off_type_id;
-  else if (hasOwn(data, 'type') && data.type) payload.type = data.type;
-  if (hasOwn(data, 'notes')) payload.notes = data.notes || null;
-  if (hasOwn(data, 'hours') && data.hours !== '') payload.hours = Number(data.hours);
-  if (hasOwn(data, 'all_day')) payload.all_day = Boolean(data.all_day);
-  if (hasOwn(data, 'status_id') && data.status_id) payload.status_id = data.status_id;
+  if (hasOwn(data, 'notes') || hasOwn(data, 'reason')) payload.reason = firstDefined(data.reason, data.notes) || null;
+  const hoursPerDay = numberOrUndefined(firstDefined(data.hours_per_day, data.hours));
+  if (hoursPerDay !== undefined && hoursPerDay > 0) payload.hours_per_day = hoursPerDay;
 
   return payload;
 };
@@ -136,8 +131,8 @@ const mapCalendarTimeOff = (timeOff: ApiResource, resource?: ApiResource) => {
   if (endDate !== undefined) mapped.end_date = endDate;
   if (hasOwn(timeOff, 'time_off_type_id')) mapped.time_off_type_id = timeOff.time_off_type_id;
   if (hasOwn(timeOff, 'type')) mapped.type = timeOff.type;
-  if (hasOwn(timeOff, 'notes')) mapped.notes = timeOff.notes;
-  if (hasOwn(timeOff, 'hours')) mapped.hours = timeOff.hours;
+  if (hasOwn(timeOff, 'notes') || hasOwn(timeOff, 'reason')) mapped.notes = firstDefined(timeOff.reason, timeOff.notes) ?? '';
+  if (hasOwn(timeOff, 'hours') || hasOwn(timeOff, 'hours_per_day')) mapped.hours = firstDefined(timeOff.hours_per_day, timeOff.hours);
   if (hasOwn(timeOff, 'all_day')) mapped.all_day = timeOff.all_day;
   if (hasOwn(timeOff, 'status_id')) mapped.status_id = timeOff.status_id;
 

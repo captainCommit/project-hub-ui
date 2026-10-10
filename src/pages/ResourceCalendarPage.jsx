@@ -12,6 +12,7 @@ import { formatDate } from '@/lib/dateUtils';
 import { cn } from "@/lib/utils";
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
 
 const COLOR_DOTS = [
   'bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-orange-500',
@@ -39,12 +40,10 @@ export default function ResourceCalendarPage({ embedded = false }) {
 
   const { data: vacations = [] } = useQuery({ queryKey: ['resource_vacations'], queryFn: () => base44.entities.ResourceVacation.list() });
   const { data: tasks = [] } = useQuery({ queryKey: ['tasks_all'], queryFn: () => base44.entities.Task.list() });
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
   const { data: sprints = [] } = useQuery({ queryKey: ['sprints_all'], queryFn: () => base44.entities.Sprint.list() });
   const { data: stories = [] } = useQuery({ queryKey: ['user_stories_all'], queryFn: () => base44.entities.UserStory.list() });
-  const { data: resourceRecords = [] } = useQuery({ queryKey: ['project_resources'], queryFn: () => base44.entities.ProjectResource.list() });
+  const resourceRecords = useAccountResources();
 
   const createVacation = useMutation({ mutationFn: (data) => base44.entities.ResourceVacation.create(data), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['resource_vacations'] }); resetForm(); } });
   const updateVacation = useMutation({ mutationFn: ({ id, data }) => base44.entities.ResourceVacation.update(id, data), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['resource_vacations'] }); resetForm(); } });

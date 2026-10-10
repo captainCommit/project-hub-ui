@@ -1,14 +1,11 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Settings } from 'lucide-react';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import SettingsContent from '@/components/projects/SettingsContent';
+import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
 export default function AppSettings() {
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
 
   return (
     <div className="flex h-screen bg-slate-50" style={{ fontFamily: 'Segoe UI, sans-serif' }}>

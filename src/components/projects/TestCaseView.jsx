@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { exportRecords } from '@/lib/exportUtils';
 import StarButton from '@/components/projects/StarButton';
+import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
 const PRIORITY_COLORS = {
   low: 'bg-slate-100 text-slate-600',
@@ -64,9 +65,7 @@ export default function TestCaseView() {
   const [form, setForm] = useState(emptyForm());
 
   const { data: testCases = [], isLoading } = useQuery({ queryKey: ['test_cases'], queryFn: () => base44.entities.TestCase.list('-created_date') });
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
   const { data: sprints = [] } = useQuery({ queryKey: ['sprints'], queryFn: () => base44.entities.Sprint.list() });
   const { data: requirements = [] } = useQuery({ queryKey: ['requirements'], queryFn: () => base44.entities.Requirement.list() });
 

@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { cn } from '@/lib/utils';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import SettingsContent from '@/components/projects/SettingsContent';
 import { UserCircle, Settings as SettingsIcon } from 'lucide-react';
 import ProfileEditor from '@/components/Account/ProfileEditor';
+import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
 const ACCOUNT_NAME = 'TaskFlow';
 
@@ -25,9 +24,7 @@ export default function Account() {
   const [tab, setTab] = useState('account');
   const { user, appPublicSettings } = useAuth();
 
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
 
   const roleLabel = user?.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1)) : 'User';
   const isAdmin = user?.role === 'admin';

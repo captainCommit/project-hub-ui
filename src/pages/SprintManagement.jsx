@@ -1,19 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import SprintView from '@/components/projects/SprintView';
 import { Package, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
 
 export default function SprintManagement() {
   const [tab, setTab] = useState('overview');
   const [focusSprint, setFocusSprint] = useState(null);
   const [focusSprintId, setFocusSprintId] = useState(null);
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
-  const { data: resources = [] } = useQuery({ queryKey: ['project_resources'], queryFn: () => base44.entities.ProjectResource.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
+  const resources = useAccountResources();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

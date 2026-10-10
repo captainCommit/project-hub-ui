@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { parseISO, isValid } from 'date-fns';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
 
 const STATUS_CLS = {
   over: 'text-red-600',
@@ -21,8 +22,8 @@ function statusOf(pct) {
 export default function ResourceUtilizationTable({ projectIds = [], scopeLabel = 'Scope' }) {
   const [tableCollapsed, setTableCollapsed] = useState(false);
   const { data: tasks = [] } = useQuery({ queryKey: ['tasks_all'], queryFn: () => base44.entities.Task.list() });
-  const { data: resources = [] } = useQuery({ queryKey: ['project_resources'], queryFn: () => base44.entities.ProjectResource.list() });
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
+  const resources = useAccountResources();
+  const { projects } = useAccountHierarchy();
 
   const scopeSet = useMemo(() => new Set(projectIds), [projectIds]);
 

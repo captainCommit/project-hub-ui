@@ -10,6 +10,7 @@ import { Plus, Trash2, Edit2, Users, Check, X, Download, ChevronDown, ChevronRig
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, Cell, ReferenceLine } from 'recharts';
 import { parseISO, isValid } from 'date-fns';
+import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
 export default function ProjectResources({ embedded = false }) {
   const queryClient = useQueryClient();
@@ -76,9 +77,7 @@ export default function ProjectResources({ embedded = false }) {
     queryFn: () => resourcesApi.getResource(editingId),
     enabled: Boolean(editingId),
   });
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
   const { data: allTasks = [] } = useQuery({ queryKey: ['tasks_all_resources'], queryFn: () => base44.entities.Task.list() });
 
   const invalidateResources = (resourceId) => {

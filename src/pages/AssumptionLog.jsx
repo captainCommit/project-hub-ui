@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { raidApi, mapAssumptionFromApi, mapAssumptionInputToPayload, mapAssumptionListFromApi } from '@/api/raid';
@@ -16,6 +15,7 @@ import MultiSelectFilter from '@/components/projects/MultiSelectFilter';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import { exportRecords } from '@/lib/exportUtils';
 import { cn } from '@/lib/utils';
+import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
 
 const STATUS_STYLES = {
   open: 'bg-blue-100 text-blue-700',
@@ -139,10 +139,8 @@ export default function AssumptionLog() {
     queryFn: async () => mapAssumptionListFromApi(await raidApi.listAccountAssumptions(selectedAccountId)),
     enabled: !!selectedAccountId,
   });
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
-  const { data: resources = [] } = useQuery({ queryKey: ['project_resources'], queryFn: () => base44.entities.ProjectResource.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
+  const resources = useAccountResources();
 
   const assumptionDetailId = selectedAssumption?.id || null;
   const { data: selectedAssumptionDetail } = useQuery({

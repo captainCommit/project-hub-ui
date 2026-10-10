@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
 
 const CR_STATUSES = [
   { value: 'draft', label: 'Draft', color: 'bg-slate-100 text-slate-600' },
@@ -45,10 +46,8 @@ export default function ChangeRegister({ embedded = false }) {
   const queryClient = useQueryClient();
 
   const { data: changeRequests = [], isLoading } = useQuery({ queryKey: ['change_requests'], queryFn: () => base44.entities.ChangeRequest.list('-created_date') });
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
-  const { data: resources = [] } = useQuery({ queryKey: ['project_resources'], queryFn: () => base44.entities.ProjectResource.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
+  const resources = useAccountResources();
   const { data: decisions = [] } = useQuery({ queryKey: ['decisions'], queryFn: () => base44.entities.Decision.list() });
 
   const getRelatedDecisions = (programId) => {

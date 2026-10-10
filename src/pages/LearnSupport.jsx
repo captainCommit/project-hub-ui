@@ -6,6 +6,7 @@ import { PlayCircle, BookOpen, LifeBuoy, Ticket, ChevronLeft, Plus, Inbox } from
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import TicketForm from '@/components/support/TicketForm';
 import TicketConversation from '@/components/support/TicketConversation';
+import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
 const STATUS_STYLES = {
   open: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -20,9 +21,7 @@ export default function LearnSupport() {
   const [view, setView] = useState('home'); // home | new | requests | conversation
   const [activeTicket, setActiveTicket] = useState(null);
 
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
   const { data: tickets = [], isLoading } = useQuery({
     queryKey: ['support_tickets'],
     queryFn: () => base44.entities.SupportTicket.list('-updated_date')

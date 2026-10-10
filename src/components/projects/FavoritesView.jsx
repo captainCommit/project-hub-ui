@@ -5,6 +5,7 @@ import { Star, Building2, FolderTree, ClipboardList, ClipboardCheck, Package, Fo
 import { cn } from '@/lib/utils';
 import { useFavorites } from '@/lib/favorites';
 import { base44 } from '@/api/base44Client';
+import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
 const TYPE_META = {
   requirement: { label: 'Requirement', icon: ClipboardList, link: (id) => `/Requirements?reqId=${id}` },
@@ -16,9 +17,7 @@ const NONE = '__none';
 
 export default function FavoritesView() {
   const { favorites, toggle } = useFavorites();
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
   const { data: requirements = [] } = useQuery({ queryKey: ['requirements'], queryFn: () => base44.entities.Requirement.list() });
   const { data: testCases = [] } = useQuery({ queryKey: ['test_cases'], queryFn: () => base44.entities.TestCase.list() });
   const { data: sprints = [] } = useQuery({ queryKey: ['sprints_all'], queryFn: () => base44.entities.Sprint.list() });

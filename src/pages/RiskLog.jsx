@@ -10,6 +10,7 @@ import RiskIssueDetail from '@/components/projects/RiskIssueDetail';
 import SimpleRaidSheet from '@/components/projects/SimpleRaidSheet';
 import { AlertTriangle, AlertCircle, Loader2, BookOpen, Link2, LayoutDashboard } from 'lucide-react';
 import RaidOverview from '@/components/projects/RaidOverview';
+import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
 
 export default function RiskLog() {
   const [selectedItem, setSelectedItem] = useState(null);
@@ -18,10 +19,7 @@ export default function RiskLog() {
   const queryClient = useQueryClient();
   const { selectedAccountId } = useAuth();
 
-  const { data: resources = [] } = useQuery({
-    queryKey: ['project_resources'],
-    queryFn: () => base44.entities.ProjectResource.list()
-  });
+  const resources = useAccountResources();
   const {
     data: risks = [],
     isLoading: loadingRisks,
@@ -39,9 +37,7 @@ export default function RiskLog() {
   });
   const { data: assumptions = [], isLoading: loadingAssumptions } = useQuery({ queryKey: ['assumptions'], queryFn: () => base44.entities.Assumption.list('-created_date') });
   const { data: dependencies = [], isLoading: loadingDependencies } = useQuery({ queryKey: ['dependencies'], queryFn: () => base44.entities.Dependency.list('-created_date') });
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
 
   const riskDetailId = activeTab === 'risks' && detailOpen ? selectedItem?.id : null;
   const { data: selectedRiskDetail } = useQuery({

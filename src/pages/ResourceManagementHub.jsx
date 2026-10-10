@@ -1,18 +1,15 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import ProjectResources from '@/pages/ProjectResources';
 import ResourceCalendarPage from '@/pages/ResourceCalendarPage';
 import Financials from '@/pages/Financials';
 import { Users, Calendar, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
 export default function ResourceManagementHub() {
   const [tab, setTab] = useState('capacity');
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
 
   return (
     <div className="h-screen flex bg-slate-50" style={{ fontFamily: 'Segoe UI, sans-serif' }}>

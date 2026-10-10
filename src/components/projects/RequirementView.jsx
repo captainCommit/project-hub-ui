@@ -11,6 +11,7 @@ import { ClipboardList, Plus, X, Download, ChevronDown, Check } from 'lucide-rea
 import { cn } from '@/lib/utils';
 import { exportRecords } from '@/lib/exportUtils';
 import StarButton from '@/components/projects/StarButton';
+import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
 const PRIORITY_COLORS = {
   low: 'bg-slate-100 text-slate-600',
@@ -60,9 +61,7 @@ export default function RequirementView() {
   const [editingId, setEditingId] = useState(null);
 
   const { data: requirements = [], isLoading } = useQuery({ queryKey: ['requirements'], queryFn: () => base44.entities.Requirement.list('-created_date') });
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
   const { data: testCases = [] } = useQuery({ queryKey: ['test_cases'], queryFn: () => base44.entities.TestCase.list() });
 
   const create = useMutation({

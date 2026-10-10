@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
 import { Compass, Send, Plus, Trash2, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
+import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
 const AGENT = 'project_assistant';
 
@@ -68,9 +68,7 @@ export default function AIAssistant() {
   const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
 
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
 
   useEffect(() => {
     loadConversations();

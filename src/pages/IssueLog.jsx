@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { raidApi, mapIssueFromApi, mapIssueInputToPayload, mapIssueListFromApi } from '@/api/raid';
@@ -7,6 +6,7 @@ import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import RiskIssueSheet from '@/components/projects/RiskIssueSheet';
 import RiskIssueDetail from '@/components/projects/RiskIssueDetail';
 import { AlertCircle, Loader2 } from 'lucide-react';
+import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
 
 export default function IssueLog() {
   const [selectedItem, setSelectedItem] = useState(null);
@@ -14,10 +14,7 @@ export default function IssueLog() {
   const queryClient = useQueryClient();
   const { selectedAccountId } = useAuth();
 
-  const { data: resources = [] } = useQuery({
-    queryKey: ['project_resources'],
-    queryFn: () => base44.entities.ProjectResource.list()
-  });
+  const resources = useAccountResources();
   const {
     data: issues = [],
     isLoading,
@@ -29,9 +26,7 @@ export default function IssueLog() {
     queryFn: async () => mapIssueListFromApi(await raidApi.listAccountIssues(selectedAccountId)),
     enabled: !!selectedAccountId,
   });
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
+  const { projects, programs, portfolios } = useAccountHierarchy();
 
   const issueDetailId = detailOpen ? selectedItem?.id : null;
   const { data: selectedIssueDetail } = useQuery({

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import { Wallet, TrendingUp, TrendingDown, DollarSign, PiggyBank, Percent, AlertTriangle, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
 
 const fmtMoney = (n) => `$${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const fmtPct = (n) => `${Math.round((n || 0))}%`;
@@ -16,10 +17,8 @@ export default function Financials({ embedded = false }) {
   const [filterProject, setFilterProject] = useState('all');
 
   const { data: tasks = [] } = useQuery({ queryKey: ['tasks_all'], queryFn: () => base44.entities.Task.list() });
-  const { data: resources = [] } = useQuery({ queryKey: ['project_resources'], queryFn: () => base44.entities.ProjectResource.list('full_name') });
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => base44.entities.Project.list() });
-  const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => base44.entities.Program.list() });
-  const { data: portfolios = [] } = useQuery({ queryKey: ['portfolios'], queryFn: () => base44.entities.Portfolio.list() });
+  const resources = useAccountResources();
+  const { projects, programs, portfolios } = useAccountHierarchy();
 
   const resByName = useMemo(() => {
     const m = {};

@@ -297,6 +297,9 @@ export default function ProjectSidebar(/** @type {any} */ {
           <Link to="/AIAssistant" title="Compass (powered by AI)"><button className="p-2 rounded-lg hover:bg-white/10 text-white/60"><Compass className="w-4 h-4" /></button></Link>
           <div className="mt-auto space-y-1">
             <Link to="/LearnSupport" title="Help Center"><button className="p-2 rounded-lg hover:bg-white/10 text-white/60"><LifeBuoy className="w-4 h-4" /></button></Link>
+            {user?.is_platform_admin && (
+              <Link to="/admin" title="Platform Admin"><button className="p-2 rounded-lg hover:bg-white/10 text-white/60"><Shield className="w-4 h-4" /></button></Link>
+            )}
             <Link to="/Account" title={user?.full_name || 'User'}><div className="w-8 h-8 rounded-full bg-white text-[#d97706] flex items-center justify-center text-xs font-bold mx-auto mt-2">{initials}</div></Link>
           </div>
         </div>
@@ -427,6 +430,7 @@ export default function ProjectSidebar(/** @type {any} */ {
         {/* Help */}
         <div className="mb-1 space-y-0.5">
           <IconNavLink href="/LearnSupport" icon={LifeBuoy} label="Help Center" />
+          {user?.is_platform_admin && <IconNavLink href="/admin" icon={Shield} label="Platform Admin" />}
         </div>
 
       </div>

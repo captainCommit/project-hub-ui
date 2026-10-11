@@ -3,10 +3,9 @@ import { useAuth } from '@/lib/AuthContext';
 import { cn } from '@/lib/utils';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import SettingsContent from '@/components/projects/SettingsContent';
-import { UserCircle, Settings as SettingsIcon, Users, Building2 } from 'lucide-react';
+import { UserCircle, Settings as SettingsIcon, Users } from 'lucide-react';
 import ProfileEditor from '@/components/Account/ProfileEditor';
 import AccountUsers from '@/components/Account/AccountUsers';
-import PlatformAccounts from '@/components/Account/PlatformAccounts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
@@ -36,7 +35,6 @@ export default function Account() {
   const tabs = [
     { id: 'account', label: 'Account', icon: UserCircle },
     canManageUsers && { id: 'users', label: 'Users', icon: Users },
-    user?.is_platform_admin && { id: 'accounts', label: 'All Accounts', icon: Building2 },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ].filter(Boolean);
   const sheetsOwned = projects.filter(p => p.created_by_id === user?.id || p.owner === user?.full_name).length;
@@ -97,12 +95,6 @@ export default function Account() {
           <div className="flex-1 overflow-auto p-8">
             <div className="max-w-3xl">
               <AccountUsers accountId={selectedAccountId} />
-            </div>
-          </div>
-        ) : tab === 'accounts' && user?.is_platform_admin ? (
-          <div className="flex-1 overflow-auto p-8">
-            <div className="max-w-3xl">
-              <PlatformAccounts />
             </div>
           </div>
         ) : (

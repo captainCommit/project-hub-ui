@@ -27,6 +27,7 @@ import Requirements from './pages/Requirements';
 import ResourceManagementHub from './pages/ResourceManagementHub';
 import Account from './pages/Account';
 import Favorites from './pages/Favorites';
+import PlatformAdmin from './pages/PlatformAdmin';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -38,7 +39,7 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   : <>{children}</>;
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, postLoginPath, checkAppState, logout } = useAuth();
+  const { user, accounts, isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, postLoginPath, checkAppState, logout } = useAuth();
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -91,9 +92,12 @@ const AuthenticatedApp = () => {
   return (
     <Routes>
       <Route path="/" element={
-        <LayoutWrapper currentPageName={mainPageKey}>
-          <MainPage />
-        </LayoutWrapper>
+        // A platform admin who belongs to no account has nothing to see in the app itself.
+        user?.is_platform_admin && accounts.length === 0 ? <Navigate to="/admin" replace /> : (
+          <LayoutWrapper currentPageName={mainPageKey}>
+            <MainPage />
+          </LayoutWrapper>
+        )
       } />
       {Object.entries(Pages).map(([path, Page]) => (
         <Route
@@ -135,6 +139,7 @@ const AuthenticatedApp = () => {
       <Route path="/Favorites" element={<LayoutWrapper currentPageName="Favorites"><Favorites /></LayoutWrapper>} />
       <Route path="/ResourceManagementHub" element={<LayoutWrapper currentPageName="ResourceManagementHub"><ResourceManagementHub /></LayoutWrapper>} />
       <Route path="/Account" element={<LayoutWrapper currentPageName="Account"><Account /></LayoutWrapper>} />
+      <Route path="/admin" element={<PlatformAdmin />} />
       <Route path="/auth/callback" element={<Navigate to={postLoginPath || '/'} replace />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>

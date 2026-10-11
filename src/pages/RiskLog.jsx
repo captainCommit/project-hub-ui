@@ -11,11 +11,21 @@ import SimpleRaidSheet from '@/components/projects/SimpleRaidSheet';
 import { AlertTriangle, AlertCircle, Loader2, BookOpen, Link2, LayoutDashboard } from 'lucide-react';
 import RaidOverview from '@/components/projects/RaidOverview';
 import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
+import { useMyAccess } from '@/hooks/useMyAccess';
+
+const RAID_TABS = [
+  { key: 'risks', label: 'Risks', icon: AlertTriangle, module: 'RISKS' },
+  { key: 'assumptions', label: 'Assumptions', icon: BookOpen, module: 'ASSUMPTIONS' },
+  { key: 'issues', label: 'Issues', icon: AlertCircle, module: 'ISSUES' },
+  { key: 'dependencies', label: 'Dependencies', icon: Link2, module: 'DEPENDENCIES' },
+];
 
 export default function RiskLog() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  // Tabs for modules this person can't see in any project are left out.
+  const { canViewAnywhere } = useMyAccess();
   const queryClient = useQueryClient();
   const { selectedAccountId } = useAuth();
 
@@ -181,18 +191,11 @@ export default function RiskLog() {
           <button onClick={() => switchTab('overview')} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', activeTab === 'overview' ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
             <LayoutDashboard className="w-4 h-4" /> Overview
           </button>
-          <button onClick={() => switchTab('risks')} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', activeTab === 'risks' ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
-            <AlertTriangle className="w-4 h-4" /> Risks
-          </button>
-          <button onClick={() => switchTab('assumptions')} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', activeTab === 'assumptions' ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
-            <BookOpen className="w-4 h-4" /> Assumptions
-          </button>
-          <button onClick={() => switchTab('issues')} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', activeTab === 'issues' ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
-            <AlertCircle className="w-4 h-4" /> Issues
-          </button>
-          <button onClick={() => switchTab('dependencies')} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', activeTab === 'dependencies' ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
-            <Link2 className="w-4 h-4" /> Dependencies
-          </button>
+          {RAID_TABS.filter((t) => canViewAnywhere(t.module)).map(({ key, label, icon: Icon }) => (
+            <button key={key} onClick={() => switchTab(key)} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', activeTab === key ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
+              <Icon className="w-4 h-4" /> {label}
+            </button>
+          ))}
         </div>
         {renderRiskState() || (activeTab === 'overview' ? (
           risks.length === 0 ? (

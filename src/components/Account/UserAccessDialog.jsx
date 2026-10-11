@@ -7,7 +7,7 @@ import { KeyRound, Loader2, Trash2 } from 'lucide-react';
 import { accessApi } from '@/api/access';
 import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 import { MY_ACCESS_QUERY_KEY } from '@/hooks/useMyAccess';
-import ModulePicker from '@/components/projects/ModulePicker';
+import GrantModulesEditor from '@/components/projects/GrantModulesEditor';
 
 const ROLE_OPTIONS = [
   { value: 'MANAGER', label: 'Manager' },
@@ -29,8 +29,8 @@ export default function UserAccessDialog({ open, onOpenChange, accountId, member
   const seatRoles = useMemo(() => rolesForSeat(member?.role), [member?.role]);
   const defaultRole = seatRoles.some((r) => r.value === 'MEMBER') ? 'MEMBER' : seatRoles[seatRoles.length - 1]?.value;
   const [form, setForm] = useState(
-    /** @type {{ pick: string, role: string, modules: import('@/api/access').ProjectModule[] }} */
-    ({ pick: '', role: defaultRole, modules: ['TASKS'] }),
+    /** @type {{ pick: string, role: string, modules: import('@/api/access').ProjectModule[], view_modules: import('@/api/access').ProjectModule[] | null }} */
+    ({ pick: '', role: defaultRole, modules: ['TASKS'], view_modules: null }),
   );
   const [error, setError] = useState(null);
 
@@ -55,6 +55,7 @@ export default function UserAccessDialog({ open, onOpenChange, accountId, member
         user_id: member.id,
         role: /** @type {import('@/api/access').GrantRole} */ (form.role),
         modules: form.modules,
+        view_modules: form.view_modules,
       });
     },
     onSuccess: () => { setForm((f) => ({ ...f, pick: '' })); setError(null); refresh(); },
@@ -118,12 +119,12 @@ export default function UserAccessDialog({ open, onOpenChange, accountId, member
               {add.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add'}
             </Button>
           </div>
-          {form.role === 'MEMBER' && (
-            <div className="space-y-1.5">
-              <p className="text-[11px] text-slate-500">Can edit</p>
-              <ModulePicker value={form.modules} onChange={(modules) => setForm((f) => ({ ...f, modules }))} />
-            </div>
-          )}
+          <GrantModulesEditor
+            role={form.role}
+            viewModules={form.view_modules}
+            modules={form.modules}
+            onChange={(next) => setForm((f) => ({ ...f, ...next }))}
+          />
         </div>
 
         {error && <p className="text-xs text-red-600">{error}</p>}
@@ -154,9 +155,13 @@ export default function UserAccessDialog({ open, onOpenChange, accountId, member
                     </Button>
                   </div>
                 </div>
-                {grant.role === 'MEMBER' && (
-                  <ModulePicker value={grant.modules} onChange={(modules) => update.mutate({ id: grant.id, data: { modules } })} />
-                )}
+                <GrantModulesEditor
+                  role={grant.role}
+                  viewModules={grant.view_modules}
+                  modules={grant.modules}
+                  disabled={update.isPending}
+                  onChange={(next) => update.mutate({ id: grant.id, data: next })}
+                />
               </div>
             ))
           )}

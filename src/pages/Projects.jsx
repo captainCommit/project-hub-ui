@@ -250,9 +250,11 @@ function updateProjectGanttCacheTaskDates(cache, taskId, dates) {
 export default function Projects() {
   const { selectedAccountId } = useAuth();
   const { portfolioId, programId, projectId, projectTab } = useParams();
-  const { canEdit } = useMyAccess();
+  const { canEdit, canView } = useMyAccess();
   // Without the Tasks module, the sheet, board and Gantt are read-only: they get no edit handlers.
   const canEditProjectTasks = Boolean(projectId) && canEdit(projectId, 'TASKS');
+  // Someone whose access hides Tasks gets a notice instead of the sheet, board and Gantt.
+  const canSeeProjectTasks = !projectId || canView(projectId, 'TASKS');
   const whenTasksEditable = (handler) => (canEditProjectTasks ? handler : undefined);
   const navigate = useNavigate();
   const location = useLocation();
@@ -1720,7 +1722,9 @@ export default function Projects() {
                 {projectDetail.open_issues !== undefined && <><span className="text-xs text-slate-300">•</span><span className="text-xs text-slate-500">Open issues: {projectDetail.open_issues}</span></>}
               </div>
 
-              {activeProjectTab === 'sheet' ? (
+              {!canSeeProjectTasks && activeProjectTab !== 'audit' ? (
+                <ProjectSheetState title="Tasks aren't shared with you" message="Your access to this project doesn't include its tasks. Ask a project manager or account owner if you need them." />
+              ) : activeProjectTab === 'sheet' ? (
                 isProjectSheetLoading ? (
                   <ProjectSheetState title="Loading project sheet" message="Fetching this project's task hierarchy…" isLoading />
                 ) : isProjectSheetError ? (

@@ -45,6 +45,8 @@ export interface AccessGrant {
   scope_name: string;
   role: GrantRole;
   modules: ProjectModule[];
+  /** Modules they can see; null means all of them. */
+  view_modules: ProjectModule[] | null;
   /** The grant sits on a parent portfolio or program of the item asked about. */
   inherited: boolean;
   created_at: string;
@@ -54,6 +56,7 @@ export interface Permission {
   role: 'OWNER' | GrantRole;
   can_manage: boolean;
   editable_modules: ProjectModule[];
+  visible_modules: ProjectModule[];
 }
 
 export interface MyAccess {
@@ -67,9 +70,12 @@ export interface MyAccess {
 export const accessApi = {
   listGrants: (accountId: string, scope: GrantScope) =>
     apiClient.get<AccessGrant[]>(`/api/v1/accounts/${accountId}/access-grants`, { ...scope }),
-  grant: (accountId: string, data: GrantScope & { user_id: string; role: GrantRole; modules?: ProjectModule[] }) =>
+  grant: (
+    accountId: string,
+    data: GrantScope & { user_id: string; role: GrantRole; modules?: ProjectModule[]; view_modules?: ProjectModule[] | null },
+  ) =>
     apiClient.post<AccessGrant>(`/api/v1/accounts/${accountId}/access-grants`, data),
-  updateGrant: (grantId: string, data: { role?: GrantRole; modules?: ProjectModule[] }) =>
+  updateGrant: (grantId: string, data: { role?: GrantRole; modules?: ProjectModule[]; view_modules?: ProjectModule[] | null }) =>
     apiClient.patch<AccessGrant>(`/api/v1/access-grants/${grantId}`, data),
   removeGrant: (grantId: string) => apiClient.delete(`/api/v1/access-grants/${grantId}`),
   getMyAccess: (accountId: string) => apiClient.get<MyAccess>(`/api/v1/accounts/${accountId}/my-access`),

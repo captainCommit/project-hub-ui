@@ -9,7 +9,7 @@ import { accessApi } from '@/api/access';
 import { accountsApi } from '@/api/accounts';
 import { MY_ACCESS_QUERY_KEY, useMyAccess } from '@/hooks/useMyAccess';
 import { accountMembersQueryKey } from '@/components/Account/AccountUsers';
-import ModulePicker from '@/components/projects/ModulePicker';
+import GrantModulesEditor from '@/components/projects/GrantModulesEditor';
 
 const ROLE_OPTIONS = [
   { value: 'MANAGER', label: 'Manager', hint: 'Edits everything here and manages people' },
@@ -32,8 +32,8 @@ export default function ShareDialog({ open, onOpenChange, item, itemType }) {
   const grantsKey = ['access-grants', selectedAccountId, itemType, item?.id];
   const manageable = !!item?.id && canManage(itemType, item.id);
   const [form, setForm] = useState(
-    /** @type {{ user_id: string, role: import('@/api/access').GrantRole, modules: import('@/api/access').ProjectModule[] }} */
-    ({ user_id: '', role: 'MEMBER', modules: ['TASKS'] }),
+    /** @type {{ user_id: string, role: import('@/api/access').GrantRole, modules: import('@/api/access').ProjectModule[], view_modules: import('@/api/access').ProjectModule[] | null }} */
+    ({ user_id: '', role: 'MEMBER', modules: ['TASKS'], view_modules: null }),
   );
   const [error, setError] = useState(null);
 
@@ -59,8 +59,10 @@ export default function ShareDialog({ open, onOpenChange, item, itemType }) {
   };
   const onError = (e) => setError(e?.message || 'That did not work.');
   const add = useMutation({
-    mutationFn: () => accessApi.grant(selectedAccountId, { ...scope, user_id: form.user_id, role: form.role, modules: form.modules }),
-    onSuccess: () => { setForm({ user_id: '', role: 'MEMBER', modules: ['TASKS'] }); setError(null); refresh(); },
+    mutationFn: () => accessApi.grant(selectedAccountId, {
+      ...scope, user_id: form.user_id, role: form.role, modules: form.modules, view_modules: form.view_modules,
+    }),
+    onSuccess: () => { setForm({ user_id: '', role: 'MEMBER', modules: ['TASKS'], view_modules: null }); setError(null); refresh(); },
     onError,
   });
   const update = useMutation({
@@ -124,12 +126,12 @@ export default function ShareDialog({ open, onOpenChange, item, itemType }) {
                 {add.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add'}
               </Button>
             </div>
-            {form.role === 'MEMBER' && (
-              <div className="space-y-1.5">
-                <p className="text-[11px] text-slate-500">Can edit</p>
-                <ModulePicker value={form.modules} onChange={(modules) => setForm((f) => ({ ...f, modules }))} />
-              </div>
-            )}
+            <GrantModulesEditor
+              role={form.role}
+              viewModules={form.view_modules}
+              modules={form.modules}
+              onChange={(next) => setForm((f) => ({ ...f, ...next }))}
+            />
           </div>
         )}
 
@@ -172,13 +174,13 @@ export default function ShareDialog({ open, onOpenChange, item, itemType }) {
                       )}
                     </div>
                   </div>
-                  {grant.role === 'MEMBER' && (
-                    <ModulePicker
-                      value={grant.modules}
-                      disabled={!editable}
-                      onChange={(modules) => update.mutate({ id: grant.id, data: { modules } })}
-                    />
-                  )}
+                  <GrantModulesEditor
+                    role={grant.role}
+                    viewModules={grant.view_modules}
+                    modules={grant.modules}
+                    disabled={!editable || update.isPending}
+                    onChange={(next) => update.mutate({ id: grant.id, data: next })}
+                  />
                 </div>
               );
             })

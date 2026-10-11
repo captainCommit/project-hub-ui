@@ -490,7 +490,10 @@ export default function ProjectSidebar(/** @type {any} */ {
           <span className="flex-1 text-left">Projects</span>
         </Link>
 
-        <div className="ml-2 pl-3 border-l border-white/10 mb-2 space-y-0.5">
+        {/* The full portfolio → program → project tree, as its own section rather than under any one directory link. */}
+        <div className="border-t border-white/10 my-3" />
+        <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">Browse</p>
+        <div className="mb-2 space-y-0.5">
           <HierarchyState />
           {hierarchyLoaded && sidebarHierarchy.portfolios.map(renderPortfolio)}
         </div>

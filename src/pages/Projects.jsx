@@ -2135,7 +2135,7 @@ export default function Projects() {
         onOpenChange={setVacationCalendarOpen}
       />
 
-      <AIAssistantWidget />
+      <AIAssistantWidget hidden={Boolean(taskDialogOpen && editingTask)} />
     </div>
   );
 }

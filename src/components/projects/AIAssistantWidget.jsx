@@ -54,7 +54,8 @@ function MessageBubble({ message }) {
   );
 }
 
-export default function AIAssistantWidget() {
+// `hidden` keeps the chat mounted (and its state) while a side panel needs the bottom-right corner.
+export default function AIAssistantWidget({ hidden = false }) {
   const [open, setOpen] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [activeConvId, setActiveConvId] = useState(null);
@@ -132,7 +133,7 @@ export default function AIAssistantWidget() {
   ];
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2">
+    <div className={`fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2${hidden ? ' hidden' : ''}`}>
       {/* Chat panel */}
       {open && (
         <div className="w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden" style={{ height: '460px' }}>

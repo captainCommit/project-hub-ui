@@ -179,6 +179,8 @@ export default function TaskSheet({
   const canEditProgress = !isReadOnly || Boolean(onUpdateTaskProgress);
   const canEditStatus = !isReadOnly || Boolean(onUpdateTaskStatus);
   const canEditResources = !isReadOnly || canEditResourceAssignments;
+  // A read-only sheet still takes new rows when the page hands it an onAddTask (the API-backed project sheet does).
+  const canAddTasks = Boolean(onAddTask);
   const showPriorityColumn = Boolean(onUpdateTaskPriority || priorityOptionsState || priorityOptions.length > 0);
   const visibleColumns = showPriorityColumn ? columns : columns.filter(column => column.key !== 'priority');
 
@@ -191,7 +193,7 @@ export default function TaskSheet({
   });
 
   const addTaskSafe = (data) => {
-    if (isReadOnly || !onAddTask) return;
+    if (!canAddTasks) return;
     onAddTask(data);
   };
 
@@ -2116,10 +2118,11 @@ export default function TaskSheet({
                           <td className="border-r border-slate-200 w-16 bg-slate-50 h-8" />
                           <td className="border-r border-slate-200 min-w-[220px] h-8">
                             <input
-                              readOnly={isReadOnly}
-                              className="w-full h-8 px-2 text-sm bg-transparent border-0 outline-none focus:ring-1 focus:ring-blue-300 rounded text-slate-700"
-                              onBlur={e => { if (isReadOnly) return; const t = e.target.value.trim(); if (t) { addTaskSafe({ title: t, project_id: project?.id, order: displayTasks.length + i, task_type: 'activity', duration: 1 }); e.target.value = ''; } }}
-                              onKeyDown={e => { if (isReadOnly) return; if (e.key === 'Enter') { const t = e.target.value.trim(); if (t) { addTaskSafe({ title: t, project_id: project?.id, order: displayTasks.length + i, task_type: 'activity', duration: 1 }); e.target.value = ''; } } }}
+                              readOnly={!canAddTasks}
+                              placeholder={canAddTasks && i === 0 ? 'Type a task name and press Enter' : undefined}
+                              className="w-full h-8 px-2 text-sm bg-transparent border-0 outline-none focus:ring-1 focus:ring-blue-300 rounded text-slate-700 placeholder:text-slate-300"
+                              onBlur={e => { if (!canAddTasks) return; const t = e.target.value.trim(); if (t) { addTaskSafe({ title: t, project_id: project?.id, order: displayTasks.length + i, task_type: 'activity', duration: 1 }); e.target.value = ''; } }}
+                              onKeyDown={e => { if (!canAddTasks) return; if (e.key === 'Enter') { const t = e.target.value.trim(); if (t) { addTaskSafe({ title: t, project_id: project?.id, order: displayTasks.length + i, task_type: 'activity', duration: 1 }); e.target.value = ''; } } }}
                             />
                           </td>
                           {visibleColumns.slice(4).map(col => <td key={col.key} className={cn('border-r border-slate-200 h-8', col.width)} />)}

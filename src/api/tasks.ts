@@ -110,6 +110,7 @@ export type TaskSheetRow = {
 
 export type ProjectTaskCreatePayload = {
   name: string;
+  sort_order?: number;
 };
 
 export type ProjectTaskTitleUpdatePayload = {
@@ -335,8 +336,9 @@ export const mapTaskSheetInputToCreatePayload = (input: unknown): ProjectTaskCre
   const data = typeof input === 'object' && input ? input as Record<string, unknown> : {};
   const rawName = data.name ?? data.title;
   const name = typeof rawName === 'string' && rawName.trim() ? rawName.trim() : 'Untitled Task';
+  const sortOrder = toNumber(data.sort_order);
 
-  return { name };
+  return sortOrder === null || sortOrder === undefined ? { name } : { name, sort_order: sortOrder };
 };
 
 export const mapTaskSheetInputToTitleUpdatePayload = (input: unknown): ProjectTaskTitleUpdatePayload => {
@@ -1177,6 +1179,9 @@ export const tasksApi = {
   getGantt: (projectId: string) => apiClient.get(`/api/v1/projects/${projectId}/gantt`),
   bulkUpdate: (projectId: string, data: unknown) => apiClient.patch(`/api/v1/projects/${projectId}/tasks/bulk`, data),
   bulkDelete: (projectId: string, data: unknown) => apiClient.delete(`/api/v1/projects/${projectId}/tasks/bulk`, data),
+  /** Create tasks from CSV rows (all or nothing). With dry_run, only reports which rows need fixing. */
+  importTasks: (projectId: string, data: { rows: Record<string, string>[]; dry_run: boolean }) =>
+    apiClient.post(`/api/v1/projects/${projectId}/tasks/import`, data),
   reorder: (projectId: string, data: unknown) => apiClient.post(`/api/v1/projects/${projectId}/tasks/reorder`, mapProjectTaskReorderToPayload(data)),
   get: (taskId: string) => apiClient.get(`/api/v1/tasks/${taskId}`),
   update: (taskId: string, data: unknown) => apiClient.patch(`/api/v1/tasks/${taskId}`, data),

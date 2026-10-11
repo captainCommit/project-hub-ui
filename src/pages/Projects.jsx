@@ -19,12 +19,14 @@ import ProjectDialog from '@/components/projects/ProjectDialog';
 import ViewToggle from '@/components/projects/ViewToggle';
 import ResourceCalendar from '@/components/projects/ResourceCalendar';
 import AuditView from '@/components/projects/AuditView';
-import { Loader2, Users, Settings, Edit2 } from 'lucide-react';
+import { Loader2, Users, Settings, Edit2, FileUp } from 'lucide-react';
 import { useState as _useState } from 'react';
 import ExportMenu from '@/components/projects/ExportMenu';
+import TaskCsvImport from '@/components/projects/TaskCsvImport';
 import ShareDialog from '@/components/projects/ShareDialog';
 import { useMyAccess } from '@/hooks/useMyAccess';
 import { Button } from '@/components/ui/button';
+import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import PortfolioOverview from '@/components/projects/PortfolioOverview';
 import ProgramsSummary from '@/components/projects/ProgramsSummary';
@@ -265,6 +267,7 @@ export default function Projects() {
   const [selectedType, setSelectedType] = useState(_defaultLanding);
   const [selectedItem, setSelectedItem] = useState(_defaultLanding === 'sprints' ? { id: 'sprints', name: 'Sprints' } : null);
   const [view, setView] = useState(localStorage.getItem('app_default_task_view') || 'sheet');
+  const [taskImportOpen, setTaskImportOpen] = useState(false);
   const [viewMode, setViewMode] = useState(_defaultLanding);
   const [expandedTasks, setExpandedTasks] = useState([]);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
@@ -765,7 +768,8 @@ export default function Projects() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-task-tree', projectId] });
       queryClient.invalidateQueries({ queryKey: ['project-overview', projectId] });
-    }
+    },
+    onError: (error) => toast({ variant: 'destructive', title: 'Task not added', description: error?.message || 'Please try again.' }),
   });
 
   const updateProjectSheetTaskTitle = useMutation({
@@ -1131,8 +1135,15 @@ export default function Projects() {
     createTask.mutate({ ...data, project_id: data.project_id || selectedItem?.id });
   };
 
+  /** Typing a name into an empty sheet row adds a top-level task at the end of the plan. */
   const handleCreateProjectSheetTask = (data) => {
-    createProjectSheetTask.mutate(data);
+    const name = String(data?.name ?? data?.title ?? '').trim();
+    if (!name) return;
+    const rootOrders = projectSheetTasks
+      .filter((task) => !task.parent_task_id)
+      .map((task) => Number(task.sort_order ?? task.order ?? 0))
+      .filter(Number.isFinite);
+    createProjectSheetTask.mutate({ name, sort_order: Math.max(0, ...rootOrders) + 1 });
   };
 
   const handleUpdateProjectSheetTaskTitle = (id, data) => {
@@ -1590,7 +1601,8 @@ export default function Projects() {
         onShowVacationCalendar={() => setVacationCalendarOpen(true)}
       />
       
-      <div className={`flex-1 flex flex-col overflow-hidden ${['all_portfolios','all_programs','portfolio','program'].includes(viewMode) ? '' : 'p-8'}`}>
+      {/* Directory views pad themselves; a project page always needs padding, even when opened from a program. */}
+      <div className={`flex-1 flex flex-col overflow-hidden ${!hasProjectRoute && ['all_portfolios','all_programs','portfolio','program'].includes(viewMode) ? '' : 'p-8'}`}>
         {hasProjectRoute ? (
           !hasValidProjectRoute ? (
             <PortfolioState title="Invalid project link" message="This project URL is not a valid Project Hub UUID." />
@@ -1612,6 +1624,19 @@ export default function Projects() {
                 </div>
                 <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-1 py-1 bg-white shadow-sm">
                   <ExportMenu tasks={routedProjectData.tasks} project={projectDetail} viewType={activeProjectTab} />
+                  {canEditProjectTasks && (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => setTaskImportOpen(true)}>
+                        <FileUp className="w-4 h-4 mr-2" /> Import
+                      </Button>
+                      <TaskCsvImport
+                        open={taskImportOpen}
+                        onOpenChange={setTaskImportOpen}
+                        projectId={projectDetail.id}
+                        onDone={invalidateProjectTaskWorkspaces}
+                      />
+                    </>
+                  )}
                   <ReportGenerator
                     project={projectDetail}
                     tasks={routedProjectData.tasks}
@@ -1732,6 +1757,7 @@ export default function Projects() {
                     onAddPredecessor={whenTasksEditable(handleAddProjectSheetTaskPredecessor)}
                     onRemovePredecessor={whenTasksEditable(handleRemoveProjectSheetTaskPredecessor)}
                     predecessorPendingTaskIds={pendingProjectSheetPredecessorTaskIds}
+                    onAddTask={whenTasksEditable(handleCreateProjectSheetTask)}
                     onDeleteTask={whenTasksEditable(handleDeleteProjectSheetTask)}
                     deletingTaskIds={deletingProjectSheetTaskIds}
                     onReorderTasks={whenTasksEditable(handleReorderProjectSheetTasks)}

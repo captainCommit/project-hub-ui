@@ -8,12 +8,13 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { KeyRound, Loader2, Trash2, UserPlus } from 'lucide-react';
+import { FileUp, KeyRound, Loader2, Trash2, UserPlus } from 'lucide-react';
 import { accountsApi } from '@/api/accounts';
 import { useAuth } from '@/lib/AuthContext';
 import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 import ModulePicker from '@/components/projects/ModulePicker';
 import UserAccessDialog from '@/components/Account/UserAccessDialog';
+import UserCsvImport from '@/components/Account/UserCsvImport';
 
 const INVITE_ROLES = [
   { value: 'OWNER', label: 'Owner', hint: 'Account admin: users, settings and billing' },
@@ -47,6 +48,9 @@ export default function AccountUsers({ accountId, showAccessPicker = false }) {
   const [notice, setNotice] = useState(null);
   const [accessFor, setAccessFor] = useState(null);
   const [removing, setRemoving] = useState(null);
+  const [importOpen, setImportOpen] = useState(false);
+  // A role change waits here until it's confirmed, since it can take away someone's (or your own) rights.
+  const [pendingRole, setPendingRole] = useState(/** @type {{ member: any, role: string } | null} */ (null));
   const { user, refreshAccounts } = useAuth();
   const { portfolios, programs, projects } = useAccountHierarchy();
 
@@ -89,10 +93,11 @@ export default function AccountUsers({ accountId, showAccessPicker = false }) {
     mutationFn: (/** @type {{ member: any, role: string }} */ { member, role }) =>
       accountsApi.changeUserRole(accountId, member.id, /** @type {any} */ (role)),
     onSuccess: (_result, { member, role }) => {
+      setPendingRole(null);
       setNotice({ ok: true, text: `${member.email}'s role is now ${roleLabel(role)}.` });
       afterMemberChange(member);
     },
-    onError: (error) => setNotice({ ok: false, text: error.message || 'Could not change the role.' }),
+    onError: (error) => { setPendingRole(null); setNotice({ ok: false, text: error.message || 'Could not change the role.' }); },
   });
   const removeUser = useMutation({
     mutationFn: (/** @type {any} */ member) => accountsApi.removeUser(accountId, member.id),
@@ -110,8 +115,11 @@ export default function AccountUsers({ accountId, showAccessPicker = false }) {
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-xl border border-slate-200">
-        <div className="px-5 py-3 border-b border-slate-100">
+        <div className="px-5 py-2 border-b border-slate-100 flex items-center justify-between">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Add User</p>
+          <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-500" onClick={() => setImportOpen(true)}>
+            <FileUp className="w-3.5 h-3.5 mr-1.5" /> Import CSV
+          </Button>
         </div>
         <form
           className="p-5 space-y-4"
@@ -203,7 +211,7 @@ export default function AccountUsers({ accountId, showAccessPicker = false }) {
                       </Button>
                     )
                   )}
-                  <Select value={m.role} onValueChange={(role) => changeRole.mutate({ member: m, role })} disabled={changeRole.isPending}>
+                  <Select value={m.role} onValueChange={(role) => role !== m.role && setPendingRole({ member: m, role })} disabled={changeRole.isPending}>
                     <SelectTrigger className="h-8 w-28 text-xs" aria-label={`Role for ${m.full_name || m.email}`}><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {INVITE_ROLES.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
@@ -229,6 +237,53 @@ export default function AccountUsers({ accountId, showAccessPicker = false }) {
           member={accessFor}
         />
       )}
+
+      <UserCsvImport
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        accountId={accountId}
+        onDone={() => {
+          queryClient.invalidateQueries({ queryKey: accountMembersQueryKey(accountId) });
+          queryClient.invalidateQueries({ queryKey: ['platform-accounts'] });
+        }}
+      />
+
+      <AlertDialog open={!!pendingRole} onOpenChange={(open) => !open && !changeRole.isPending && setPendingRole(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change role?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  {pendingRole?.member.id === user?.id ? 'Your' : `${pendingRole?.member.full_name || pendingRole?.member.email}'s`} role
+                  will change from <strong>{roleLabel(pendingRole?.member.role)}</strong> to <strong>{roleLabel(pendingRole?.role)}</strong>.
+                </p>
+                {pendingRole?.member.role === 'OWNER' && (
+                  <p className="text-amber-700">
+                    {pendingRole?.member.id === user?.id
+                      ? "You'll lose owner rights (users, settings and billing) straight away. Only another owner can give them back."
+                      : "They'll lose owner rights (users, settings and billing) and only see what they're given access to."}
+                  </p>
+                )}
+                {pendingRole?.role === 'VIEWER' && pendingRole?.member.role !== 'VIEWER' && (
+                  <p>Viewers can't edit anything, whatever access they've been given.</p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={changeRole.isPending}>Cancel</AlertDialogCancel>
+            <Button
+              disabled={changeRole.isPending}
+              onClick={() => changeRole.mutate(pendingRole)}
+              className="bg-[#c87b14] hover:bg-[#a86610] text-white"
+            >
+              {changeRole.isPending && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
+              Change role
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!removing} onOpenChange={(open) => !open && setRemoving(null)}>
         <AlertDialogContent>

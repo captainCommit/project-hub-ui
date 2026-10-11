@@ -1,9 +1,11 @@
 import React from 'react';
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Calendar, Flag } from "lucide-react";
 import { format } from 'date-fns';
+import { Switch } from "@/components/ui/switch";
+import { useUserPref } from '@/lib/userPrefs';
 
 import { parseDate } from '@/lib/dateUtils';
 const columns = [
@@ -24,6 +26,11 @@ export default function KanbanBoard({ tasks, columns: boardColumns, onTaskClick,
   const columnsToRender = boardColumns?.length ? boardColumns : columns;
   const canDrag = !readOnly || allowDrag;
   const getTasksByStatus = (status) => tasks.filter(t => t.status === status);
+  const [hideEmptyColumns, setHideEmptyColumns] = useUserPref('board_hide_empty_columns', false);
+  const visibleColumns = hideEmptyColumns
+    ? columnsToRender.filter(column => getTasksByStatus(column.id).length > 0)
+    : columnsToRender;
+  const hiddenCount = columnsToRender.length - visibleColumns.length;
 
   const handleDragStart = (e, taskId) => {
     if (!canDrag) return;
@@ -49,18 +56,24 @@ export default function KanbanBoard({ tasks, columns: boardColumns, onTaskClick,
   };
 
   return (
-    <div className="flex-1 overflow-x-auto">
-      <div className="flex gap-4 min-w-max p-1">
-        {columnsToRender.map(column => (
+    <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex items-center justify-end gap-2 pb-2 text-xs text-slate-500">
+        {hiddenCount > 0 && <span>{hiddenCount} empty column{hiddenCount !== 1 ? 's' : ''} hidden</span>}
+        <label htmlFor="board-hide-empty" className="cursor-pointer select-none">Hide empty columns</label>
+        <Switch id="board-hide-empty" checked={hideEmptyColumns} onCheckedChange={setHideEmptyColumns} />
+      </div>
+      <div className="flex-1 overflow-x-auto">
+      <div className="flex gap-3 min-w-max p-1">
+        {visibleColumns.map(column => (
           <div 
             key={column.id}
-            className="w-72 flex-shrink-0"
+            className="w-60 flex-shrink-0"
             onDragOver={canDrag ? handleDragOver : undefined}
             onDrop={canDrag ? (e) => handleDrop(e, column.id) : undefined}
           >
-            <div className={cn("rounded-xl p-3", column.color || 'bg-slate-100')}>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-slate-700">{column.title}</h3>
+            <div className={cn("rounded-xl p-2.5", column.color || 'bg-slate-100')}>
+              <div className="flex items-center justify-between gap-2 mb-2.5">
+                <h3 className="font-semibold text-sm text-slate-700 truncate" title={column.title}>{column.title}</h3>
                 <Badge variant="secondary" className="bg-white">
                   {getTasksByStatus(column.id).length}
                 </Badge>
@@ -75,8 +88,8 @@ export default function KanbanBoard({ tasks, columns: boardColumns, onTaskClick,
                     onDragStart={canDrag ? (e) => handleDragStart(e, task.id) : undefined}
                     onClick={() => handleCardClick(task)}
                   >
-                    <CardContent className="p-3">
-                      <p className="font-medium text-sm mb-2">{task.title}</p>
+                    <CardContent className="p-2.5">
+                      <p className="font-medium text-sm mb-2 break-words">{task.title}</p>
                       <div className="flex items-center justify-between">
                         <Badge className={cn("text-xs", priorityColors[task.priority])}>
                           <Flag className="w-3 h-3 mr-1" />
@@ -112,6 +125,10 @@ export default function KanbanBoard({ tasks, columns: boardColumns, onTaskClick,
             </div>
           </div>
         ))}
+        {visibleColumns.length === 0 && (
+          <div className="w-60 py-8 text-center text-slate-400 text-sm">Every column is empty.</div>
+        )}
+      </div>
       </div>
     </div>
   );

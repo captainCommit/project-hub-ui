@@ -9,6 +9,7 @@ import { activityApi } from '@/api/activity';
 import { resourcesApi } from '@/api/resources';
 import { tasksApi, mapTaskFormToPayload, mapTaskTreeToSheetRows, mapTaskSheetInputToCreatePayload, mapTaskSheetInputToTitleUpdatePayload, mapTaskSheetInputToDurationUpdatePayload, mapTaskSheetInputToProgressUpdatePayload, mapTaskSheetInputToStatusUpdatePayload, mapTaskGanttDateUpdatePayload, mapProjectBoardToKanban, mapTaskBoardPositionToPayload, mapProjectGanttToGanttTasks, mapAccountOptionsToTaskStatusOptions, mapAccountOptionsToTaskTypeOptions, mapAccountOptionsToTaskPriorityOptions } from '@/api/tasks';
 import { useAuth } from '@/lib/AuthContext';
+import { recordRecentProject } from '@/lib/userPrefs';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import GanttChart from '@/components/projects/GanttChart';
 import TaskSheet from '@/components/projects/TaskSheet';
@@ -248,7 +249,7 @@ function updateProjectGanttCacheTaskDates(cache, taskId, dates) {
 }
 
 export default function Projects() {
-  const { selectedAccountId } = useAuth();
+  const { selectedAccountId, user } = useAuth();
   const { portfolioId, programId, projectId, projectTab } = useParams();
   const { canEdit, canView } = useMyAccess();
   // Without the Tasks module, the sheet, board and Gantt are read-only: they get no edit handlers.
@@ -1559,6 +1560,14 @@ export default function Projects() {
     : null;
   const projectProgram = projectDetail?.program_id ? programs.find(p => p.id === projectDetail.program_id) : null;
   const projectPortfolio = projectDetail?.portfolio_id ? portfolios.find(p => p.id === projectDetail.portfolio_id) : null;
+
+  // Feeds "Recent projects" in the sidebar and on My work.
+  const recentProjectId = projectDetail?.id;
+  const recentProjectName = projectDetail?.name;
+  const recentProjectColor = projectDetail?.color;
+  useEffect(() => {
+    if (recentProjectId) recordRecentProject(user?.id, { id: recentProjectId, name: recentProjectName, color: recentProjectColor });
+  }, [user?.id, recentProjectId, recentProjectName, recentProjectColor]);
 
   const retryProjectRoute = () => {
     refetchRouteProject();

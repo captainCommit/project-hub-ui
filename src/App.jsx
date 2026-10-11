@@ -27,12 +27,11 @@ import Requirements from './pages/Requirements';
 import ResourceManagementHub from './pages/ResourceManagementHub';
 import Account from './pages/Account';
 import Favorites from './pages/Favorites';
+import MyWork from './pages/MyWork';
 import PlatformAdmin from './pages/PlatformAdmin';
 import BillingBanner from '@/components/BillingBanner';
 
-const { Pages, Layout, mainPage } = pagesConfig;
-const mainPageKey = mainPage ?? Object.keys(Pages)[0];
-const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
+const { Pages, Layout } = pagesConfig;
 const ProjectsPage = Pages.Projects;
 
 // The billing bar sits above the page, which gets the rest of the screen. Pages built as full-screen
@@ -110,11 +109,8 @@ const AuthenticatedApp = () => {
   // Render the main app
   return (
     <Routes>
-      <Route path="/" element={
-        <LayoutWrapper currentPageName={mainPageKey}>
-          <MainPage />
-        </LayoutWrapper>
-      } />
+      {/* Home is the person's own work; the portfolio/program/project directory stays at /Projects. */}
+      <Route path="/" element={<LayoutWrapper currentPageName="MyWork"><MyWork /></LayoutWrapper>} />
       {Object.entries(Pages).map(([path, Page]) => (
         <Route
           key={path}

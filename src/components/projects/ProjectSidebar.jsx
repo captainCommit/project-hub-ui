@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { cn } from "@/lib/utils";
 import { useAuth } from '@/lib/AuthContext';
 import { accountsApi } from '@/api/accounts';
@@ -6,11 +6,13 @@ import { useQuery } from '@tanstack/react-query';
 import {
   FolderTree, Building2, ChevronRight, ChevronDown,
   FileText, Shield, Users, Package, AlertTriangle,
-  Star, Folder, Compass, PanelLeftClose, PanelLeftOpen, LifeBuoy, LogOut
+  Star, Folder, Compass, PanelLeftClose, PanelLeftOpen, LifeBuoy, LogOut, Search, X, Clock, Home
 } from "lucide-react";
 import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import NotificationBell from '@/components/NotificationBell';
+import { useFavorites } from '@/lib/favorites';
+import { useRecentProjects } from '@/lib/userPrefs';
 
 const NAVY = '#002046';
 const ORANGE = '#d97706';
@@ -23,11 +25,33 @@ const EMPTY_SIDEBAR_HIERARCHY = { portfolios: [], programs: [], projects: [] };
 
 const DEFAULT_EXPANDED_FOLDERS = ['favorites', 'raid', 'resource_mgmt', 'delivery', 'sprint_mgmt'];
 const SCROLL_KEY = 'sidebar_scroll_top';
+// Portfolios and programs start collapsed; whatever the person opens is remembered across pages.
+const EXPANDED_KEY = 'sidebar_expanded_folders';
+const RECENT_LIMIT = 5;
+const HIERARCHY_TYPES = ['portfolio', 'program', 'project'];
 
-const hierarchyFolderIdsOf = (hierarchy) => [
-  ...hierarchy.portfolios.map(portfolio => `portfolio:${portfolio.id}`),
-  ...hierarchy.programs.map(program => `program:${program.id}`),
-];
+const readSavedExpandedFolders = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(EXPANDED_KEY) || 'null');
+    return Array.isArray(saved) ? saved : DEFAULT_EXPANDED_FOLDERS;
+  } catch {
+    return DEFAULT_EXPANDED_FOLDERS;
+  }
+};
+
+/** Keep items whose name matches, plus the parents needed to reach them. A matching parent keeps all its children. */
+const filterHierarchy = (portfolios, query) => {
+  const matches = (/** @type {string} */ name) => (name || '').toLowerCase().includes(query);
+  return portfolios
+    .map(portfolio => {
+      if (matches(portfolio.name)) return portfolio;
+      const programs = portfolio.programs
+        .map(program => (matches(program.name) ? program : { ...program, projects: program.projects.filter(project => matches(project.name)) }))
+        .filter(program => matches(program.name) || program.projects.length > 0);
+      return programs.length ? { ...portfolio, programs } : null;
+    })
+    .filter(Boolean);
+};
 
 const readSavedScrollTop = () => {
   try {
@@ -42,7 +66,8 @@ export default function ProjectSidebar(/** @type {any} */ {
   projects, programs = [], portfolios = [], selectedItem, selectedType,
   onSelectItem, onNewProject, onNewProgram, onNewPortfolio, onRenameItem, onDeleteItem, onEditItem,
 }) {
-  const [expandedFolders, setExpandedFolders] = useState(DEFAULT_EXPANDED_FOLDERS);
+  const [expandedFolders, setExpandedFolders] = useState(readSavedExpandedFolders);
+  const [filterText, setFilterText] = useState('');
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('sidebar_collapsed') === 'true'; } catch { return false; }
   });
@@ -62,13 +87,26 @@ export default function ProjectSidebar(/** @type {any} */ {
     enabled: !!selectedAccountId,
   });
 
-  // Portfolios and programs start expanded. Done in a layout effect so a remount (every page renders its own
-  // sidebar) paints the full-height list straight away and the saved scroll position below still fits.
+  useEffect(() => {
+    try { localStorage.setItem(EXPANDED_KEY, JSON.stringify(expandedFolders)); } catch {}
+  }, [expandedFolders]);
+
+  // Open the folders above whatever is on screen so the active item is visible in the collapsed tree.
+  // A layout effect, so the list has its final height before the saved scroll position is restored below.
   useLayoutEffect(() => {
-    const hierarchyFolderIds = hierarchyFolderIdsOf(sidebarHierarchy);
-    if (!hierarchyFolderIds.length) return;
-    setExpandedFolders(prev => Array.from(new Set([...prev, ...hierarchyFolderIds])));
-  }, [sidebarHierarchy]);
+    const [, kind, id] = pathname.match(/^\/(portfolios|programs|projects)\/([^/]+)/) || [];
+    if (!kind) return;
+    let ancestors = [];
+    if (kind === 'programs') {
+      const program = sidebarHierarchy.programs.find(p => p.id.toLowerCase() === id);
+      if (program) ancestors = [`portfolio:${program.portfolio_id}`];
+    } else if (kind === 'projects') {
+      const project = sidebarHierarchy.projects.find(p => p.id.toLowerCase() === id);
+      if (project) ancestors = [`portfolio:${project.portfolio_id}`, `program:${project.program_id}`];
+    }
+    if (!ancestors.length) return;
+    setExpandedFolders(prev => (ancestors.every(f => prev.includes(f)) ? prev : Array.from(new Set([...prev, ...ancestors]))));
+  }, [sidebarHierarchy, pathname]);
 
   const toggleCollapsed = () => {
     setCollapsed(p => {
@@ -78,23 +116,21 @@ export default function ProjectSidebar(/** @type {any} */ {
     });
   };
 
-  const [favorites, setFavorites] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('sidebar_favorites') || '[]'); } catch { return []; }
-  });
+  const { favorites } = useFavorites();
+  const recentProjects = useRecentProjects();
 
   // Keep the sidebar's scroll position across page changes. The saved position is only restored once the
-  // hierarchy has loaded and expanded; until then the list is shorter, the browser would clamp the position,
+  // hierarchy has loaded (and the active item's folders opened); until then the list is shorter, the browser would clamp the position,
   // and saving that clamped value would lose the real one.
   const pendingScrollTop = useRef(/** @type {number | null} */ (readSavedScrollTop()));
-  const hierarchyExpanded = !sidebarLoading
-    && hierarchyFolderIdsOf(sidebarHierarchy).every(id => expandedFolders.includes(id));
+  const hierarchyReady = !sidebarLoading;
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el || pendingScrollTop.current === null) return;
     el.scrollTop = pendingScrollTop.current;
-    if (hierarchyExpanded || el.scrollTop === pendingScrollTop.current) pendingScrollTop.current = null;
-  }, [hierarchyExpanded, collapsed]);
+    if (hierarchyReady || el.scrollTop === pendingScrollTop.current) pendingScrollTop.current = null;
+  }, [hierarchyReady, collapsed]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -126,7 +162,7 @@ export default function ProjectSidebar(/** @type {any} */ {
   const isAnyPortfolioRouteActive = pathname.startsWith('/portfolios/');
   const isAnyProgramRouteActive = pathname.startsWith('/programs/');
   const isAnyProjectRouteActive = pathname.startsWith('/projects/');
-  const directoryView = pathname === '/' || pathname === '/projects'
+  const directoryView = pathname === '/projects'
     ? new URLSearchParams(location.search).get('view') || selectedType
     : null;
   const portfoliosActive = isAnyPortfolioRouteActive || ['all_portfolios', 'portfolio'].includes(directoryView);
@@ -202,6 +238,48 @@ export default function ProjectSidebar(/** @type {any} */ {
     return null;
   };
 
+  const filterQuery = filterText.trim().toLowerCase();
+  const isFiltering = filterQuery.length > 0;
+  const visiblePortfolios = useMemo(
+    () => (isFiltering ? filterHierarchy(sidebarHierarchy.portfolios, filterQuery) : sidebarHierarchy.portfolios),
+    [sidebarHierarchy, filterQuery, isFiltering],
+  );
+
+  // Starred portfolios, programs and projects, then recently opened projects, with names and routes taken
+  // from the hierarchy so renames show up. Once the hierarchy has loaded, items no longer in it are left out.
+  const hierarchyItems = useMemo(() => {
+    const byKey = new Map();
+    sidebarHierarchy.portfolios.forEach(item => byKey.set(`portfolio:${item.id}`, item));
+    sidebarHierarchy.programs.forEach(item => byKey.set(`program:${item.id}`, item));
+    sidebarHierarchy.projects.forEach(item => byKey.set(`project:${item.id}`, item));
+    return byKey;
+  }, [sidebarHierarchy]);
+  const hierarchyLoaded = !sidebarLoading && !sidebarHasError;
+  const fallbackRoute = { portfolio: (id) => `/portfolios/${id}`, program: (id) => `/programs/${id}`, project: (id) => `/projects/${id}/sheet` };
+  const resolveQuickItem = (type, entry) => {
+    const live = hierarchyItems.get(`${type}:${entry.id}`);
+    if (!live && hierarchyLoaded) return null;
+    return { type, id: entry.id, name: live?.name || entry.name, route: live?.route || fallbackRoute[type](entry.id) };
+  };
+  const favoriteItems = favorites
+    .filter(f => HIERARCHY_TYPES.includes(f.type))
+    .map(f => resolveQuickItem(f.type, f))
+    .filter(Boolean);
+  const recentItems = recentProjects
+    .filter(p => !favorites.some(f => f.type === 'project' && f.id === p.id))
+    .map(p => resolveQuickItem('project', p))
+    .filter(Boolean)
+    .slice(0, RECENT_LIMIT);
+  const quickItemIcon = { portfolio: Building2, program: FolderTree, project: Folder };
+  const isQuickItemActive = (item) => (
+    item.type === 'portfolio' ? isPortfolioRouteActive(item.id)
+      : item.type === 'program' ? isProgramRouteActive(item.id)
+        : isProjectRouteActive(item.id)
+  );
+  const renderQuickItem = (item) => (
+    <HierarchyLink key={`${item.type}:${item.id}`} href={item.route} label={item.name} active={isQuickItemActive(item)} icon={quickItemIcon[item.type]} />
+  );
+
   const renderProject = (/** @type {ProjectHubSidebarProject} */ project) => (
     <HierarchyLink
       key={project.id}
@@ -215,13 +293,13 @@ export default function ProjectSidebar(/** @type {any} */ {
 
   const renderProgram = (/** @type {ProjectHubSidebarProgram} */ program) => {
     const folderId = `program:${program.id}`;
-    const isExpanded = expandedFolders.includes(folderId);
+    const isExpanded = isFiltering || expandedFolders.includes(folderId);
     const isActive = isProgramRouteActive(program.id);
 
     return (
       <div key={program.id} className="mb-0.5">
         <div className="flex items-center rounded-md">
-          <button onClick={() => toggleFolder(folderId)} className="p-1.5 flex-shrink-0" aria-label={`Toggle ${program.name}`}>
+          <button onClick={() => toggleFolder(folderId)} disabled={isFiltering} className="p-1.5 flex-shrink-0" aria-label={`Toggle ${program.name}`}>
             {isExpanded ? <ChevronDown className="w-3 h-3 text-white/40" /> : <ChevronRight className="w-3 h-3 text-white/40" />}
           </button>
           <HierarchyLink href={program.route} label={program.name} active={isActive} icon={FolderTree} className="flex-1" />
@@ -237,13 +315,13 @@ export default function ProjectSidebar(/** @type {any} */ {
 
   const renderPortfolio = (/** @type {ProjectHubSidebarPortfolio} */ portfolio) => {
     const folderId = `portfolio:${portfolio.id}`;
-    const isExpanded = expandedFolders.includes(folderId);
+    const isExpanded = isFiltering || expandedFolders.includes(folderId);
     const isActive = isPortfolioRouteActive(portfolio.id);
 
     return (
       <div key={portfolio.id} className="mb-0.5">
         <div className="flex items-center rounded-md">
-          <button onClick={() => toggleFolder(folderId)} className="p-1.5 flex-shrink-0" aria-label={`Toggle ${portfolio.name}`}>
+          <button onClick={() => toggleFolder(folderId)} disabled={isFiltering} className="p-1.5 flex-shrink-0" aria-label={`Toggle ${portfolio.name}`}>
             {isExpanded ? <ChevronDown className="w-3 h-3 text-white/40" /> : <ChevronRight className="w-3 h-3 text-white/40" />}
           </button>
           <HierarchyLink href={portfolio.route} label={portfolio.name} active={isActive} icon={Building2} className="flex-1" />
@@ -267,6 +345,7 @@ export default function ProjectSidebar(/** @type {any} */ {
           <NotificationBell compact />
         </div>
         <div className="flex-1 flex flex-col items-center py-3 gap-1 overflow-y-auto">
+          <Link to="/" title="My Work" className={cn('p-2 rounded-lg', pathname === '/' ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}><Home className="w-4 h-4" /></Link>
           <Link to="/Favorites" title="Favorites" className={cn('p-2 rounded-lg', pathname === '/favorites' ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-[#d97706]')}><Star className="w-4 h-4" fill="currentColor" /></Link>
           <Link to="/Projects?view=all_portfolios"
             title="Portfolios" className={cn('p-2 rounded-lg', portfoliosActive ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}>
@@ -324,6 +403,41 @@ export default function ProjectSidebar(/** @type {any} */ {
 
       <div ref={scrollRef} className="flex-1 px-2 py-3 overflow-y-auto">
 
+        {/* Find a portfolio, program or project */}
+        <div className="relative mb-2">
+          <Search className="w-3.5 h-3.5 text-white/40 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            value={filterText}
+            onChange={e => setFilterText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Escape') setFilterText(''); }}
+            placeholder="Filter projects…"
+            aria-label="Filter portfolios, programs and projects"
+            className="w-full h-8 pl-8 pr-7 rounded-md bg-white/10 border border-white/10 text-xs text-white placeholder:text-white/40 outline-none focus:border-white/30 focus:bg-white/15"
+          />
+          {isFiltering && (
+            <button onClick={() => setFilterText('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-white/50 hover:text-white" aria-label="Clear filter">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {isFiltering ? (
+          <div className="mb-2 space-y-0.5">
+            <HierarchyState />
+            {hierarchyLoaded && sidebarHierarchy.portfolios.length > 0 && (visiblePortfolios.length
+              ? visiblePortfolios.map(renderPortfolio)
+              : <div className="px-2 py-2 text-[11px] leading-4 text-white/50">No portfolios, programs or projects match “{filterText.trim()}”.</div>)}
+          </div>
+        ) : (
+        <>
+        {/* My work */}
+        <Link to="/" className="block mb-1">
+          <div className={cn('w-full flex items-center gap-2 px-2 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-lg transition-colors',
+            pathname === '/' ? cn('bg-white/10 text-white', activeBar) : 'text-white hover:bg-white/10')}>
+            <Home className="w-3.5 h-3.5 text-[#d97706]" /> My Work
+          </div>
+        </Link>
+
         {/* Favorites */}
         <Link to="/Favorites" className="block mb-1">
           <div className={cn('w-full flex items-center gap-2 px-2 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-lg transition-colors',
@@ -331,6 +445,23 @@ export default function ProjectSidebar(/** @type {any} */ {
             <Star className="w-3.5 h-3.5 text-[#d97706]" fill="currentColor" /> Favorites
           </div>
         </Link>
+        {favoriteItems.length > 0 ? (
+          <div className="ml-2 pl-3 border-l border-white/10 mb-2 space-y-0.5">{favoriteItems.map(renderQuickItem)}</div>
+        ) : (
+          <div className="ml-2 pl-3 border-l border-white/10 mb-2 px-2 py-1 text-[11px] leading-4 text-white/40">Star a project to pin it here.</div>
+        )}
+
+        {/* Recently opened projects */}
+        {recentItems.length > 0 && (
+          <>
+            <div className="w-full flex items-center gap-2 px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-white">
+              <Clock className="w-3.5 h-3.5 text-[#d97706]" /> Recent
+            </div>
+            <div className="ml-2 pl-3 border-l border-white/10 mb-2 space-y-0.5">{recentItems.map(renderQuickItem)}</div>
+          </>
+        )}
+
+        <div className="border-t border-white/10 my-3" />
 
         {/* Portfolios */}
         <Link
@@ -361,8 +492,10 @@ export default function ProjectSidebar(/** @type {any} */ {
 
         <div className="ml-2 pl-3 border-l border-white/10 mb-2 space-y-0.5">
           <HierarchyState />
-          {!sidebarLoading && !sidebarHasError && sidebarHierarchy.portfolios.map(renderPortfolio)}
+          {hierarchyLoaded && sidebarHierarchy.portfolios.map(renderPortfolio)}
         </div>
+        </>
+        )}
 
         <div className="border-t border-white/10 my-3" />
 

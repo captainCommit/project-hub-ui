@@ -155,12 +155,14 @@ export const mapResourceCalendar = (response: any, timeOffEntries: ApiResource[]
       end_date: allocation.end_date ?? allocation.task?.finish_date,
     })).filter((allocation) => allocation.start_date && allocation.end_date).map((allocation) => {
       if (allocation.project?.id) projectsById.set(allocation.project.id, { id: allocation.project.id, name: allocation.project.name });
-      return {
+      const mapped = {
         ...mapCalendarAllocation(allocation, resource),
         project_id: allocation.project?.id,
         task_id: allocation.task?.id,
         task_name: allocation.task?.name,
       };
+      // Work on a project the viewer can't see: the API sends the hours but not what it is.
+      return allocation.restricted ? { ...mapped, project_name: 'Other project work', restricted: true } : mapped;
     });
     const capacity = numberOrUndefined(firstDefined(row.weekly_capacity_hours, resource.weekly_capacity_hours));
     const timeOff = timeOffEntries

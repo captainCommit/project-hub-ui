@@ -3,13 +3,15 @@ import { useAuth } from '@/lib/AuthContext';
 import { cn } from '@/lib/utils';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import SettingsContent from '@/components/projects/SettingsContent';
-import { UserCircle, Settings as SettingsIcon, Users } from 'lucide-react';
+import { CreditCard, UserCircle, Settings as SettingsIcon, Users } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import ProfileEditor from '@/components/Account/ProfileEditor';
 import AccountUsers from '@/components/Account/AccountUsers';
+import AccountBilling from '@/components/Account/AccountBilling';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
-const USER_ADMIN_ROLES = ['OWNER', 'ADMIN'];
+const USER_ADMIN_ROLES = ['OWNER'];
 
 function InfoRow({ label, value }) {
   return (
@@ -23,7 +25,9 @@ function InfoRow({ label, value }) {
 }
 
 export default function Account() {
-  const [tab, setTab] = useState('account');
+  const [searchParams] = useSearchParams();
+  // Stripe Checkout and the billing portal send owners back to ?tab=billing.
+  const [tab, setTab] = useState(() => searchParams.get('tab') || 'account');
   const { user, appPublicSettings, accounts, selectedAccount, selectedAccountId, setSelectedAccountId } = useAuth();
 
   const { projects, programs, portfolios } = useAccountHierarchy();
@@ -35,6 +39,7 @@ export default function Account() {
   const tabs = [
     { id: 'account', label: 'Account', icon: UserCircle },
     canManageUsers && { id: 'users', label: 'Users', icon: Users },
+    isAdmin && { id: 'billing', label: 'Billing', icon: CreditCard },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ].filter(Boolean);
   const sheetsOwned = projects.filter(p => p.created_by_id === user?.id || p.owner === user?.full_name).length;
@@ -94,7 +99,13 @@ export default function Account() {
         ) : tab === 'users' && canManageUsers ? (
           <div className="flex-1 overflow-auto p-8">
             <div className="max-w-3xl">
-              <AccountUsers accountId={selectedAccountId} />
+              <AccountUsers accountId={selectedAccountId} showAccessPicker={isAdmin} />
+            </div>
+          </div>
+        ) : tab === 'billing' && isAdmin ? (
+          <div className="flex-1 overflow-auto p-8">
+            <div className="max-w-3xl">
+              <AccountBilling accountId={selectedAccountId} checkoutResult={searchParams.get('checkout')} />
             </div>
           </div>
         ) : (
@@ -107,4 +118,4 @@ export default function Account() {
       </div>
     </div>
   );
-}
+}

@@ -28,15 +28,19 @@ import ResourceManagementHub from './pages/ResourceManagementHub';
 import Account from './pages/Account';
 import Favorites from './pages/Favorites';
 import PlatformAdmin from './pages/PlatformAdmin';
+import BillingBanner from '@/components/BillingBanner';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 const ProjectsPage = Pages.Projects;
 
-const LayoutWrapper = ({ children, currentPageName }) => Layout ?
-  <Layout currentPageName={currentPageName}>{children}</Layout>
-  : <>{children}</>;
+const LayoutWrapper = ({ children, currentPageName }) => (
+  <>
+    {Layout ? <Layout currentPageName={currentPageName}>{children}</Layout> : children}
+    <BillingBanner />
+  </>
+);
 
 const AuthenticatedApp = () => {
   const { user, accounts, isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, postLoginPath, checkAppState, logout } = useAuth();

@@ -37,7 +37,7 @@ export default function PlatformAccounts() {
       setNotice({
         ok: true,
         text: form.admin_email.trim()
-          ? `${created.name} was created. ${form.admin_email.trim()} will get an email invite as its admin.`
+          ? `${created.name} was created. ${form.admin_email.trim()} will get an email invite as its owner.`
           : `${created.name} was created with you as its owner.`,
       });
       setForm(EMPTY_FORM);
@@ -94,11 +94,11 @@ export default function PlatformAccounts() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-slate-500">Admin Email</Label>
+              <Label className="text-xs text-slate-500">Owner Email</Label>
               <Input type="email" value={form.admin_email} onChange={(e) => setField('admin_email', e.target.value)} className="h-9" placeholder="Leave empty to own it yourself" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-slate-500">Admin Name</Label>
+              <Label className="text-xs text-slate-500">Owner Name</Label>
               <Input value={form.admin_full_name} onChange={(e) => setField('admin_full_name', e.target.value)} className="h-9" placeholder="Optional" />
             </div>
           </div>
@@ -128,7 +128,7 @@ export default function PlatformAccounts() {
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-slate-800 truncate">{a.name}</p>
                     <p className="text-xs text-slate-500 truncate">
-                      {a.admins.length ? a.admins.map((admin) => admin.full_name || admin.email).join(', ') : 'No admin yet'}
+                      {a.admins.length ? a.admins.map((admin) => admin.full_name || admin.email).join(', ') : 'No owner yet'}
                     </p>
                   </div>
                 </div>

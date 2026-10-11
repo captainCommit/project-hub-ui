@@ -19,10 +19,11 @@ import ProjectDialog from '@/components/projects/ProjectDialog';
 import ViewToggle from '@/components/projects/ViewToggle';
 import ResourceCalendar from '@/components/projects/ResourceCalendar';
 import AuditView from '@/components/projects/AuditView';
-import { Loader2, Share2, Settings, Edit2 } from 'lucide-react';
+import { Loader2, Users, Settings, Edit2 } from 'lucide-react';
 import { useState as _useState } from 'react';
 import ExportMenu from '@/components/projects/ExportMenu';
 import ShareDialog from '@/components/projects/ShareDialog';
+import { useMyAccess } from '@/hooks/useMyAccess';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import PortfolioOverview from '@/components/projects/PortfolioOverview';
@@ -247,6 +248,10 @@ function updateProjectGanttCacheTaskDates(cache, taskId, dates) {
 export default function Projects() {
   const { selectedAccountId } = useAuth();
   const { portfolioId, programId, projectId, projectTab } = useParams();
+  const { canEdit } = useMyAccess();
+  // Without the Tasks module, the sheet, board and Gantt are read-only: they get no edit handlers.
+  const canEditProjectTasks = Boolean(projectId) && canEdit(projectId, 'TASKS');
+  const whenTasksEditable = (handler) => (canEditProjectTasks ? handler : undefined);
   const navigate = useNavigate();
   const location = useLocation();
   const hasPortfolioRoute = Boolean(portfolioId);
@@ -1620,7 +1625,7 @@ export default function Projects() {
                     stories={routedProjectData.stories}
                   />
                   <Button size="sm" variant="ghost" onClick={() => setShareOpen(true)} className="h-9 gap-1.5 text-slate-600">
-                    <Share2 className="w-3.5 h-3.5" /> Share
+                    <Users className="w-3.5 h-3.5" /> People
                   </Button>
                   <div className="w-px h-6 bg-slate-200" />
                   <Button size="sm" variant="ghost"
@@ -1701,14 +1706,14 @@ export default function Projects() {
                     project={projectDetail}
                     projects={[]}
                     programs={programs}
-                    onUpdateTaskPriority={handleUpdateProjectSheetTaskPriority}
-                    onUpdateTaskTitle={handleUpdateProjectSheetTaskTitle}
-                    onUpdateTaskDuration={handleUpdateProjectSheetTaskDuration}
-                    onUpdateTaskSchedule={handleUpdateProjectSheetTaskSchedule}
-                    onUpdateTaskProgress={handleUpdateProjectSheetTaskProgress}
-                    onUpdateTaskStatus={projectSheetTaskStatusOptions.activeOptions.length > 0 ? handleUpdateProjectSheetTaskStatus : undefined}
+                    onUpdateTaskPriority={whenTasksEditable(handleUpdateProjectSheetTaskPriority)}
+                    onUpdateTaskTitle={whenTasksEditable(handleUpdateProjectSheetTaskTitle)}
+                    onUpdateTaskDuration={whenTasksEditable(handleUpdateProjectSheetTaskDuration)}
+                    onUpdateTaskSchedule={whenTasksEditable(handleUpdateProjectSheetTaskSchedule)}
+                    onUpdateTaskProgress={whenTasksEditable(handleUpdateProjectSheetTaskProgress)}
+                    onUpdateTaskStatus={whenTasksEditable(projectSheetTaskStatusOptions.activeOptions.length > 0 ? handleUpdateProjectSheetTaskStatus : undefined)}
                     taskStatusOptions={projectSheetTaskStatusOptions.activeOptions}
-                    onUpdateTaskType={projectSheetTaskTypeOptions.activeOptions.length > 0 ? handleUpdateProjectSheetTaskType : undefined}
+                    onUpdateTaskType={whenTasksEditable(projectSheetTaskTypeOptions.activeOptions.length > 0 ? handleUpdateProjectSheetTaskType : undefined)}
                     taskTypeOptions={projectSheetTaskTypeOptions.activeOptions}
                     priorityOptions={projectSheetTaskPriorityOptions.activeOptions}
                     priorityOptionsState={{
@@ -1721,15 +1726,15 @@ export default function Projects() {
                     priorityDrafts={projectSheetPriorityDrafts}
                     priorityErrors={projectSheetPriorityErrors}
                     priorityPendingTaskIds={pendingProjectSheetPriorityTaskIds}
-                    onIndentTask={handleIndentProjectSheetTask}
-                    onOutdentTask={handleOutdentProjectSheetTask}
+                    onIndentTask={whenTasksEditable(handleIndentProjectSheetTask)}
+                    onOutdentTask={whenTasksEditable(handleOutdentProjectSheetTask)}
                     hierarchyPendingTaskIds={pendingProjectSheetHierarchyTaskIds}
-                    onAddPredecessor={handleAddProjectSheetTaskPredecessor}
-                    onRemovePredecessor={handleRemoveProjectSheetTaskPredecessor}
+                    onAddPredecessor={whenTasksEditable(handleAddProjectSheetTaskPredecessor)}
+                    onRemovePredecessor={whenTasksEditable(handleRemoveProjectSheetTaskPredecessor)}
                     predecessorPendingTaskIds={pendingProjectSheetPredecessorTaskIds}
-                    onDeleteTask={handleDeleteProjectSheetTask}
+                    onDeleteTask={whenTasksEditable(handleDeleteProjectSheetTask)}
                     deletingTaskIds={deletingProjectSheetTaskIds}
-                    onReorderTasks={handleReorderProjectSheetTasks}
+                    onReorderTasks={whenTasksEditable(handleReorderProjectSheetTasks)}
                     isReorderingTasks={isReorderingProjectSheetTasks}
                     readOnly
                     hideProjectHeader
@@ -1740,7 +1745,7 @@ export default function Projects() {
                     assumptions={routedProjectData.assumptions}
                     decisions={routedProjectData.decisions}
                     resources={[]}
-                    enableResourceAssignments={isProjectSheetRoute}
+                    enableResourceAssignments={isProjectSheetRoute && canEditProjectTasks}
                     accountResources={projectSheetAccountResourcesQuery.data || []}
                     accountResourcesState={{
                       isLoading: projectSheetAccountResourcesQuery.isLoading,
@@ -1763,9 +1768,9 @@ export default function Projects() {
                     columns={projectBoard.columns}
                     tasks={projectBoard.tasks}
                     readOnly
-                    allowDrag
+                    allowDrag={canEditProjectTasks}
                     boardPositionMode
-                    onTaskUpdate={handleMoveProjectBoardTask}
+                    onTaskUpdate={whenTasksEditable(handleMoveProjectBoardTask)}
                   />
                 )
               ) : activeProjectTab === 'gantt' ? (
@@ -1779,10 +1784,10 @@ export default function Projects() {
                   <GanttChart
                     tasks={projectGanttTasks}
                     project={projectDetail}
-                    enableScheduleEditing
+                    enableScheduleEditing={canEditProjectTasks}
                     pendingTaskIds={pendingProjectGanttScheduleTaskIds}
                     onTaskScheduleChange={handleUpdateProjectGanttTaskSchedule}
-                    enableDependencyEditing
+                    enableDependencyEditing={canEditProjectTasks}
                     dependencyPendingTaskIds={pendingProjectGanttDependencyTaskIds}
                     onAddDependency={handleAddProjectGanttTaskPredecessor}
                     onRemoveDependency={handleRemoveProjectGanttTaskPredecessor}
@@ -1962,7 +1967,7 @@ export default function Projects() {
                   stories={stories}
                 />
                 <Button size="sm" variant="ghost" onClick={() => setShareOpen(true)} className="h-9 gap-1.5 text-slate-600">
-                  <Share2 className="w-3.5 h-3.5" /> Share
+                  <Users className="w-3.5 h-3.5" /> People
                 </Button>
                 <div className="w-px h-6 bg-slate-200" />
                 <Button size="sm" variant="ghost"

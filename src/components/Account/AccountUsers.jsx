@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, UserPlus } from 'lucide-react';
 import { accountsApi } from '@/api/accounts';
+import { useAccountHierarchy } from '@/hooks/useAccountLookups';
+import ModulePicker from '@/components/projects/ModulePicker';
 
 const INVITE_ROLES = [
-  { value: 'ADMIN', label: 'Admin', hint: 'Manages users and account settings' },
+  { value: 'OWNER', label: 'Owner', hint: 'Account admin: users, settings and billing' },
   { value: 'MANAGER', label: 'Manager', hint: 'Manages projects and resources' },
   { value: 'MEMBER', label: 'Member', hint: 'Works on projects' },
   { value: 'VIEWER', label: 'Viewer', hint: 'Read only' },
@@ -18,11 +20,24 @@ const roleLabel = (role) => (role ? role.charAt(0) + role.slice(1).toLowerCase()
 
 export const accountMembersQueryKey = (accountId) => ['account-members', accountId];
 
-/** Members of one account, and a form to add someone. Adding emails them a Cognito invite. */
-export default function AccountUsers({ accountId }) {
+const NO_ACCESS = 'none';
+
+/** "project:<id>" and friends, for the optional "Add to" picker. */
+const accessFromPick = (pick, modules) => {
+  if (!pick || pick === NO_ACCESS) return null;
+  const [kind, id] = pick.split(':');
+  return { [`${kind}_id`]: id, modules };
+};
+
+/**
+ * Members of one account, and a form to add someone. Adding emails them a Cognito invite.
+ * With showAccessPicker (the account's own owners), the form can also give them a first portfolio, program or project.
+ */
+export default function AccountUsers({ accountId, showAccessPicker = false }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ email: '', full_name: '', role: 'MEMBER' });
+  const [form, setForm] = useState({ email: '', full_name: '', role: 'MEMBER', pick: NO_ACCESS, modules: ['TASKS'] });
   const [notice, setNotice] = useState(null);
+  const { portfolios, programs, projects } = useAccountHierarchy();
 
   const { data: members = [], isLoading } = useQuery({
     queryKey: accountMembersQueryKey(accountId),
@@ -31,7 +46,13 @@ export default function AccountUsers({ accountId }) {
   });
 
   const invite = useMutation({
-    mutationFn: () => accountsApi.inviteUser(accountId, { ...form, update_existing: true }),
+    mutationFn: () => accountsApi.inviteUser(accountId, {
+      email: form.email,
+      full_name: form.full_name,
+      role: form.role,
+      update_existing: true,
+      access: form.role === 'OWNER' ? null : accessFromPick(form.pick, form.modules),
+    }),
     onSuccess: (/** @type {any} */ result) => {
       const messages = {
         CREATED: `${result.email} was added. They'll get an email with a temporary password.`,
@@ -39,7 +60,7 @@ export default function AccountUsers({ accountId }) {
         ALREADY_EXISTS: `${result.email} is already a ${roleLabel(result.role)} in this account.`,
       };
       setNotice({ ok: true, text: messages[result.status] || 'Done.' });
-      setForm({ email: '', full_name: '', role: form.role });
+      setForm((f) => ({ ...f, email: '', full_name: '' }));
       queryClient.invalidateQueries({ queryKey: accountMembersQueryKey(accountId) });
       queryClient.invalidateQueries({ queryKey: ['platform-accounts'] });
     },
@@ -83,6 +104,29 @@ export default function AccountUsers({ accountId }) {
               </Select>
             </div>
           </div>
+          {showAccessPicker && form.role !== 'OWNER' && (
+            <div className="space-y-2">
+              <div className="space-y-1.5 sm:max-w-md">
+                <Label className="text-xs text-slate-500">Add to</Label>
+                <Select value={form.pick} onValueChange={(v) => setField('pick', v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_ACCESS}>Nothing yet · add them from a project later</SelectItem>
+                    {portfolios.map((p) => <SelectItem key={p.id} value={`portfolio:${p.id}`}>Portfolio · {p.name}</SelectItem>)}
+                    {programs.map((p) => <SelectItem key={p.id} value={`program:${p.id}`}>Program · {p.name}</SelectItem>)}
+                    {projects.map((p) => <SelectItem key={p.id} value={`project:${p.id}`}>Project · {p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {form.role === 'MEMBER' && form.pick !== NO_ACCESS && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-slate-500">Can edit</Label>
+                  <ModulePicker value={form.modules} onChange={(modules) => setField('modules', modules)} />
+                </div>
+              )}
+              <p className="text-xs text-slate-400">Owners see everything. Everyone else sees only what they're added to.</p>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <Button type="submit" size="sm" disabled={!canSubmit} className="bg-[#c87b14] hover:bg-[#a86610] text-white">
               {invite.isPending ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5 mr-1.5" />}

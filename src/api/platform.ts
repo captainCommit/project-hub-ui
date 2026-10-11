@@ -14,6 +14,12 @@ export interface AccountBillingLine {
   viewer_seats: number;
   pending_invites: number;
   monthly_total_cents: number;
+  billing_enabled: boolean;
+  subscription_status: string | null;
+  past_due: boolean;
+  read_only: boolean;
+  /** Unpaid balance on open invoices. */
+  outstanding_cents: number;
 }
 
 export interface BillingSummary {
@@ -39,8 +45,29 @@ export interface SystemStatus {
   checked_at: string;
 }
 
+export interface PlatformAuditEvent {
+  id: string;
+  actor_email: string;
+  action: string;
+  account_id: string | null;
+  account_name: string | null;
+  target: string | null;
+  details: Record<string, unknown> | null;
+  request_id: string | null;
+  created_at: string;
+}
+
+export interface Page<T> {
+  items: T[];
+  page: number;
+  page_size: number;
+  total: number;
+}
+
 /** Platform admins only. Account metadata and aggregates, never an account's business data. */
 export const platformApi = {
   getBilling: () => apiClient.get<BillingSummary>('/api/v1/admin/billing'),
   getSystem: () => apiClient.get<SystemStatus>('/api/v1/admin/system'),
+  getAudit: (page: number, pageSize = 50) =>
+    apiClient.get<Page<PlatformAuditEvent>>('/api/v1/admin/audit', { page, page_size: pageSize, paginated: true }),
 };

@@ -12,7 +12,7 @@ export interface ProjectHubAccount {
   role: ProjectHubAccountRole | null;
 }
 
-export type ProjectHubAccountRole = 'OWNER' | 'ADMIN' | 'MANAGER' | 'MEMBER' | 'VIEWER';
+export type ProjectHubAccountRole = 'OWNER' | 'MANAGER' | 'MEMBER' | 'VIEWER';
 
 export interface ProjectHubAccountUser {
   id: string;

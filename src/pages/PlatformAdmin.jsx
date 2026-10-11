@@ -1,21 +1,41 @@
 import React, { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Activity, ArrowLeft, Building2, CreditCard, Loader2, LogOut, RefreshCw, Shield } from 'lucide-react';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Activity, ArrowLeft, Building2, ChevronLeft, ChevronRight, CreditCard, Loader2, LogOut, RefreshCw, ScrollText, Shield } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { cn } from '@/lib/utils';
 import { platformApi } from '@/api/platform';
+import { billingApi } from '@/api/billing';
 import PlatformAccounts from '@/components/Account/PlatformAccounts';
 
 const TABS = [
   { id: 'accounts', label: 'Accounts', icon: Building2 },
   { id: 'billing', label: 'Billing', icon: CreditCard },
   { id: 'system', label: 'System', icon: Activity },
+  { id: 'audit', label: 'Audit Log', icon: ScrollText },
 ];
+
+const AUDIT_ACTION_LABELS = {
+  'account.created': 'Created account',
+  'account.users_viewed': 'Viewed users',
+  'account.user_invited': 'Invited user',
+  'account.user_role_changed': 'Changed role',
+  'account.users_bulk_invited': 'Bulk invited users',
+  'account.billing_enabled': 'Turned billing on',
+  'account.billing_disabled': 'Turned billing off',
+  'account.billing_synced': 'Synced seats to Stripe',
+};
+
+const describeAuditDetails = (event) => {
+  const details = event.details || {};
+  if (Array.isArray(details.users)) {
+    return details.users.map((u) => `${u.email} (${String(u.role).toLowerCase()})`).join(', ');
+  }
+  return [event.target, details.role && String(details.role).toLowerCase()].filter(Boolean).join(' · ');
+};
 
 const ROLE_COLUMNS = [
   ['OWNER', 'Owner'],
-  ['ADMIN', 'Admin'],
   ['MANAGER', 'Manager'],
   ['MEMBER', 'Member'],
   ['VIEWER', 'Viewer'],
@@ -54,20 +74,46 @@ function LoadError({ error }) {
   return <div className="p-5 text-sm text-red-600">{error?.message || 'Could not load this view.'}</div>;
 }
 
+const billingStatus = (line) => {
+  if (!line.billing_enabled) return { text: 'Off', className: 'bg-slate-100 text-slate-500' };
+  if (line.read_only) return { text: 'Read-only', className: 'bg-red-50 text-red-700' };
+  if (line.past_due) return { text: 'Past due', className: 'bg-amber-50 text-amber-700' };
+  if (['active', 'trialing'].includes(line.subscription_status)) return { text: 'Active', className: 'bg-emerald-50 text-emerald-700' };
+  return { text: 'Awaiting card', className: 'bg-amber-50 text-amber-700' };
+};
+
 function BillingView() {
+  const queryClient = useQueryClient();
+  const [actionError, setActionError] = useState(null);
   const { data, isLoading, error } = useQuery({ queryKey: ['platform-billing'], queryFn: platformApi.getBilling });
+  const afterAction = {
+    onSuccess: () => { setActionError(null); queryClient.invalidateQueries({ queryKey: ['platform-billing'] }); },
+    onError: (e) => setActionError(e?.message || 'That did not work.'),
+  };
+  const toggle = useMutation({
+    mutationFn: (/** @type {{ accountId: string, enabled: boolean }} */ { accountId, enabled }) => billingApi.setEnabled(accountId, enabled),
+    ...afterAction,
+  });
+  const sync = useMutation({ mutationFn: (/** @type {string} */ accountId) => billingApi.syncSeats(accountId), ...afterAction });
   if (isLoading) return <Loading />;
   if (error || !data) return <LoadError error={error} />;
   const money = (cents) => formatMoney(cents, data.currency);
+  const billed = data.accounts.filter((line) => line.billing_enabled);
+  const outstanding = data.accounts.reduce((sum, line) => sum + line.outstanding_cents, 0);
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat label="Monthly Recurring" value={money(data.monthly_total_cents)} hint={`${data.accounts.length} accounts`} />
+        <Stat
+          label="Monthly, Billed Accounts"
+          value={money(billed.reduce((sum, line) => sum + line.monthly_total_cents, 0))}
+          hint={`${billed.length} of ${data.accounts.length} accounts · ${money(data.monthly_total_cents)} if all were billed`}
+        />
         <Stat label="Full Seats" value={data.full_seats} hint={`${money(data.seat_price_cents)} / seat / month`} />
         <Stat label="Viewer Seats" value={data.viewer_seats} hint={`${money(data.viewer_seat_price_cents)} / seat / month`} />
-        <Stat label="Pending Invites" value={data.pending_invites} hint="Not billed until they sign in" />
+        <Stat label="Outstanding" value={money(outstanding)} hint={`${data.pending_invites} pending invites, not billed`} />
       </div>
+      {actionError && <p className="text-sm text-red-600">{actionError}</p>}
 
       <Panel title="Seats by Account">
         <div className="overflow-x-auto">
@@ -79,7 +125,9 @@ function BillingView() {
                   <th key={role} className="text-right font-medium px-3 py-2.5">{label}</th>
                 ))}
                 <th className="text-right font-medium px-3 py-2.5">Pending</th>
-                <th className="text-right font-medium px-5 py-2.5">Monthly</th>
+                <th className="text-right font-medium px-3 py-2.5">Monthly</th>
+                <th className="text-left font-medium px-3 py-2.5">Billing</th>
+                <th className="text-right font-medium px-5 py-2.5"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -97,7 +145,35 @@ function BillingView() {
                   <td className={cn('text-right px-3 py-3 tabular-nums', line.pending_invites ? 'text-amber-600' : 'text-slate-300')}>
                     {line.pending_invites}
                   </td>
-                  <td className="text-right px-5 py-3 font-medium text-slate-800 tabular-nums">{money(line.monthly_total_cents)}</td>
+                  <td className="text-right px-3 py-3 font-medium text-slate-800 tabular-nums">
+                    {money(line.monthly_total_cents)}
+                    {line.outstanding_cents > 0 && <p className="text-xs font-normal text-red-600">{money(line.outstanding_cents)} due</p>}
+                  </td>
+                  <td className="px-3 py-3">
+                    <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap', billingStatus(line).className)}>{billingStatus(line).text}</span>
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center justify-end gap-1.5">
+                      {line.billing_enabled && line.subscription_status && (
+                        <button
+                          onClick={() => sync.mutate(line.account_id)}
+                          disabled={sync.isPending}
+                          title="Send current seat counts to Stripe"
+                          className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                          aria-label={`Sync seats for ${line.name}`}
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => toggle.mutate({ accountId: line.account_id, enabled: !line.billing_enabled })}
+                        disabled={toggle.isPending}
+                        className="text-xs px-2 py-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 whitespace-nowrap disabled:opacity-40"
+                      >
+                        {line.billing_enabled ? 'Turn off' : 'Turn on'}
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -105,7 +181,8 @@ function BillingView() {
         </div>
       </Panel>
       <p className="text-xs text-slate-500">
-        A seat is a member who has signed in and is active. Viewers are billed at the viewer rate; owners, admins, managers and members at the full rate.
+        A seat is a member who has signed in and is active. Viewers are billed at the viewer rate; owners, managers and members at the full rate.
+        Turning billing on asks the account's owners to add a card. Turning it off lifts any read-only lock but doesn't cancel an existing Stripe subscription.
       </p>
     </div>
   );
@@ -155,6 +232,64 @@ function SystemView() {
   );
 }
 
+function AuditView() {
+  const [page, setPage] = useState(1);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['platform-audit', page],
+    queryFn: () => platformApi.getAudit(page),
+    placeholderData: keepPreviousData,
+  });
+  if (isLoading) return <Loading />;
+  if (error || !data) return <LoadError error={error} />;
+  const pages = Math.max(1, Math.ceil(data.total / data.page_size));
+
+  return (
+    <div className="space-y-3">
+      <Panel title="Platform Admin Actions" aside={<p className="text-xs text-slate-400">{data.total}</p>}>
+        {data.items.length === 0 ? (
+          <p className="p-5 text-sm text-slate-500">Nothing recorded yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-slate-500 border-b border-slate-100">
+                  <th className="text-left font-medium px-5 py-2.5">When</th>
+                  <th className="text-left font-medium px-3 py-2.5">Who</th>
+                  <th className="text-left font-medium px-3 py-2.5">Action</th>
+                  <th className="text-left font-medium px-3 py-2.5">Account</th>
+                  <th className="text-left font-medium px-5 py-2.5">Details</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {data.items.map((event) => (
+                  <tr key={event.id} className="align-top">
+                    <td className="px-5 py-3 text-slate-500 whitespace-nowrap tabular-nums">{new Date(event.created_at).toLocaleString()}</td>
+                    <td className="px-3 py-3 text-slate-700">{event.actor_email}</td>
+                    <td className="px-3 py-3 font-medium text-slate-800 whitespace-nowrap">{AUDIT_ACTION_LABELS[event.action] || event.action}</td>
+                    <td className="px-3 py-3 text-slate-700">{event.account_name || '—'}</td>
+                    <td className="px-5 py-3 text-slate-500">{describeAuditDetails(event) || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+      {pages > 1 && (
+        <div className="flex items-center justify-end gap-2 text-xs text-slate-500">
+          <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="p-1 rounded hover:bg-slate-200 disabled:opacity-40" aria-label="Previous page">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          Page {page} of {pages}
+          <button disabled={page >= pages} onClick={() => setPage((p) => p + 1)} className="p-1 rounded hover:bg-slate-200 disabled:opacity-40" aria-label="Next page">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** The platform owner's portal: accounts, seats and billing, and system status. No account business data. */
 export default function PlatformAdmin() {
   const { user, accounts, logout } = useAuth();
@@ -194,7 +329,10 @@ export default function PlatformAdmin() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-8 py-8">
-        {tab === 'accounts' ? <div className="max-w-3xl"><PlatformAccounts /></div> : tab === 'billing' ? <BillingView /> : <SystemView />}
+        {tab === 'accounts' ? <div className="max-w-3xl"><PlatformAccounts /></div>
+          : tab === 'billing' ? <BillingView />
+          : tab === 'system' ? <SystemView />
+          : <AuditView />}
       </main>
     </div>
   );

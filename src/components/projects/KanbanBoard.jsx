@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Calendar, Flag } from "lucide-react";
 import { format } from 'date-fns';
 
+import { parseDate } from '@/lib/dateUtils';
 const columns = [
   { id: 'todo', title: 'To Do', color: 'bg-slate-100' },
   { id: 'in_progress', title: 'In Progress', color: 'bg-blue-50' },
@@ -42,8 +43,8 @@ export default function KanbanBoard({ tasks, columns: boardColumns, onTaskClick,
     onTaskUpdate?.(taskId, boardPositionMode ? { status_id: status, sort_order: sortOrder } : { status });
   };
 
+  // Opening a card's details works on read-only boards too; only moving cards needs edit rights.
   const handleCardClick = (task) => {
-    if (readOnly) return;
     onTaskClick?.(task);
   };
 
@@ -69,7 +70,7 @@ export default function KanbanBoard({ tasks, columns: boardColumns, onTaskClick,
                 {getTasksByStatus(column.id).map(task => (
                   <Card 
                     key={task.id}
-                    className={cn("transition-shadow bg-white", readOnly ? "cursor-default" : "cursor-pointer hover:shadow-md")}
+                    className={cn("transition-shadow bg-white", onTaskClick ? "cursor-pointer hover:shadow-md" : "cursor-default")}
                     draggable={canDrag}
                     onDragStart={canDrag ? (e) => handleDragStart(e, task.id) : undefined}
                     onClick={() => handleCardClick(task)}
@@ -84,7 +85,7 @@ export default function KanbanBoard({ tasks, columns: boardColumns, onTaskClick,
                         {task.due_date && (
                           <span className="text-xs text-slate-500 flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
-                            {format(new Date(task.due_date), 'MMM d')}
+                            {format(parseDate(task.due_date), 'MMM d')}
                           </span>
                         )}
                       </div>

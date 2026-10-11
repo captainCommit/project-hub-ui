@@ -35,11 +35,15 @@ const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 const ProjectsPage = Pages.Projects;
 
+// The billing bar sits above the page, which gets the rest of the screen. Pages built as full-screen
+// (h-screen / min-h-screen) are sized to that remaining space, so nothing hides under the bar.
 const LayoutWrapper = ({ children, currentPageName }) => (
-  <>
-    {Layout ? <Layout currentPageName={currentPageName}>{children}</Layout> : children}
+  <div className="h-screen flex flex-col">
     <BillingBanner />
-  </>
+    <div className="flex-1 min-h-0 overflow-auto [&>.h-screen]:h-full [&>.min-h-screen]:min-h-full">
+      {Layout ? <Layout currentPageName={currentPageName}>{children}</Layout> : children}
+    </div>
+  </div>
 );
 
 const AuthenticatedApp = () => {

@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { ChevronDown, ChevronRight, MessageSquare, Plus, Trash2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+import { parseDate } from '@/lib/dateUtils';
 const STATUS_CONFIG = {
   on_hold: { label: 'On Hold', pill: 'bg-orange-100 text-orange-700' },
   not_started: { label: 'Not Started', pill: 'bg-slate-100 text-slate-600' },
@@ -97,7 +98,7 @@ export default function BoardView({ tasks = [], onTaskClick, onTaskUpdate, onAdd
 
   const renderTaskRow = (task) => {
     const st = STATUS_CONFIG[resolveStatus(task.status)];
-    const isOverdue = task.due_date && new Date(task.due_date) < new Date() && resolveStatus(task.status) !== 'completed';
+    const isOverdue = task.due_date && parseDate(task.due_date) < new Date() && resolveStatus(task.status) !== 'completed';
     const commentCount = task.comments?.length || 0;
     const progress = task.progress || 0;
     return (

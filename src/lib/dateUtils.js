@@ -26,3 +26,17 @@ export function formatDateRange(start, end) {
   if (end) return `Until ${formatDate(end)}`;
   return '—';
 }
+
+/**
+ * Turn an API date into a Date at local midnight.
+ * `new Date('2026-06-19')` means midnight UTC, which is still June 18 in the Americas;
+ * date-only strings are read as that calendar day wherever the user is. Date objects are copied.
+ */
+export function parseDate(value) {
+  if (value instanceof Date) return new Date(value.getTime());
+  if (typeof value === 'string') {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+    if (match) return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  }
+  return new Date(value);
+}

@@ -1801,6 +1801,7 @@ export default function Projects() {
                     allowDrag={canEditProjectTasks}
                     boardPositionMode
                     onTaskUpdate={whenTasksEditable(handleMoveProjectBoardTask)}
+                    onTaskClick={(task) => { setEditingTask(task); setTaskDialogOpen(true); }}
                   />
                 )
               ) : activeProjectTab === 'gantt' ? (
@@ -2091,7 +2092,10 @@ export default function Projects() {
           task={editingTask}
           resources={resources}
           onClose={() => { setTaskDialogOpen(false); setEditingTask(null); }}
-          onUpdate={(id, data) => updateTask.mutate({ id, data })}
+          onUpdate={(id, data) => {
+            if (hasProjectRoute && !canEditProjectTasks) return;
+            updateTask.mutate({ id, data }, { onSuccess: () => { if (hasProjectRoute) invalidateProjectTaskWorkspaces(); } });
+          }}
         />
       )}
 

@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { addDays, format } from 'date-fns';
-import { formatDate } from '@/lib/dateUtils';
+import { formatDate, parseDate } from '@/lib/dateUtils';
 import DeliverySummary from '@/components/projects/DeliverySummary';
 import StarButton from '@/components/projects/StarButton';
 
@@ -22,7 +22,7 @@ function getNonWorkingDays() {
 function isNonWorking(d) { return getNonWorkingDays().includes(d.getDay()); }
 
 function addWorkdays(dateStr, days) {
-  let date = new Date(dateStr);
+  let date = parseDate(dateStr);
   let added = 0;
   while (added < days) {
     date = addDays(date, 1);
@@ -34,8 +34,8 @@ function addWorkdays(dateStr, days) {
 function workdaysBetween(startStr, endStr) {
   if (!startStr || !endStr) return 0;
   let count = 0;
-  let cur = new Date(startStr);
-  const end = new Date(endStr);
+  let cur = parseDate(startStr);
+  const end = parseDate(endStr);
   while (cur <= end) {
     if (!isNonWorking(cur)) count++;
     cur = addDays(cur, 1);
@@ -44,7 +44,7 @@ function workdaysBetween(startStr, endStr) {
 }
 
 function nextWorkday(dateStr) {
-  let d = addDays(new Date(dateStr), 1);
+  let d = addDays(parseDate(dateStr), 1);
   while (isNonWorking(d)) d = addDays(d, 1);
   return format(d, 'yyyy-MM-dd');
 }
@@ -583,7 +583,7 @@ export default function SprintView({ projects, programs = [], portfolios = [], r
   };
 
   const activeSprint = activeSprintId ? { ...activeSprintSummary, ...(sprintDetail || {}) } : null;
-  const previousSprint = sprints.length > 0 ? [...sprints].sort((a, b) => new Date(b.start_date) - new Date(a.start_date))[0] : null;
+  const previousSprint = sprints.length > 0 ? [...sprints].sort((a, b) => parseDate(b.start_date) - parseDate(a.start_date))[0] : null;
 
   const storyCount = sprintMetrics.story_count ?? sprintMetrics.total_tasks ?? activeSprint?.story_count;
   const completedCount = sprintMetrics.completed_count ?? activeSprint?.completed_count;

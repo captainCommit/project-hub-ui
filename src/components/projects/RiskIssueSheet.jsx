@@ -13,6 +13,7 @@ import MultiSelectFilter from './MultiSelectFilter';
 import { cn } from "@/lib/utils";
 import { exportRecords } from '@/lib/exportUtils';
 
+import { parseDate } from '@/lib/dateUtils';
 const priorityColors = {
   low: 'bg-blue-100 text-blue-700',
   medium: 'bg-yellow-100 text-yellow-700',
@@ -403,7 +404,7 @@ export default function RiskIssueSheet({
                 <td className={cn("py-2 px-3 text-xs text-center",
                   item.target_date && isDatePast(item.target_date) && item.status !== 'closed' && item.status !== 'resolved' && item.status !== 'cancelled' ? "text-red-600 font-medium" : "text-slate-500"
                 )}>
-                  {item.target_date ? format(new Date(item.target_date), 'MMM d, yyyy') : '—'}
+                  {item.target_date ? format(parseDate(item.target_date), 'MMM d, yyyy') : '—'}
                 </td>
                 <td className="py-2 px-3 text-sm text-slate-500">{item.logged_by || '—'}</td>
                 <td className="py-2 px-3 text-xs text-center text-slate-500">{item.date_entered || '—'}</td>

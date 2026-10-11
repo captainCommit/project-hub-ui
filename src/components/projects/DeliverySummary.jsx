@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { cn } from '@/lib/utils';
 import { Zap, ChevronRight, ChevronDown, AlertCircle, Loader2 } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
-import { formatDate } from '@/lib/dateUtils';
+import { formatDate, parseDate } from '@/lib/dateUtils';
 import { Button } from '@/components/ui/button';
 
 const STATUS_CONFIG = {
@@ -38,7 +38,7 @@ function SprintRow({ sprint }) {
   const pct = toNumber(sprint.progress) ?? (total > 0 ? Math.round(done / total * 100) : 0);
   const cfg = STATUS_CONFIG[sprint.status] || STATUS_CONFIG.planning;
   const statusLabel = sprint.status_label || cfg.label;
-  const daysLeft = sprint.end_date ? Math.max(0, differenceInDays(new Date(sprint.end_date), new Date())) : null;
+  const daysLeft = sprint.end_date ? Math.max(0, differenceInDays(parseDate(sprint.end_date), new Date())) : null;
 
   return (
     <tr className="border-b border-slate-50 hover:bg-slate-50">

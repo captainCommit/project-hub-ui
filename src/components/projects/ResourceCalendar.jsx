@@ -12,6 +12,7 @@ import { format, parseISO, isValid, isSameDay } from "date-fns";
 import { Plus, Trash2, X, AlertTriangle, Search, Edit2, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import { parseDate } from '@/lib/dateUtils';
 const COLOR_DOTS = [
   'bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-orange-500',
   'bg-pink-500', 'bg-teal-500', 'bg-amber-500', 'bg-red-500',
@@ -39,7 +40,7 @@ const COLOR_BADGES = [
 
 // Build a compact timeline: 12-week strip from today
 function buildWeeks(referenceDate) {
-  const start = new Date(referenceDate);
+  const start = parseDate(referenceDate);
   start.setDate(start.getDate() - start.getDay()); // go to sunday
   const weeks = [];
   for (let w = 0; w < 12; w++) {

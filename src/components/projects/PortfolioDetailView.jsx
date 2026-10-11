@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { Settings, Plus, Download, Edit2, Check, X, Trash2, AlertTriangle, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { formatDateRange } from '@/lib/dateUtils';
+import { formatDateRange, parseDate } from '@/lib/dateUtils';
 import ReportGenerator from '@/components/projects/ReportGenerator';
 import StarButton from '@/components/projects/StarButton';
 import ResourceUtilizationTable from '@/components/projects/ResourceUtilizationTable';
@@ -69,10 +69,10 @@ function RoadmapBar({ item, quarters, color }) {
   const end   = item.end_date   || item.start_date;
   if (!start && !end) return <td colSpan={quarters.length} />;
   const firstQ = quarters[0], lastQ = quarters[quarters.length - 1];
-  const rs = new Date(qStart(firstQ.year, firstQ.q)), re = new Date(qEnd(lastQ.year, lastQ.q));
+  const rs = parseDate(qStart(firstQ.year, firstQ.q)), re = parseDate(qEnd(lastQ.year, lastQ.q));
   const total = re - rs;
-  const s = Math.max(0, (new Date(start) - rs) / total);
-  const e = Math.min(1, (new Date(end) - rs) / total);
+  const s = Math.max(0, (parseDate(start) - rs) / total);
+  const e = Math.min(1, (parseDate(end) - rs) / total);
   if (e <= s) return <td colSpan={quarters.length} />;
   return (
     <td colSpan={quarters.length} className="px-0 py-1 relative h-8">

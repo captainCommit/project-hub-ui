@@ -17,6 +17,7 @@ import { tasksApi, getTaskPriorityLabel, normalizeTaskPriorityText, resolveTaskP
 import FormattingToolbar from './FormattingToolbar';
 
 
+import { parseDate } from '@/lib/dateUtils';
 const statusOptions = [
   { value: 'not_started', label: 'Not Started', color: 'bg-slate-200 text-slate-700' },
   { value: 'in_progress', label: 'In Progress', color: 'bg-blue-100 text-blue-700' },
@@ -245,8 +246,8 @@ export default function TaskSheet({
     const datesOnly = children.filter(c => c.start_date && c.due_date);
     if (datesOnly.length === 0) return null;
 
-    const earliestStart = min(datesOnly.map(c => new Date(c.start_date)));
-    const latestEnd = max(datesOnly.map(c => new Date(c.due_date)));
+    const earliestStart = min(datesOnly.map(c => parseDate(c.start_date)));
+    const latestEnd = max(datesOnly.map(c => parseDate(c.due_date)));
 
     return {
       start_date: format(earliestStart, 'yyyy-MM-dd'),
@@ -387,8 +388,8 @@ export default function TaskSheet({
   const calculateDuration = (start, end) => {
     if (!start || !end) return 1;
     let count = 0;
-    let cur = new Date(start);
-    const endDate = new Date(end);
+    let cur = parseDate(start);
+    const endDate = parseDate(end);
     while (cur <= endDate) {
       const day = cur.getDay();
       if (day !== 0 && day !== 6) count++;
@@ -940,14 +941,14 @@ export default function TaskSheet({
       return false;
     }
 
-    const taskStart = new Date(task.start_date);
-    const taskEnd = new Date(task.due_date);
+    const taskStart = parseDate(task.start_date);
+    const taskEnd = parseDate(task.due_date);
 
     return task.resources.some(resource => {
       return vacations.some(vacation => {
         if (vacation.resource_name !== resource) return false;
-        const vacStart = new Date(vacation.start_date);
-        const vacEnd = new Date(vacation.end_date);
+        const vacStart = parseDate(vacation.start_date);
+        const vacEnd = parseDate(vacation.end_date);
         return (taskStart <= vacEnd && taskEnd >= vacStart);
       });
     });
@@ -1305,10 +1306,10 @@ export default function TaskSheet({
         const vacationResources = task.resources?.filter(resource => {
           return vacations.some(vacation => {
             if (vacation.resource_name !== resource) return false;
-            const taskStart = new Date(task.start_date);
-            const taskEnd = new Date(task.due_date);
-            const vacStart = new Date(vacation.start_date);
-            const vacEnd = new Date(vacation.end_date);
+            const taskStart = parseDate(task.start_date);
+            const taskEnd = parseDate(task.due_date);
+            const vacStart = parseDate(vacation.start_date);
+            const vacEnd = parseDate(vacation.end_date);
             return (taskStart <= vacEnd && taskEnd >= vacStart);
           });
         }) || [];
@@ -1912,7 +1913,7 @@ export default function TaskSheet({
           )}
           {proj.start_date && proj.end_date && (
             <span className="text-xs text-slate-400 ml-auto">
-              {format(new Date(proj.start_date), 'MMM d')} - {format(new Date(proj.end_date), 'MMM d, yyyy')}
+              {format(parseDate(proj.start_date), 'MMM d')} - {format(parseDate(proj.end_date), 'MMM d, yyyy')}
             </span>
           )}
         </div>

@@ -35,7 +35,7 @@ export default function Account() {
   const accountRole = selectedAccount?.role;
   const roleLabel = accountRole ? accountRole.charAt(0) + accountRole.slice(1).toLowerCase() : '—';
   const isAdmin = USER_ADMIN_ROLES.includes(accountRole);
-  const canManageUsers = !!selectedAccountId && (isAdmin || user?.is_platform_admin);
+  const canManageUsers = !!selectedAccountId && isAdmin;
   const tabs = [
     { id: 'account', label: 'Account', icon: UserCircle },
     canManageUsers && { id: 'users', label: 'Users', icon: Users },

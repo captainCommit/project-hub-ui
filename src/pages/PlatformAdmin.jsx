@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, ArrowLeft, Building2, ChevronLeft, ChevronRight, CreditCard, Loader2, LogOut, RefreshCw, ScrollText, Shield } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
+import { isCognitoMode } from '@/lib/cognitoSession';
 import { cn } from '@/lib/utils';
 import { platformApi } from '@/api/platform';
 import { billingApi } from '@/api/billing';
@@ -20,6 +21,7 @@ const AUDIT_ACTION_LABELS = {
   'account.users_viewed': 'Viewed users',
   'account.user_invited': 'Invited user',
   'account.user_role_changed': 'Changed role',
+  'account.user_removed': 'Removed user',
   'account.users_bulk_invited': 'Bulk invited users',
   'account.billing_enabled': 'Turned billing on',
   'account.billing_disabled': 'Turned billing off',
@@ -306,7 +308,7 @@ export default function PlatformAdmin() {
             <p className="text-sm font-semibold truncate">Project Hub · Platform Admin</p>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            {accounts.length > 0 && (
+            {!isCognitoMode() && accounts.length > 0 && (
               <Link to="/" className="flex items-center gap-1.5 text-xs text-white/80 hover:text-white px-2 py-1.5 rounded-md hover:bg-white/10">
                 <ArrowLeft className="w-3.5 h-3.5" /> Back to app
               </Link>

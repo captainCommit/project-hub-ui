@@ -255,6 +255,11 @@ export const accountsApi = {
   /** Platform admins only: every account with its owners and admins. */
   listAllAccounts: async () => listItems(await apiClient.get('/api/v1/admin/accounts')).map(mapPlatformAccount),
   inviteUser: (accountId: string, data: unknown) => apiClient.post(`/api/v1/accounts/${accountId}/users/invite`, data),
+  /** Owners only: change anyone's account role, other owners included (one owner must remain). */
+  changeUserRole: (accountId: string, userId: string, role: ProjectHubAccountRole) =>
+    apiClient.patch(`/api/v1/accounts/${accountId}/users/${userId}`, { role }),
+  /** Owners only: remove someone from the account along with their access. */
+  removeUser: (accountId: string, userId: string) => apiClient.delete(`/api/v1/accounts/${accountId}/users/${userId}`),
   bulkInviteUsers: (accountId: string, data: unknown) => apiClient.post(`/api/v1/accounts/${accountId}/users/bulk-invite`, data),
   searchUsers: (accountId: string, query?: Record<string, unknown>) => apiClient.get(`/api/v1/accounts/${accountId}/users/search`, query),
 };

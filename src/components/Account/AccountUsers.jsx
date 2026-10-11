@@ -4,10 +4,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, UserPlus } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { KeyRound, Loader2, Trash2, UserPlus } from 'lucide-react';
 import { accountsApi } from '@/api/accounts';
+import { useAuth } from '@/lib/AuthContext';
 import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 import ModulePicker from '@/components/projects/ModulePicker';
+import UserAccessDialog from '@/components/Account/UserAccessDialog';
 
 const INVITE_ROLES = [
   { value: 'OWNER', label: 'Owner', hint: 'Account admin: users, settings and billing' },
@@ -30,13 +36,18 @@ const accessFromPick = (pick, modules) => {
 };
 
 /**
- * Members of one account, and a form to add someone. Adding emails them a Cognito invite.
- * With showAccessPicker (the account's own owners), the form can also give them a first portfolio, program or project.
+ * Members of one account, a form to add someone, and per-member role changes and removal.
+ * Adding emails them a Cognito invite.
+ * With showAccessPicker (the account's own owners), the form can also give them a first portfolio, program or project,
+ * and each member's access can be edited.
  */
 export default function AccountUsers({ accountId, showAccessPicker = false }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ email: '', full_name: '', role: 'MEMBER', pick: NO_ACCESS, modules: ['TASKS'] });
   const [notice, setNotice] = useState(null);
+  const [accessFor, setAccessFor] = useState(null);
+  const [removing, setRemoving] = useState(null);
+  const { user, refreshAccounts } = useAuth();
   const { portfolios, programs, projects } = useAccountHierarchy();
 
   const { data: members = [], isLoading } = useQuery({
@@ -65,6 +76,32 @@ export default function AccountUsers({ accountId, showAccessPicker = false }) {
       queryClient.invalidateQueries({ queryKey: ['platform-accounts'] });
     },
     onError: (error) => setNotice({ ok: false, text: error.message || 'Could not add the user.' }),
+  });
+
+  /** A change to your own membership changes what you can see, so reload your accounts too. */
+  const afterMemberChange = (member) => {
+    queryClient.invalidateQueries({ queryKey: accountMembersQueryKey(accountId) });
+    queryClient.invalidateQueries({ queryKey: ['platform-accounts'] });
+    queryClient.invalidateQueries({ queryKey: ['access-grants', accountId] });
+    if (member.id === user?.id) refreshAccounts(user);
+  };
+  const changeRole = useMutation({
+    mutationFn: (/** @type {{ member: any, role: string }} */ { member, role }) =>
+      accountsApi.changeUserRole(accountId, member.id, /** @type {any} */ (role)),
+    onSuccess: (_result, { member, role }) => {
+      setNotice({ ok: true, text: `${member.email}'s role is now ${roleLabel(role)}.` });
+      afterMemberChange(member);
+    },
+    onError: (error) => setNotice({ ok: false, text: error.message || 'Could not change the role.' }),
+  });
+  const removeUser = useMutation({
+    mutationFn: (/** @type {any} */ member) => accountsApi.removeUser(accountId, member.id),
+    onSuccess: (_result, member) => {
+      setNotice({ ok: true, text: `${member.email} was removed from the account.` });
+      setRemoving(null);
+      afterMemberChange(member);
+    },
+    onError: (error) => { setRemoving(null); setNotice({ ok: false, text: error.message || 'Could not remove the user.' }); },
   });
 
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -147,20 +184,70 @@ export default function AccountUsers({ accountId, showAccessPicker = false }) {
         ) : (
           <div className="divide-y divide-slate-100">
             {members.map((m) => (
-              <div key={m.id} className="flex items-center justify-between px-5 py-3">
+              <div key={m.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-5 py-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-800 truncate">{m.full_name || m.email}</p>
+                  <p className="text-sm font-medium text-slate-800 truncate">
+                    {m.full_name || m.email}
+                    {m.id === user?.id && <span className="ml-1.5 text-xs font-normal text-slate-400">(you)</span>}
+                  </p>
                   {m.full_name && <p className="text-xs text-slate-500 truncate">{m.email}</p>}
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
                   {!m.has_signed_in && <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Invited</span>}
-                  <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-slate-100 text-slate-600">{roleLabel(m.role)}</span>
+                  {showAccessPicker && (
+                    m.role === 'OWNER' ? (
+                      <span className="text-xs text-slate-400 px-2">Sees everything</span>
+                    ) : (
+                      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setAccessFor(m)}>
+                        <KeyRound className="w-3.5 h-3.5 mr-1" /> Access
+                      </Button>
+                    )
+                  )}
+                  <Select value={m.role} onValueChange={(role) => changeRole.mutate({ member: m, role })} disabled={changeRole.isPending}>
+                    <SelectTrigger className="h-8 w-28 text-xs" aria-label={`Role for ${m.full_name || m.email}`}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {INVITE_ROLES.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-400 hover:text-red-600"
+                    aria-label={`Remove ${m.full_name || m.email}`} onClick={() => setRemoving(m)}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {showAccessPicker && (
+        <UserAccessDialog
+          key={accessFor?.id}
+          open={!!accessFor}
+          onOpenChange={(open) => !open && setAccessFor(null)}
+          accountId={accountId}
+          member={accessFor}
+        />
+      )}
+
+      <AlertDialog open={!!removing} onOpenChange={(open) => !open && setRemoving(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {removing?.full_name || removing?.email}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {removing?.id === user?.id
+                ? "You'll lose access to this account straight away."
+                : 'They lose access to this account and everything in it. Their past work stays. You can add them again later.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => removeUser.mutate(removing)}>
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

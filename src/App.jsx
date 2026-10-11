@@ -43,7 +43,7 @@ const LayoutWrapper = ({ children, currentPageName }) => (
 );
 
 const AuthenticatedApp = () => {
-  const { user, accounts, isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, postLoginPath, checkAppState, logout } = useAuth();
+  const { user, isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, postLoginPath, checkAppState, logout } = useAuth();
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -92,16 +92,24 @@ const AuthenticatedApp = () => {
     }
   }
 
+  // Platform admins only ever see the admin portal, never an account's workspace.
+  // Local mode is exempt: its single dev user is both platform admin and account owner.
+  if (user?.is_platform_admin && isCognitoMode()) {
+    return (
+      <Routes>
+        <Route path="/admin" element={<PlatformAdmin />} />
+        <Route path="*" element={<Navigate to="/admin" replace />} />
+      </Routes>
+    );
+  }
+
   // Render the main app
   return (
     <Routes>
       <Route path="/" element={
-        // A platform admin who belongs to no account has nothing to see in the app itself.
-        user?.is_platform_admin && accounts.length === 0 ? <Navigate to="/admin" replace /> : (
-          <LayoutWrapper currentPageName={mainPageKey}>
-            <MainPage />
-          </LayoutWrapper>
-        )
+        <LayoutWrapper currentPageName={mainPageKey}>
+          <MainPage />
+        </LayoutWrapper>
       } />
       {Object.entries(Pages).map(([path, Page]) => (
         <Route

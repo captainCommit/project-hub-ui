@@ -14,8 +14,12 @@ export type ProjectActivityEntry = {
   details?: string;
   before?: unknown;
   after?: unknown;
+  // Readable field changes from the API (IDs already turned into names).
+  changes?: ActivityChange[];
   [key: string]: unknown;
 };
+
+export type ActivityChange = { field: string; label: string; old: string | null; new: string | null };
 
 export type ProjectAuditTimelineResult = {
   entries: ProjectActivityEntry[];
@@ -126,6 +130,17 @@ const mapActivityEntry = (entryInput: unknown): ProjectActivityEntry | null => {
   if (changes.after !== undefined) mapped.after = changes.after;
   if (entry.old_values !== undefined) mapped.before = entry.old_values;
   if (entry.new_values !== undefined) mapped.after = entry.new_values;
+  if (Array.isArray(entry.changes)) {
+    mapped.changes = (entry.changes as unknown[])
+      .map(getObject)
+      .filter(change => typeof change.label === 'string')
+      .map(change => ({
+        field: String(change.field ?? ''),
+        label: change.label as string,
+        old: typeof change.old === 'string' ? change.old : null,
+        new: typeof change.new === 'string' ? change.new : null,
+      }));
+  }
 
   if (!hasUsableEntryContent(mapped)) return null;
 

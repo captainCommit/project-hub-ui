@@ -4,19 +4,13 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useFavorites } from '@/lib/favorites';
+import { RAG, HealthDot, HealthLegend } from './HealthIndicator';
 
 const STATUS_MAP = {
   planning:  { label: 'Not Started', cls: 'bg-slate-100 text-slate-600' },
   active:    { label: 'In Progress', cls: 'bg-blue-100 text-blue-700' },
   on_hold:   { label: 'On Hold',     cls: 'bg-amber-100 text-amber-700' },
   completed: { label: 'Completed',   cls: 'bg-emerald-100 text-emerald-700' },
-};
-
-const RAG = {
-  red:   { label: 'Red',   dot: 'bg-red-500',    badge: 'bg-red-100 text-red-700' },
-  amber: { label: 'Amber', dot: 'bg-amber-400',  badge: 'bg-amber-100 text-amber-700' },
-  green: { label: 'Green', dot: 'bg-emerald-500',badge: 'bg-emerald-100 text-emerald-700' },
-  grey:  { label: '—',     dot: 'bg-slate-300',  badge: 'bg-slate-100 text-slate-500' },
 };
 
 function getRag(critHighRisks, critHighIssues, pct, projCount) {
@@ -139,6 +133,7 @@ export default function ProgramsLanding({ programs = [], projects = [], portfoli
             )}
           </div>
         )}
+        {programs.length > 0 && <HealthLegend greyDescription="No projects yet" className="mb-3" />}
         {programs.length === 0 ? (
           <div className="text-center py-20 text-slate-400">
             <FolderTree className="w-14 h-14 mx-auto mb-3 opacity-20" />
@@ -190,7 +185,7 @@ export default function ProgramsLanding({ programs = [], projects = [], portfoli
                      ) : <span className="text-xs text-slate-400">—</span>}
                    </td>
                    <td className="px-4 py-3">
-                     <span className={cn('w-3 h-3 rounded-full inline-block', rag.dot)} title={rag.label} />
+                     <HealthDot rag={rag} />
                    </td>
                    <td className="px-4 py-3 text-slate-700">{progProjects.length}</td>
                    <td className="px-4 py-3 text-xs">

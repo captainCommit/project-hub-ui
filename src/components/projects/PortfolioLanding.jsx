@@ -2,15 +2,8 @@ import React, { useState } from 'react';
 import { Building2, Plus, ChevronRight, FolderOpen, Star, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import { useFavorites } from '@/lib/favorites';
-
-const RAG = {
-  red:    { label: 'Red',   dot: 'bg-red-500',    badge: 'bg-red-100 text-red-700' },
-  amber:  { label: 'Amber', dot: 'bg-amber-400',  badge: 'bg-amber-100 text-amber-700' },
-  green:  { label: 'Green', dot: 'bg-emerald-500',badge: 'bg-emerald-100 text-emerald-700' },
-  grey:   { label: '—',     dot: 'bg-slate-300',  badge: 'bg-slate-100 text-slate-500' },
-};
+import { RAG, HealthDot, HealthLegend } from './HealthIndicator';
 
 function getRag(critHighRisks, critHighIssues, pct) {
   if (critHighIssues > 0 || critHighRisks > 3) return RAG.red;
@@ -91,6 +84,7 @@ export default function PortfolioLanding({ portfolios = [], programs = [], proje
             <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search portfolios..." className="pl-8 h-8 text-sm" />
           </div>
         )}
+        {portfolios.length > 0 && <HealthLegend greyDescription="No projects completed yet" className="mb-3" />}
         {portfolios.length === 0 ? (
           <div className="text-center py-20 text-slate-400">
             <FolderOpen className="w-14 h-14 mx-auto mb-3 opacity-20" />
@@ -136,7 +130,7 @@ export default function PortfolioLanding({ portfolios = [], programs = [], proje
                      ) : <span className="text-xs text-slate-400">—</span>}
                    </td>
                    <td className="px-4 py-3">
-                     <span className={cn('w-3 h-3 rounded-full inline-block', rag.dot)} title={rag.label} />
+                     <HealthDot rag={rag} />
                    </td>
                    <td className="px-4 py-3 text-slate-700">{portPrograms.length}</td>
                    <td className="px-4 py-3 text-slate-700">{portProjects.length}</td>

@@ -22,3 +22,24 @@ export const notificationsApi = {
   markRead: (notificationId: string) => apiClient.patch(`/api/v1/notifications/${notificationId}/read`),
   markAllRead: () => apiClient.patch('/api/v1/notifications/read-all'),
 };
+
+export type EmailFrequency = 'IMMEDIATE' | 'DIGEST' | 'OFF';
+export type EmailCategory = 'mentions' | 'assignments' | 'due_soon' | 'status_changes' | 'comments';
+
+export type NotificationPreferences = Record<EmailCategory, EmailFrequency> & {
+  timezone: string;
+  digest_hour: number;
+  email: string;
+  // False until the server has an email sender set up; settings still save.
+  email_available: boolean;
+  // The address bounced or reported spam, so nothing is sent to it.
+  email_suppressed: boolean;
+};
+
+export type NotificationPreferencesUpdate = Partial<Pick<NotificationPreferences, EmailCategory | 'timezone' | 'digest_hour'>>;
+
+export const notificationPreferencesApi = {
+  get: () => apiClient.get('/api/v1/me/notification-preferences') as Promise<NotificationPreferences>,
+  update: (changes: NotificationPreferencesUpdate) =>
+    apiClient.patch('/api/v1/me/notification-preferences', changes) as Promise<NotificationPreferences>,
+};

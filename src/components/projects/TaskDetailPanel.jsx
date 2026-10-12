@@ -1,14 +1,122 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Send, AtSign, Paperclip, Tag } from 'lucide-react';
-import { format } from 'date-fns';
+import { X, Send, AtSign, Paperclip, Tag, ChevronDown } from 'lucide-react';
+import { format, isValid, parseISO } from 'date-fns';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { accountsApi } from '@/api/accounts';
 import { attachmentsApi } from '@/api/attachments';
+import { tasksApi } from '@/api/tasks';
 import { buildCommentThreads, commentsApi } from '@/api/comments';
 import { useAuth } from '@/lib/AuthContext';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { toastError } from '@/components/ui/use-toast';
+
+const formatDay = (value) => {
+  const date = value ? parseISO(value) : null;
+  return date && isValid(date) ? format(date, 'MMM d, yyyy') : null;
+};
+
+const formatMoment = (value) => {
+  const date = value ? parseISO(value) : null;
+  return date && isValid(date) ? format(date, 'MMM d, yyyy, h:mm a') : null;
+};
+
+const formatHours = (hours) => (hours ? ` · ${Number(hours)}h` : '');
+
+const EMPTY = <span className="text-slate-400">—</span>;
+
+// Option colours come from account settings; only plain hex values are used for the tinted badge.
+function OptionBadge({ option }) {
+  if (!option) return EMPTY;
+  const hex = /^#[0-9a-f]{6}$/i.test(option.color || '') ? option.color : null;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium max-w-full"
+      style={hex ? { backgroundColor: `${hex}1f`, color: hex } : { backgroundColor: '#f1f5f9', color: '#475569' }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: hex || '#94a3b8' }} />
+      <span className="truncate">{option.label}</span>
+    </span>
+  );
+}
+
+function Field({ label, children, wide = false }) {
+  return (
+    <div className={cn('min-w-0', wide && 'col-span-2')}>
+      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1">{label}</p>
+      <div className="text-xs text-slate-700">{children}</div>
+    </div>
+  );
+}
+
+function TaskOverviewSection({ overview, isLoading, isError, onRetry, userName }) {
+  const [open, setOpen] = useState(true);
+  if (isLoading) return <div className="text-xs text-slate-400 py-3">Loading task details…</div>;
+  if (isError || !overview) {
+    return (
+      <div className="text-xs text-slate-500 py-3">
+        Task details could not load. <button onClick={onRetry} className="text-[#c87b14] font-medium hover:underline">Try again</button>
+      </div>
+    );
+  }
+
+  const assignees = [
+    ...overview.assignees.map(a => `${(a.userId && userName(a.userId)) || a.name || 'Unknown person'}${formatHours(a.hours)}`),
+    ...overview.allocations.map(a => `${a.resourceName}${formatHours(a.hours)}`),
+  ];
+  const createdBy = overview.createdById ? userName(overview.createdById) || 'Former member' : null;
+  const progress = Math.max(0, Math.min(100, Math.round(overview.percentComplete)));
+
+  return (
+    <div className="rounded-lg border border-slate-200">
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-3 py-2 text-left">
+        <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Details</span>
+        <ChevronDown className={cn('w-3.5 h-3.5 text-slate-400 transition-transform', !open && '-rotate-90')} />
+      </button>
+      {open && (
+        <div className="px-3 pb-3 pt-3 space-y-3 border-t border-slate-100">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+            <Field label="Status"><OptionBadge option={overview.status} /></Field>
+            <Field label="Priority"><OptionBadge option={overview.priority} /></Field>
+            <Field label="Type">{overview.taskType?.label || EMPTY}</Field>
+            <Field label="Sprint">{overview.sprintName || EMPTY}</Field>
+            <Field label="Assigned to" wide>
+              {assignees.length ? (
+                <div className="flex flex-wrap gap-1">
+                  {assignees.map((name, i) => (
+                    <span key={i} className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px]">{name}</span>
+                  ))}
+                </div>
+              ) : <span className="text-slate-400">Unassigned</span>}
+            </Field>
+            <Field label="Start">{formatDay(overview.startDate) || EMPTY}</Field>
+            <Field label="Due">{formatDay(overview.finishDate) || EMPTY}</Field>
+            <Field label="Duration">
+              {overview.durationDays !== null ? `${overview.durationDays} day${overview.durationDays === 1 ? '' : 's'}` : EMPTY}
+            </Field>
+            <Field label="Story points">{overview.storyPoints ?? EMPTY}</Field>
+            <Field label="Progress" wide>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${progress}%`, backgroundColor: progress === 100 ? '#16a34a' : '#c87b14' }} />
+                </div>
+                <span className="text-[11px] text-slate-500 w-9 text-right">{progress}%</span>
+              </div>
+            </Field>
+            <Field label="Created by">{createdBy || EMPTY}</Field>
+            <Field label="Created">{formatMoment(overview.createdAt) || EMPTY}</Field>
+            <Field label="Last updated" wide>{formatMoment(overview.updatedAt) || EMPTY}</Field>
+          </div>
+          <Field label="Description" wide>
+            {overview.description
+              ? <p className="whitespace-pre-wrap break-words leading-relaxed text-slate-600">{overview.description}</p>
+              : <span className="text-slate-400">No description.</span>}
+          </Field>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function TaskDetailPanel({ task, resources = [], onClose, onUpdate }) {
   const [title, setTitle] = useState(task?.title || '');
@@ -39,6 +147,16 @@ export default function TaskDetailPanel({ task, resources = [], onClose, onUpdat
     },
     enabled: !!selectedAccountId,
   });
+  // Board cards and sheet rows carry only part of a task, so load the full record for the overview.
+  const overviewQuery = useQuery({
+    queryKey: ['task-overview', task?.id],
+    queryFn: () => tasksApi.getOverview(task.id),
+    enabled: !!task?.id,
+  });
+  const userName = (userId) => {
+    const user = users.find(u => u.id === userId);
+    return user ? user.full_name || user.email : null;
+  };
 
   useEffect(() => {
     const h = (e) => { if (tagRef.current && !tagRef.current.contains(e.target)) setTagOpen(false); };
@@ -129,8 +247,16 @@ export default function TaskDetailPanel({ task, resources = [], onClose, onUpdat
           </button>
         </div>
 
-        {/* Messages */}
+        {/* Overview + messages */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+          <TaskOverviewSection
+            overview={overviewQuery.data}
+            isLoading={overviewQuery.isLoading}
+            isError={overviewQuery.isError}
+            onRetry={() => overviewQuery.refetch()}
+            userName={userName}
+          />
+          <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Updates</p>
           {comments.length === 0 && (
             <div className="text-center text-xs text-slate-400 py-8">No updates yet. Share an update below.</div>
           )}

@@ -3,11 +3,12 @@ import { useAuth } from '@/lib/AuthContext';
 import { cn } from '@/lib/utils';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import SettingsContent from '@/components/projects/SettingsContent';
-import { CreditCard, UserCircle, Settings as SettingsIcon, Users } from 'lucide-react';
+import { Bell, CreditCard, UserCircle, Settings as SettingsIcon, Users } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import ProfileEditor from '@/components/Account/ProfileEditor';
 import AccountUsers from '@/components/Account/AccountUsers';
 import AccountBilling from '@/components/Account/AccountBilling';
+import NotificationPreferences from '@/components/Account/NotificationPreferences';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
@@ -26,7 +27,7 @@ function InfoRow({ label, value }) {
 
 export default function Account() {
   const [searchParams] = useSearchParams();
-  // Stripe Checkout and the billing portal send owners back to ?tab=billing.
+  // Stripe Checkout and the billing portal send owners back to ?tab=billing; notification emails link to ?tab=notifications.
   const [tab, setTab] = useState(() => searchParams.get('tab') || 'account');
   const { user, appPublicSettings, accounts, selectedAccount, selectedAccountId, setSelectedAccountId } = useAuth();
 
@@ -38,6 +39,7 @@ export default function Account() {
   const canManageUsers = !!selectedAccountId && isAdmin;
   const tabs = [
     { id: 'account', label: 'Account', icon: UserCircle },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
     canManageUsers && { id: 'users', label: 'Users', icon: Users },
     isAdmin && { id: 'billing', label: 'Billing', icon: CreditCard },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
@@ -94,6 +96,12 @@ export default function Account() {
                 <InfoRow label="Plan" value={plan} />
                 <InfoRow label="Sheets Owned" value={sheetsOwned} />
               </div>
+            </div>
+          </div>
+        ) : tab === 'notifications' ? (
+          <div className="flex-1 overflow-auto p-8">
+            <div className="max-w-3xl">
+              <NotificationPreferences />
             </div>
           </div>
         ) : tab === 'users' && canManageUsers ? (

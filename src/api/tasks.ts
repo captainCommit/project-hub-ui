@@ -1203,6 +1203,75 @@ export const mapTaskFormToPayload = (input: unknown): Record<string, unknown> =>
   return payload;
 };
 
+// Everything the task detail panel shows about one task (GET /tasks/{id}).
+export type TaskOverviewOption = { label: string; color: string | null };
+
+export type TaskOverview = {
+  id: string;
+  name: string;
+  description: string;
+  status: TaskOverviewOption | null;
+  priority: TaskOverviewOption | null;
+  taskType: TaskOverviewOption | null;
+  sprintName: string | null;
+  startDate: string | null;
+  finishDate: string | null;
+  durationDays: number | null;
+  percentComplete: number;
+  storyPoints: number | null;
+  createdById: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  // Account users (userId) or named people without an account (name only).
+  assignees: { userId: string | null; name: string | null; hours: number | null }[];
+  // Resources booked on the task in resource management.
+  allocations: { resourceName: string; hours: number | null }[];
+};
+
+const overviewText = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value : null);
+const overviewNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+const overviewOption = (value: unknown): TaskOverviewOption | null => {
+  const option = typeof value === 'object' && value ? value as Record<string, unknown> : null;
+  const label = overviewText(option?.label) ?? overviewText(option?.value);
+  return label ? { label, color: overviewText(option?.color) } : null;
+};
+
+export const mapTaskReadToTaskOverview = (input: unknown): TaskOverview | null => {
+  const task = typeof input === 'object' && input ? input as Record<string, unknown> : null;
+  if (!task || typeof task.id !== 'string') return null;
+  const rows = (value: unknown) => (Array.isArray(value) ? value : []) as Record<string, unknown>[];
+  const sprint = typeof task.sprint === 'object' && task.sprint ? task.sprint as Record<string, unknown> : null;
+  return {
+    id: task.id,
+    name: overviewText(task.name) ?? '',
+    description: overviewText(task.description) ?? '',
+    status: overviewOption(task.status),
+    priority: overviewOption(task.priority),
+    taskType: overviewOption(task.task_type),
+    sprintName: overviewText(sprint?.name),
+    startDate: overviewText(task.start_date),
+    finishDate: overviewText(task.finish_date),
+    durationDays: overviewNumber(task.duration_days),
+    percentComplete: overviewNumber(task.percent_complete) ?? 0,
+    storyPoints: overviewNumber(task.story_points),
+    createdById: overviewText(task.created_by),
+    createdAt: overviewText(task.created_at),
+    updatedAt: overviewText(task.updated_at),
+    assignees: rows(task.assignments).map(row => ({
+      userId: overviewText(row.user_id),
+      name: overviewText(row.resource_name),
+      hours: overviewNumber(row.hours),
+    })),
+    allocations: rows(task.allocations)
+      .filter(row => overviewText(row.resource_name))
+      .map(row => ({ resourceName: row.resource_name as string, hours: overviewNumber(row.allocated_hours) })),
+  };
+};
+
 export const tasksApi = {
   list: (projectId: string, query?: Record<string, unknown>) => apiClient.get(`/api/v1/projects/${projectId}/tasks`, query),
   create: (projectId: string, data: unknown) => apiClient.post(`/api/v1/projects/${projectId}/tasks`, data),
@@ -1216,6 +1285,7 @@ export const tasksApi = {
     apiClient.post(`/api/v1/projects/${projectId}/tasks/import`, data),
   reorder: (projectId: string, data: unknown) => apiClient.post(`/api/v1/projects/${projectId}/tasks/reorder`, mapProjectTaskReorderToPayload(data)),
   get: (taskId: string) => apiClient.get(`/api/v1/tasks/${taskId}`),
+  getOverview: async (taskId: string) => mapTaskReadToTaskOverview(await apiClient.get(`/api/v1/tasks/${taskId}`)),
   update: (taskId: string, data: unknown) => apiClient.patch(`/api/v1/tasks/${taskId}`, data),
   updatePriority: (taskId: string, data: unknown) => apiClient.patch(`/api/v1/tasks/${taskId}`, mapTaskSheetInputToPriorityUpdatePayload(data)),
   updateTaskType: (taskId: string, data: unknown) => apiClient.patch(`/api/v1/tasks/${taskId}`, mapTaskSheetInputToTaskTypeUpdatePayload(data)),

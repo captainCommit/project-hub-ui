@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageSquare, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { confirmAction } from '@/components/ui/confirm-dialog';
 
 const priorityColors = {
   low: 'bg-blue-100 text-blue-700',
@@ -78,7 +79,7 @@ export default function RiskIssueDetail({
         <div className="flex items-center gap-1 flex-shrink-0">
           {onDelete && (
             <Button size="sm" variant="ghost" className="h-7 text-red-400 hover:text-red-600 text-xs"
-              onClick={() => { if (window.confirm(`Delete this ${label.toLowerCase()}? This cannot be undone.`)) { onDelete(item.id); onOpenChange(false); } }}>
+              onClick={async () => { if (await confirmAction({ title: `Delete this ${label.toLowerCase()}?`, description: 'This cannot be undone.' })) { onDelete(item.id); onOpenChange(false); } }}>
               Delete
             </Button>
           )}

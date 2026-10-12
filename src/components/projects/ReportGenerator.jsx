@@ -6,6 +6,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import pptxgen from 'pptxgenjs';
 import { aiApi } from '@/api/ai';
+import { toastError } from '@/components/ui/use-toast';
 
 const REPORT_TYPES = [
   {
@@ -252,7 +253,7 @@ export default function ReportGenerator({ scope = 'project', project, program, p
       }
       setOpen(false);
     } catch (error) {
-      window.alert(error.message);
+      toastError(error.message);
     } finally {
       setGenerating(null);
     }

@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { differenceInDays, format, min, max } from 'date-fns';
+import { format, min, max } from 'date-fns';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -18,6 +17,8 @@ import FormattingToolbar from './FormattingToolbar';
 
 
 import { parseDate } from '@/lib/dateUtils';
+import { confirmAction } from '@/components/ui/confirm-dialog';
+import { toastError } from '@/components/ui/use-toast';
 const statusOptions = [
   { value: 'not_started', label: 'Not Started', color: 'bg-slate-200 text-slate-700' },
   { value: 'in_progress', label: 'In Progress', color: 'bg-blue-100 text-blue-700' },
@@ -72,27 +73,43 @@ const PriorityBadge = ({ option, label, className }) => {
 };
 
 const DEFAULT_COL_WIDTHS = {
-  row: 40, attachments: 48, task_type: 64, title: 220, status: 96, priority: 112,
+  row: 40, attachments: 48, task_type: 64, title: 260, status: 136, priority: 112,
   duration: 56, start_date: 115, due_date: 115, predecessors: 56,
-  resources: 128, resources_planned: 128, progress: 80, raid: 176
+  resources: 160, resources_planned: 160, progress: 90, raid: 176
 };
 
+// `row` and `title` are always shown and stay frozen while the sheet scrolls sideways.
 const columns = [
-  { key: 'row',          label: '',          align: 'center' },
-  { key: 'attachments',  label: '',          align: 'center' },
-  { key: 'task_type',    label: 'Type',      align: 'center' },
-  { key: 'title',        label: 'Task Name', align: 'left'   },
+  { key: 'row',          label: '',          align: 'center', required: true },
+  { key: 'title',        label: 'Task Name', align: 'left',   required: true },
   { key: 'status',       label: 'Status',    align: 'center' },
-  { key: 'priority',     label: 'Priority',  align: 'center' },
-  { key: 'progress',     label: '% Complete', align: 'center' },
-  { key: 'duration',     label: 'Dur.',      align: 'center' },
+  { key: 'resources',    label: 'Owner',     align: 'left' },
   { key: 'start_date',   label: 'Start',     align: 'center' },
   { key: 'due_date',     label: 'Finish',    align: 'center' },
-  { key: 'predecessors', label: 'Pred.',     align: 'center' },
-  { key: 'resources',    label: 'Resources (Actual)', align: 'left'   },
-  { key: 'resources_planned', label: 'Resources (Planned)', align: 'left' },
-  { key: 'raid',         label: 'Related Record', align: 'left'   }
+  { key: 'progress',     label: '% Complete', align: 'center' },
+  { key: 'task_type',    label: 'Type',      align: 'center' },
+  { key: 'priority',     label: 'Priority',  align: 'center' },
+  { key: 'duration',     label: 'Dur.',      menuLabel: 'Duration', align: 'center' },
+  { key: 'predecessors', label: 'Pred.',     menuLabel: 'Predecessors', align: 'center' },
+  { key: 'resources_planned', label: 'Planned Resources', align: 'left' },
+  { key: 'attachments',  label: '',          menuLabel: 'Attachments', align: 'center' },
+  { key: 'raid',         label: 'Related Record', align: 'left' }
 ];
+
+const DEFAULT_VISIBLE_COLUMN_KEYS = ['status', 'resources', 'start_date', 'due_date', 'progress'];
+const VISIBLE_COLUMNS_STORAGE_KEY = 'task_sheet_visible_columns';
+const FROZEN_COLUMN_KEYS = ['row', 'title'];
+const FROZEN_EDGE_CLASS = 'shadow-[inset_-1px_0_0_#cbd5e1,4px_0_6px_-4px_rgba(15,23,42,0.15)]';
+
+const readStoredColumnKeys = () => {
+  try {
+    const stored = JSON.parse(localStorage.getItem(VISIBLE_COLUMNS_STORAGE_KEY));
+    if (Array.isArray(stored)) return stored.filter(key => columns.some(column => column.key === key && !column.required));
+  } catch {
+    // Fall through to the default set.
+  }
+  return DEFAULT_VISIBLE_COLUMN_KEYS;
+};
 
 export default function TaskSheet({ 
   tasks, 
@@ -140,7 +157,10 @@ export default function TaskSheet({
   projectId = null,
   onGoBack,
   readOnly = false,
-  hideProjectHeader = false
+  hideProjectHeader = false,
+  focusTaskId = null,
+  focusMode = false,
+  onToggleFocusMode
 }) {
   const queryClient = useQueryClient();
   const [colWidths, setColWidths] = useState(DEFAULT_COL_WIDTHS);
@@ -166,6 +186,36 @@ export default function TaskSheet({
   const [resourcePicker, setResourcePicker] = useState(null);
   const [pendingResourceAssignmentTaskIds, setPendingResourceAssignmentTaskIds] = useState({});
   const [resourceAssignmentErrors, setResourceAssignmentErrors] = useState({});
+  const [highlightedTaskId, setHighlightedTaskId] = useState(null);
+  const [visibleColumnKeys, setVisibleColumnKeys] = useState(readStoredColumnKeys);
+  const focusedTaskRef = useRef(null);
+
+  // Deep links (?task=) expand the task's ancestors, then scroll to and briefly highlight its row.
+  useEffect(() => {
+    if (!focusTaskId) { focusedTaskRef.current = null; return; }
+    if (focusedTaskRef.current === focusTaskId) return;
+    const byId = new Map((tasks || []).map(task => [task.id, task]));
+    if (!byId.has(focusTaskId)) return;
+    focusedTaskRef.current = focusTaskId;
+    const ancestorIds = [];
+    let parentId = byId.get(focusTaskId)?.parent_task_id;
+    while (parentId && byId.has(parentId) && !ancestorIds.includes(parentId)) {
+      ancestorIds.push(parentId);
+      parentId = byId.get(parentId)?.parent_task_id;
+    }
+    if (ancestorIds.length) setExpandedRows(prev => [...new Set([...prev, ...ancestorIds])]);
+    setHighlightedTaskId(focusTaskId);
+  }, [focusTaskId, tasks]);
+
+  useEffect(() => {
+    if (!highlightedTaskId) return;
+    // Wait a tick so rows under newly expanded ancestors have rendered.
+    const scrollTimer = setTimeout(() => {
+      document.querySelector(`tr[data-task-id="${CSS.escape(highlightedTaskId)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 50);
+    const clearTimer = setTimeout(() => setHighlightedTaskId(null), 4000);
+    return () => { clearTimeout(scrollTimer); clearTimeout(clearTimer); };
+  }, [highlightedTaskId]);
   const pendingResourceAssignmentRequests = useRef(new Set());
   const isReadOnly = Boolean(readOnly);
   const isPriorityEditable = !isReadOnly || Boolean(onUpdateTaskPriority);
@@ -183,7 +233,27 @@ export default function TaskSheet({
   // A read-only sheet still takes new rows when the page hands it an onAddTask (the API-backed project sheet does).
   const canAddTasks = Boolean(onAddTask);
   const showPriorityColumn = Boolean(onUpdateTaskPriority || priorityOptionsState || priorityOptions.length > 0);
-  const visibleColumns = showPriorityColumn ? columns : columns.filter(column => column.key !== 'priority');
+  const columnOptions = columns.filter(column => !column.required && (showPriorityColumn || column.key !== 'priority'));
+  const visibleColumns = columns.filter(column => column.required || (visibleColumnKeys.includes(column.key) && columnOptions.includes(column)));
+  const tableMinWidth = visibleColumns.reduce((total, column) => total + (colWidths[column.key] || 0), 0);
+  const frozenColumnLeft = { row: 0, title: colWidths.row };
+
+  const saveVisibleColumnKeys = (keys) => {
+    setVisibleColumnKeys(keys);
+    try { localStorage.setItem(VISIBLE_COLUMNS_STORAGE_KEY, JSON.stringify(keys)); } catch { /* storage unavailable */ }
+  };
+  const toggleColumn = (key) => saveVisibleColumnKeys(
+    visibleColumnKeys.includes(key) ? visibleColumnKeys.filter(k => k !== key) : [...visibleColumnKeys, key]
+  );
+
+  // Pin the row number and Task Name while scrolling sideways; the title column draws the frozen edge.
+  const freezeCell = (column, cell) => {
+    if (!FROZEN_COLUMN_KEYS.includes(column.key) || !React.isValidElement(cell)) return cell;
+    return React.cloneElement(cell, {
+      className: cn('bg-white group-hover:bg-slate-50', cell.props.className, 'sticky z-[1]', column.key === 'title' && FROZEN_EDGE_CLASS),
+      style: { ...cell.props.style, left: frozenColumnLeft[column.key] },
+    });
+  };
 
   const assignmentTaskId = canEditResourceAssignments && editingResources ? editingResources : null;
   const taskAssignmentsQuery = useQuery({
@@ -205,7 +275,8 @@ export default function TaskSheet({
 
   const deleteTaskSafe = async (id) => {
     if (!canDeleteTask || deletingTaskIds[id]) return;
-    if (!window.confirm('Delete this task?')) return;
+    const taskTitle = tasks.find(task => task.id === id)?.title;
+    if (!await confirmAction({ title: 'Delete this task?', description: taskTitle ? `"${taskTitle}" will be removed.` : undefined })) return;
     try {
       await Promise.resolve(onDeleteTask(id));
       setSelectedCell(prev => prev && prev.startsWith(`${id}-`) ? null : prev);
@@ -527,7 +598,7 @@ export default function TaskSheet({
           .then(() => onCommit(next))
           .catch(error => {
             input.value = initial;
-            alert(getBackendSafeMessage(error, error?.message || 'We could not save this change. Please try again.'));
+            toastError(getBackendSafeMessage(error, error?.message || 'We could not save this change. Please try again.'));
           });
       },
       onKeyDown: (e) => {
@@ -634,7 +705,7 @@ export default function TaskSheet({
     } catch (error) {
       const message = getBackendSafeMessage(error, error?.message || 'We could not update this task assignment. Please try again.');
       setResourceAssignmentErrors(prev => ({ ...prev, [taskId]: message }));
-      alert(message);
+      toastError(message);
     } finally {
       pendingResourceAssignmentRequests.current.delete(requestKey);
       setResourceAssignmentPending(taskId, false);
@@ -876,7 +947,7 @@ export default function TaskSheet({
       const draggedParentId = draggedTask.parent_task_id || null;
       const destinationParentId = destinationTask.parent_task_id || null;
       if (draggedParentId !== destinationParentId) {
-        alert('Tasks can only be reordered within the same parent in this step.');
+        toastError('Tasks can only be reordered within the same parent in this step.', "Can't move there");
         return;
       }
 
@@ -1272,7 +1343,7 @@ export default function TaskSheet({
                 }
                 if (value === task.task_type_id) return;
                 Promise.resolve(onUpdateTaskType(task.id, { task_type_id: value }))
-                  .catch(error => alert(getBackendSafeMessage(error, 'We could not save this task type. Please try again.')));
+                  .catch(error => toastError(getBackendSafeMessage(error, 'We could not save this task type. Please try again.')));
               }}
               disabled={!useApiTypes && isReadOnly}
             >
@@ -1551,7 +1622,7 @@ export default function TaskSheet({
                 }
                 if (value === task.status_id) return;
                 Promise.resolve(onUpdateTaskStatus(task.id, { status_id: value }))
-                  .catch(error => alert(getBackendSafeMessage(error, 'We could not save this status. Please try again.')));
+                  .catch(error => toastError(getBackendSafeMessage(error, 'We could not save this status. Please try again.')));
               }}
               disabled={!canEditStatus}
             >
@@ -1866,8 +1937,10 @@ export default function TaskSheet({
                   ref={provided.innerRef}
                   {...provided.draggableProps}
                   {...provided.dragHandleProps}
+                  data-task-id={task.id}
                   className={cn(
                     "group border-b border-slate-200 cursor-pointer",
+                    highlightedTaskId === task.id && 'outline outline-2 -outline-offset-2 outline-amber-400 bg-amber-50',
                     task.status === 'complete' ? 'bg-emerald-50/40 hover:bg-emerald-50/60' :
                     task.status === 'blocked' ? 'bg-red-50/40 hover:bg-red-50/60' :
                     task.status === 'on_hold' ? 'bg-amber-50/40 hover:bg-amber-50/60' :
@@ -1875,7 +1948,7 @@ export default function TaskSheet({
                     'hover:bg-blue-50/30'
                   )}
                 >
-                  {visibleColumns.map(col => renderCell(task, col, allTasks, projectColor))}
+                  {visibleColumns.map(col => freezeCell(col, renderCell(task, col, allTasks, projectColor)))}
                 </tr>
               </ContextMenuTrigger>
               <ContextMenuContent>
@@ -2057,31 +2130,36 @@ export default function TaskSheet({
       {renderPortfolioSummary()}
 
       {/* Formatting Toolbar joined with spreadsheet */}
-      <FormattingToolbar 
+      <FormattingToolbar
         formatting={cellFormatting[selectedCell] || {}}
         onFormattingChange={handleFormatChange}
-        onSave={() => console.log('Save')}
         onIndent={canIndentSelectedTasks ? handleIndent : undefined}
         onOutdent={canOutdentSelectedTasks ? handleOutdent : undefined}
         indentDisabled={!canIndentSelectedTasks}
         outdentDisabled={!canOutdentSelectedTasks}
-        onBulkInsert={() => { if (!isReadOnly) setBulkInsertDialogOpen(true); }}
+        onBulkInsert={isReadOnly ? undefined : () => setBulkInsertDialogOpen(true)}
         selectedCell={selectedCell}
-        tasks={displayTasks}
-        project={project}
+        columnOptions={columnOptions}
+        visibleColumnKeys={visibleColumnKeys}
+        onToggleColumn={toggleColumn}
+        onResetColumns={() => saveVisibleColumnKeys(DEFAULT_VISIBLE_COLUMN_KEYS)}
+        focusMode={focusMode}
+        onToggleFocusMode={onToggleFocusMode}
       />
 
       <div className="flex-1 overflow-auto bg-white border-x border-b border-slate-300 shadow-sm">
         <DragDropContext onDragEnd={handleDragEnd}>
-          <table className="w-full border-collapse" style={{ minWidth: '1200px' }}>
-            <thead className="sticky top-0 z-10">
-              <tr className="bg-gradient-to-b from-slate-100 to-slate-200 border-b-2 border-slate-300">
+          <table className="w-full border-collapse" style={{ minWidth: tableMinWidth }}>
+            <thead>
+              <tr className="border-b-2 border-slate-300">
                 {visibleColumns.map(col => (
                   <th
                     key={col.key}
-                    style={{ width: colWidths[col.key], minWidth: colWidths[col.key] }}
+                    style={{ width: colWidths[col.key], minWidth: colWidths[col.key], ...(FROZEN_COLUMN_KEYS.includes(col.key) ? { left: frozenColumnLeft[col.key] } : {}) }}
                     className={cn(
-                      "relative py-2 px-2 text-xs font-semibold text-slate-700 border-r border-slate-300 select-none overflow-hidden",
+                      "sticky top-0 z-10 bg-slate-100 py-2 px-2 text-xs font-semibold text-slate-700 border-r border-slate-300 select-none overflow-hidden whitespace-nowrap",
+                      FROZEN_COLUMN_KEYS.includes(col.key) && "z-20",
+                      col.key === 'title' && FROZEN_EDGE_CLASS,
                       col.align === 'center' && "text-center"
                     )}
                   >
@@ -2113,20 +2191,22 @@ export default function TaskSheet({
                       })()}
                       {provided.placeholder}
                       {Array.from({ length: 12 }, (_, i) => (
-                        <tr key={`phantom-${i}`} className="border-b border-slate-100 hover:bg-blue-50/20">
-                          <td className="border-r border-slate-200 px-1 h-8 text-xs text-slate-200 font-mono bg-slate-50 text-center w-10 select-none">{displayTasks.length + i + 1}</td>
-                          <td className="border-r border-slate-200 w-12 bg-slate-50 h-8" />
-                          <td className="border-r border-slate-200 w-16 bg-slate-50 h-8" />
-                          <td className="border-r border-slate-200 min-w-[220px] h-8">
-                            <input
-                              readOnly={!canAddTasks}
-                              placeholder={canAddTasks && i === 0 ? 'Type a task name and press Enter' : undefined}
-                              className="w-full h-8 px-2 text-sm bg-transparent border-0 outline-none focus:ring-1 focus:ring-blue-300 rounded text-slate-700 placeholder:text-slate-300"
-                              onBlur={e => { if (!canAddTasks) return; const t = e.target.value.trim(); if (t) { addTaskSafe({ title: t, project_id: project?.id, order: displayTasks.length + i, task_type: 'activity', duration: 1 }); e.target.value = ''; } }}
-                              onKeyDown={e => { if (!canAddTasks) return; if (e.key === 'Enter') { const t = e.target.value.trim(); if (t) { addTaskSafe({ title: t, project_id: project?.id, order: displayTasks.length + i, task_type: 'activity', duration: 1 }); e.target.value = ''; } } }}
-                            />
-                          </td>
-                          {visibleColumns.slice(4).map(col => <td key={col.key} className={cn('border-r border-slate-200 h-8', col.width)} />)}
+                        <tr key={`phantom-${i}`} className="group border-b border-slate-100 hover:bg-blue-50/20">
+                          {visibleColumns.map(col => {
+                            if (col.key === 'row') return freezeCell(col, <td key={col.key} className="border-r border-slate-200 px-1 h-8 text-xs text-slate-200 font-mono bg-slate-50 text-center select-none">{displayTasks.length + i + 1}</td>);
+                            if (col.key === 'title') return freezeCell(col, (
+                              <td key={col.key} className="border-r border-slate-200 h-8">
+                                <input
+                                  readOnly={!canAddTasks}
+                                  placeholder={canAddTasks && i === 0 ? 'Type a task name and press Enter' : undefined}
+                                  className="w-full h-8 px-2 text-sm bg-transparent border-0 outline-none focus:ring-1 focus:ring-blue-300 rounded text-slate-700 placeholder:text-slate-300"
+                                  onBlur={e => { if (!canAddTasks) return; const t = e.target.value.trim(); if (t) { addTaskSafe({ title: t, project_id: project?.id, order: displayTasks.length + i, task_type: 'activity', duration: 1 }); e.target.value = ''; } }}
+                                  onKeyDown={e => { if (!canAddTasks) return; if (e.key === 'Enter') { const t = e.target.value.trim(); if (t) { addTaskSafe({ title: t, project_id: project?.id, order: displayTasks.length + i, task_type: 'activity', duration: 1 }); e.target.value = ''; } } }}
+                                />
+                              </td>
+                            ));
+                            return <td key={col.key} className="border-r border-slate-200 h-8" />;
+                          })}
                         </tr>
                       ))}
                     </>

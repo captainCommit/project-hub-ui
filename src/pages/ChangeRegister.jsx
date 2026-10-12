@@ -4,7 +4,6 @@ import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import { FileEdit, Loader2, X, MessageSquare, Download } from 'lucide-react';
 import SavedFilterView from '@/components/projects/SavedFilterView';
 import MultiSelectFilter from '@/components/projects/MultiSelectFilter';
-import { getRaidStatuses, getStatusColor } from '@/lib/raidStatuses';
 import { exportRecords } from '@/lib/exportUtils';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { useAccountChangeRequests, useAccountDecisions, useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
 import { changeRequestsApi, mapChangeRequestFromApi, mapChangeRequestInputToPayload } from '@/api/projectLogs';
 import { raidApi } from '@/api/raid';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 
 const CR_STATUSES = [
   { value: 'draft', label: 'Draft', color: 'bg-slate-100 text-slate-600' },
@@ -299,7 +299,7 @@ function CRDetailPanel({ cr, resources = [], decisions = [], getRelatedDecisions
           <h2 className="text-sm font-semibold text-slate-800 truncate">{local.title || 'Change Request Detail'}</h2>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          {onDelete && <Button size="sm" variant="ghost" className="h-7 text-red-400 hover:text-red-600 text-xs" onClick={() => { if (window.confirm('Delete this change request? This cannot be undone.')) onDelete(); }}>Delete</Button>}
+          {onDelete && <Button size="sm" variant="ghost" className="h-7 text-red-400 hover:text-red-600 text-xs" onClick={async () => { if (await confirmAction({ title: 'Delete this change request?', description: 'This cannot be undone.' })) onDelete(); }}>Delete</Button>}
           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onClose}><X className="w-4 h-4" /></Button>
         </div>
       </div>

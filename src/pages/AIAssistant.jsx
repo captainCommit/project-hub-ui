@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { aiAgents } from '@/api/ai';
-import { Compass, Send, Plus, Trash2, MessageSquare } from 'lucide-react';
+import { Compass, Send, Plus, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import ReactMarkdown from 'react-markdown';

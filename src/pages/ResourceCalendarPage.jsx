@@ -3,7 +3,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { parseISO, isValid } from "date-fns";
 import { Plus, Trash2, X, AlertTriangle, Search, Edit2, Calendar, List, Download, Users } from "lucide-react";
@@ -13,6 +12,7 @@ import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import { mapTaskToUserStory, vacationsApi } from '@/api/accountData';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAccountHierarchy, useAccountResources, useAccountSprints, useAccountTasks, useAccountVacations } from '@/hooks/useAccountLookups';
+import { toastError } from '@/components/ui/use-toast';
 
 const COLOR_DOTS = [
   'bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-orange-500',
@@ -46,8 +46,8 @@ export default function ResourceCalendarPage({ embedded = false }) {
   const resourceRecords = useAccountResources();
 
   const invalidateVacations = () => queryClient.invalidateQueries({ queryKey: ['account-time-off'] });
-  const createVacation = useMutation({ mutationFn: (data) => vacationsApi.create(resourceRecords, data), onSuccess: () => { invalidateVacations(); resetForm(); }, onError: (error) => window.alert(error.message) });
-  const updateVacation = useMutation({ mutationFn: ({ id, data }) => vacationsApi.update(resourceRecords, id, data, vacations.find(v => v.id === id)), onSuccess: () => { invalidateVacations(); resetForm(); }, onError: (error) => window.alert(error.message) });
+  const createVacation = useMutation({ mutationFn: (data) => vacationsApi.create(resourceRecords, data), onSuccess: () => { invalidateVacations(); resetForm(); }, onError: (error) => toastError(error.message) });
+  const updateVacation = useMutation({ mutationFn: ({ id, data }) => vacationsApi.update(resourceRecords, id, data, vacations.find(v => v.id === id)), onSuccess: () => { invalidateVacations(); resetForm(); }, onError: (error) => toastError(error.message) });
   const deleteVacation = useMutation({ mutationFn: (id) => vacationsApi.delete(id), onSuccess: invalidateVacations });
 
   const resetForm = () => { setFormData({ resource_name: '', start_date: '', end_date: '', notes: '' }); setEditingId(null); setShowForm(false); };

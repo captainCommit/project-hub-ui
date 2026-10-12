@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { templatesApi } from '@/api/collaboration';
 import { useAuth } from '@/lib/AuthContext';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 
 const STANDARD_COLUMNS = [
   { key: 'task_type',    label: 'Type',         type: 'text' },
@@ -408,7 +409,7 @@ export default function TemplatesView() {
         <TemplateCard template={SYSTEM_TEMPLATE} onView={() => setViewModalOpen(true)} />
         {projectTemplates.map(template => (
           <TemplateCard key={template.id} template={template}
-            onDelete={id => window.confirm('Delete this template?') && deleteTemplate.mutate(id)} />
+            onDelete={async id => { if (await confirmAction({ title: 'Delete this template?', description: 'Projects already created from it are not affected.' })) deleteTemplate.mutate(id); }} />
         ))}
         <button onClick={() => setEditorOpen(true)}
           className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors group flex flex-col items-center justify-center min-h-[120px]">

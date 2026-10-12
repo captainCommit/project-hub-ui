@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { templatesApi } from '@/api/collaboration';
 import { useAuth } from '@/lib/AuthContext';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 
 const colorOptions = [
   { value: '#6366f1', label: 'Indigo' },
@@ -242,8 +243,8 @@ export default function ProjectDialog({
         
         {project?.id && onDelete && (
           <div className="mt-2 pt-3 border-t border-slate-100 flex items-center gap-2">
-            <Button variant="outline" size="sm" className="text-red-500 hover:text-red-600 border-red-200 hover:bg-red-50" onClick={() => {
-              if (window.confirm(`Delete this ${type} permanently? This will also delete all associated items and cannot be undone.`)) {
+            <Button variant="outline" size="sm" className="text-red-500 hover:text-red-600 border-red-200 hover:bg-red-50" onClick={async () => {
+              if (await confirmAction({ title: `Delete this ${type}?`, description: 'This also deletes all associated items and cannot be undone.' })) {
                 onDelete();
                 onOpenChange(false);
               }

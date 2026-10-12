@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FolderTree, Plus, ChevronRight, Star, Search, Filter } from 'lucide-react';
+import { FolderTree, Plus, ChevronRight, Star, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';

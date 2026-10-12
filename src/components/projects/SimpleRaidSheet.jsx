@@ -15,6 +15,7 @@ import SavedFilterView from '@/components/projects/SavedFilterView';
 import MultiSelectFilter from '@/components/projects/MultiSelectFilter';
 import { exportRecords } from '@/lib/exportUtils';
 import { cn } from '@/lib/utils';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 
 const DEFAULT_STATUSES = [
   { value: 'open', label: 'Open', className: 'bg-blue-100 text-blue-700' },
@@ -193,7 +194,7 @@ function DetailPanel({ record, noun, idField, descriptionLabel, statuses, status
           <h2 className="text-sm font-semibold text-slate-800 truncate">{local.title || local.description || `${noun} Detail`}</h2>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          {onDelete && <Button size="sm" variant="ghost" className="h-7 text-red-400 hover:text-red-600 text-xs" onClick={() => { if (window.confirm(`Delete this ${noun.toLowerCase()}? This cannot be undone.`)) { onDelete(); onClose(); } }}>Delete</Button>}
+          {onDelete && <Button size="sm" variant="ghost" className="h-7 text-red-400 hover:text-red-600 text-xs" onClick={async () => { if (await confirmAction({ title: `Delete this ${noun.toLowerCase()}?`, description: 'This cannot be undone.' })) { onDelete(); onClose(); } }}>Delete</Button>}
           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onClose}><X className="w-4 h-4" /></Button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/toaster"
+import { ConfirmDialogHost } from "@/components/ui/confirm-dialog"
 import GlobalLoader from '@/components/GlobalLoader';
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -169,6 +170,7 @@ function App() {
           <AuthenticatedApp />
         </Router>
         <Toaster />
+        <ConfirmDialogHost />
         <GlobalLoader />
       </QueryClientProvider>
     </AuthProvider>

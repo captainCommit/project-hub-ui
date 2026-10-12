@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { Settings, Plus, Download, ExternalLink, Edit2, X, Star, Trash2, AlertTriangle, ArrowLeft, ChevronDown, ChevronUp, Check } from 'lucide-react';
-import { formatDate, formatDateRange, parseDate } from '@/lib/dateUtils';
+import { Settings, Download, ExternalLink, Edit2, X, Star, ArrowLeft, ChevronDown, ChevronUp, Check } from 'lucide-react';
+import { formatDate, parseDate } from '@/lib/dateUtils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import ReportGenerator from '@/components/projects/ReportGenerator';

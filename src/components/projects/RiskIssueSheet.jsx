@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Trash2, Plus, Bell, Download } from "lucide-react";
+import { Plus, Bell, Download } from "lucide-react";
 import SavedFilterView from './SavedFilterView';
 import MultiSelectFilter from './MultiSelectFilter';
 import { cn } from "@/lib/utils";

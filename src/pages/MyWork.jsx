@@ -214,7 +214,7 @@ export default function MyWork() {
                 <ul className="divide-y divide-slate-100">
                   {visibleTasks.map(task => (
                     <li key={task.id}>
-                      <button onClick={() => navigate(`/projects/${task.project.id}/sheet`)}
+                      <button onClick={() => navigate(`/projects/${task.project.id}/sheet?task=${task.id}`)}
                         className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50">
                         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: task.status?.color || '#cbd5e1' }} />
                         <div className="flex-1 min-w-0">

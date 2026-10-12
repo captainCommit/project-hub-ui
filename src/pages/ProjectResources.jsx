@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Trash2, Edit2, Users, Check, X, Download, BarChart2, ArrowUp, ArrowDown, ArrowUpDown, Search } from 'lucide-react';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, Cell, ReferenceLine } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, ReferenceLine } from 'recharts';
 import { parseISO, isValid } from 'date-fns';
 import { useAccountHierarchy, useAccountTasks } from '@/hooks/useAccountLookups';
 

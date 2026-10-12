@@ -14,27 +14,22 @@ import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import GanttChart from '@/components/projects/GanttChart';
 import TaskSheet from '@/components/projects/TaskSheet';
 import KanbanBoard from '@/components/projects/KanbanBoard';
-import BoardView from '@/components/projects/BoardView';
 import TaskDetailPanel from '@/components/projects/TaskDetailPanel';
 import ProjectDialog from '@/components/projects/ProjectDialog';
 import ViewToggle from '@/components/projects/ViewToggle';
 import ResourceCalendar from '@/components/projects/ResourceCalendar';
 import AuditView from '@/components/projects/AuditView';
-import { Loader2, Users, Settings, Edit2, FileUp } from 'lucide-react';
-import { useState as _useState } from 'react';
+import { Loader2, Users, Settings, Edit2, FileUp, ChevronDown, Minimize2 } from 'lucide-react';
 import ExportMenu from '@/components/projects/ExportMenu';
 import TaskCsvImport from '@/components/projects/TaskCsvImport';
 import ShareDialog from '@/components/projects/ShareDialog';
 import { useMyAccess } from '@/hooks/useMyAccess';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/components/ui/use-toast';
+import { toast, toastError } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
-import PortfolioOverview from '@/components/projects/PortfolioOverview';
-import ProgramsSummary from '@/components/projects/ProgramsSummary';
 import ProjectsSummary from '@/components/projects/ProjectsSummary';
 import RAIDSummary from '@/components/projects/RAIDSummary';
 import TemplatesView from '@/components/projects/TemplatesView';
-import ResourceMgmtSummary from '@/components/projects/ResourceMgmtSummary';
 import SprintView from '@/components/projects/SprintView';
 import TestCaseView from '@/components/projects/TestCaseView';
 import DeliverySummary from '@/components/projects/DeliverySummary';
@@ -44,7 +39,6 @@ import PortfolioLanding from '@/components/projects/PortfolioLanding';
 import StarButton from '@/components/projects/StarButton';
 import ReportGenerator from '@/components/projects/ReportGenerator';
 import ProgramsLanding from '@/components/projects/ProgramsLanding';
-import { parseISO, isValid, isBefore, isAfter, addDays } from 'date-fns';
 import AIAssistantWidget from '@/components/projects/AIAssistantWidget';
 import { mapIssueListFromApi, mapRiskListFromApi, raidApi } from '@/api/raid';
 import { raidEntityAdapters } from '@/api/raidEntities';
@@ -54,14 +48,6 @@ import { invalidateHierarchy, useAccountChangeRequests, useAccountDecisions, use
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PROJECT_TABS = ['sheet', 'board', 'gantt', 'audit'];
 const DIRECTORY_VIEWS = ['all_portfolios', 'all_programs', 'all_projects', 'all_raid', 'templates', 'all_resource_mgmt', 'delivery', 'sprints', 'test_cases'];
-
-function ProjectTabPlaceholder({ label }) {
-  return (
-    <div className="flex-1 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-slate-400">
-      <p className="text-sm font-medium">{label} will load here</p>
-    </div>
-  );
-}
 
 function ProjectSheetState({ title, message, onRetry, isLoading = false }) {
   return (
@@ -269,7 +255,6 @@ export default function Projects() {
   const _defaultLanding = localStorage.getItem('app_landing_page') || 'all_portfolios';
   const [selectedType, setSelectedType] = useState(_defaultLanding);
   const [selectedItem, setSelectedItem] = useState(_defaultLanding === 'sprints' ? { id: 'sprints', name: 'Sprints' } : null);
-  const [view, setView] = useState(localStorage.getItem('app_default_task_view') || 'sheet');
   const [taskImportOpen, setTaskImportOpen] = useState(false);
   const [viewMode, setViewMode] = useState(_defaultLanding);
   const [expandedTasks, setExpandedTasks] = useState([]);
@@ -281,6 +266,8 @@ export default function Projects() {
   const [vacationCalendarOpen, setVacationCalendarOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [projectNameDraft, setProjectNameDraft] = useState(null);
+  const [projectDetailsOpen, setProjectDetailsOpen] = useState(false);
+  const [sheetFocusModeOn, setSheetFocusModeOn] = useState(false);
   const [optimisticProjectBoard, setOptimisticProjectBoard] = useState(null);
   const [projectSheetPriorityDrafts, setProjectSheetPriorityDrafts] = useState({});
   const [projectSheetPriorityErrors, setProjectSheetPriorityErrors] = useState({});
@@ -462,6 +449,45 @@ export default function Projects() {
     projectTaskTreeQuery.refetch();
   };
 
+  const sheetFocusMode = sheetFocusModeOn && isProjectSheetRoute;
+  useEffect(() => {
+    if (!sheetFocusMode) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="listbox"], [role="menu"]')) return;
+      setSheetFocusModeOn(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [sheetFocusMode]);
+
+  // /projects/:id/sheet?task=<taskId> opens that task's detail panel and points the sheet at its row.
+  const focusTaskId = isProjectSheetRoute ? new URLSearchParams(location.search).get('task') : null;
+  const handledFocusTaskRef = useRef(null);
+  useEffect(() => {
+    if (!focusTaskId || !canSeeProjectTasks || !projectTaskTreeQuery.isSuccess) return;
+    if (handledFocusTaskRef.current === focusTaskId) return;
+    handledFocusTaskRef.current = focusTaskId;
+    const focusTask = projectSheetTasks.find(task => task.id === focusTaskId);
+    if (focusTask) {
+      setEditingTask(focusTask);
+      setTaskDialogOpen(true);
+    } else {
+      toast({ title: 'Task not found', description: 'It may have been deleted or moved to another project.' });
+    }
+  }, [focusTaskId, canSeeProjectTasks, projectTaskTreeQuery.isSuccess, projectSheetTasks]);
+
+  const clearFocusTaskParam = () => {
+    if (!focusTaskId) return;
+    const params = new URLSearchParams(location.search);
+    params.delete('task');
+    const search = params.toString();
+    handledFocusTaskRef.current = null;
+    navigate(`${location.pathname}${search ? `?${search}` : ''}`, { replace: true });
+  };
+
   const projectBoardQuery = useQuery({
     queryKey: ['project-board', projectId],
     queryFn: () => tasksApi.getBoard(projectId),
@@ -619,22 +645,9 @@ export default function Projects() {
   const decisions = useAccountDecisions();
   const { changeRequests } = useAccountChangeRequests();
   const sprints = useAccountSprints();
-  const { tasks: accountTasks, isLoading: loadingAccountTasks } = useAccountTasks();
+  const { tasks: accountTasks } = useAccountTasks();
   // Sprint-scoped tasks are the API's user stories.
   const stories = useMemo(() => accountTasks.filter(t => t.sprint_id).map(mapTaskToUserStory), [accountTasks]);
-
-  // Tasks for the current non-routed selection
-  const tasks = useMemo(() => {
-    if (hasProjectRoute) return [];
-    if (viewMode === 'portfolio') return accountTasks;
-    if (viewMode === 'program' && selectedType === 'program' && selectedItem?.id) {
-      const programProjectIds = new Set(projects.filter(p => p.program_id === selectedItem.id).map(p => p.id));
-      return accountTasks.filter(t => programProjectIds.has(t.project_id));
-    }
-    if (selectedItem?.id) return accountTasks.filter(t => t.project_id === selectedItem.id);
-    return [];
-  }, [accountTasks, hasProjectRoute, viewMode, selectedType, selectedItem?.id, projects]);
-  const loadingTasks = loadingAccountTasks;
 
   // RAID and task data scoped to the routed project (reports, sheet indicators)
   const routedProjectData = useMemo(() => {
@@ -662,7 +675,7 @@ export default function Projects() {
       invalidateHierarchy(queryClient);
       navigate(`/projects/${newProject.id}/sheet`);
     },
-    onError: (error) => alert(error.message),
+    onError: (error) => toastError(error.message),
   });
 
   const createProgram = useMutation({
@@ -731,7 +744,7 @@ export default function Projects() {
   const updateProject = useMutation({
     mutationFn: ({ id, data }) => projectsApi.update(id, data),
     onSuccess: () => invalidateHierarchy(queryClient),
-    onError: (error) => alert(error.message),
+    onError: (error) => toastError(error.message),
   });
 
   const renameRouteProject = useMutation({
@@ -741,29 +754,15 @@ export default function Projects() {
       invalidateProjectQueries({ id, program_id: projectDetail?.program_id });
       invalidateHierarchy(queryClient);
     },
-    onError: (error) => alert(getBackendSafeMessage(error, 'We could not rename this project. Please try again.')),
+    onError: (error) => toastError(getBackendSafeMessage(error, 'We could not rename this project. Please try again.')),
   });
 
   const invalidateAccountTasks = () => queryClient.invalidateQueries({ queryKey: ['account-tasks'] });
 
-  const createTask = useMutation({
-    mutationFn: (data) => {
-      if (!data?.project_id) throw new Error('Choose a project for the new task.');
-      return tasksApi.create(data.project_id, { ...mapTaskFormToPayload(data), ...mapTaskSheetInputToCreatePayload(data) });
-    },
-    onSuccess: invalidateAccountTasks,
-    onError: (error) => alert(error.message),
-  });
-
   const updateTask = useMutation({
     mutationFn: ({ id, data }) => tasksApi.update(id, mapTaskFormToPayload(data)),
     onSuccess: invalidateAccountTasks,
-    onError: (error) => alert(error.message),
-  });
-
-  const deleteTask = useMutation({
-    mutationFn: (id) => tasksApi.delete(id),
-    onSuccess: invalidateAccountTasks,
+    onError: (error) => toastError(error.message),
   });
 
   const createProjectSheetTask = useMutation({
@@ -927,7 +926,7 @@ export default function Projects() {
     },
     onError: (_error, _variables, context) => {
       if (context?.previousBoard) setOptimisticProjectBoard(context.previousBoard);
-      alert('We could not move that task. Please try again.');
+      toastError('We could not move that task. Please try again.');
     },
     onSuccess: async () => {
       await Promise.all([
@@ -960,7 +959,7 @@ export default function Projects() {
       if (context?.previousTaskTree !== undefined) {
         queryClient.setQueryData(['project-task-tree', projectId], context.previousTaskTree);
       }
-      alert('We could not reorder these tasks. The previous order has been restored.');
+      toastError('We could not reorder these tasks. The previous order has been restored.');
     },
     onSuccess: async () => {
       await Promise.all([
@@ -1018,44 +1017,17 @@ export default function Projects() {
 
   const handleDeleteItem = (item, type) => {
     if (type === 'program') {
-      alert('Program delete is not supported by Project Hub yet.');
+      toastError('Program delete is not supported by Project Hub yet.', 'Not available yet');
       return;
     } else if (type === 'portfolio') {
-      alert('Portfolio delete is not available yet.');
+      toastError('Portfolio delete is not available yet.', 'Not available yet');
       return;
     } else {
       projectsApi.delete(item.id)
         .then(() => invalidateHierarchy(queryClient))
-        .catch(error => alert(getBackendSafeMessage(error, 'The project could not be deleted.')));
+        .catch(error => toastError(getBackendSafeMessage(error, 'The project could not be deleted.')));
     }
     if (selectedItem?.id === item.id) { setSelectedItem(null); setViewMode('project'); }
-  };
-
-  const handleNudgeResources = () => {
-    const today = new Date(); today.setHours(0,0,0,0);
-    const in14 = addDays(today, 14);
-    const resourceTasks = {};
-    tasks.forEach(t => {
-      if (!t.due_date || t.status === 'done') return;
-      const due = parseISO(t.due_date);
-      if (!isValid(due)) return;
-      const isOverdue = isBefore(due, today);
-      const isUpcoming = !isOverdue && !isAfter(due, in14);
-      if (!isOverdue && !isUpcoming) return;
-      const resources = new Set();
-      if (t.assignee) resources.add(t.assignee);
-      if (Array.isArray(t.resources)) t.resources.forEach(r => resources.add(r));
-      resources.forEach(r => {
-        if (!resourceTasks[r]) resourceTasks[r] = [];
-        resourceTasks[r].push({ ...t, isOverdue });
-      });
-    });
-    Object.entries(resourceTasks).forEach(([name, rtasks], i) => {
-      const lines = rtasks.map(t => `  • [${t.isOverdue ? 'OVERDUE' : 'DUE SOON'}] ${t.title} – due ${t.due_date}`).join('\n');
-      const subject = encodeURIComponent(`Task Reminder: ${name}`);
-      const body = encodeURIComponent(`Hi ${name},\n\nPlease review your tasks:\n\n${lines}\n\nThank you.`);
-      setTimeout(() => window.open(`mailto:?subject=${subject}&body=${body}`, '_blank'), i * 300);
-    });
   };
 
   const handleNewProject = () => {
@@ -1080,23 +1052,23 @@ export default function Projects() {
     // Duplicate name check
     if (dialogType === 'program') {
       if (programs.some(p => p.id !== editingProject?.id && p.name.toLowerCase() === data.name?.toLowerCase())) {
-        alert(`A program named "${data.name}" already exists.`); return;
+        toastError(`A program named "${data.name}" already exists.`, 'Name already in use'); return;
       }
       const portfolioId = data.portfolio_id || editingProject?.portfolio_id;
       if (!portfolioId) {
-        alert('Select a portfolio before saving this program.');
+        toastError('Select a portfolio before saving this program.', 'Portfolio required');
         return;
       }
       const nextData = { ...data, portfolio_id: portfolioId };
       editingProject?.id ? updateProgram.mutate({ id: editingProject.id, data: nextData }) : createProgram.mutate(nextData);
     } else if (dialogType === 'portfolio') {
       if (portfolios.some(p => p.id !== editingProject?.id && p.name.toLowerCase() === data.name?.toLowerCase())) {
-        alert(`A portfolio named "${data.name}" already exists.`); return;
+        toastError(`A portfolio named "${data.name}" already exists.`, 'Name already in use'); return;
       }
       editingProject?.id ? updatePortfolio.mutate({ id: editingProject.id, data }) : createPortfolio.mutate(data);
     } else {
       if (projects.some(p => p.id !== editingProject?.id && p.name.toLowerCase() === data.name?.toLowerCase())) {
-        alert(`A project named "${data.name}" already exists.`); return;
+        toastError(`A project named "${data.name}" already exists.`, 'Name already in use'); return;
       }
       if (editingProject?.id) {
         if (hasProjectRoute || editingProject.id === projectId) {
@@ -1110,32 +1082,9 @@ export default function Projects() {
           createProgramProject.mutate({ programId: targetProgramId, data: { ...data, program_id: targetProgramId } });
           return;
         }
-        if (data.default_view) setView(data.default_view);
         createProject.mutate(data);
       }
     }
-  };
-
-  const handleAddTask = () => {
-    setEditingTask(null);
-    setTaskDialogOpen(true);
-  };
-
-  const handleTaskClick = (task) => {
-    setEditingTask(task);
-    setTaskDialogOpen(true);
-  };
-
-  const handleSaveTask = (data) => {
-    if (editingTask) {
-      updateTask.mutate({ id: editingTask.id, data });
-    } else {
-      createTask.mutate({ ...data, project_id: data.project_id || selectedItem?.id });
-    }
-  };
-
-  const handleCreateTask = (data) => {
-    createTask.mutate({ ...data, project_id: data.project_id || selectedItem?.id });
   };
 
   /** Typing a name into an empty sheet row adds a top-level task at the end of the plan. */
@@ -1216,7 +1165,7 @@ export default function Projects() {
         ...prev,
         [id]: 'We could not save this priority. Please try again.',
       }));
-      alert('We could not save this priority. Please try again.');
+      toastError('We could not save this priority. Please try again.');
     } finally {
       pendingProjectSheetPriorityRequests.current.delete(requestKey);
       setPendingProjectSheetPriorityTaskIds(prev => {
@@ -1245,7 +1194,7 @@ export default function Projects() {
         await outdentProjectSheetTask.mutateAsync(id);
       }
     } catch (error) {
-      alert(getBackendSafeMessage(error, 'We could not change this task hierarchy. Please try again.'));
+      toastError(getBackendSafeMessage(error, 'We could not change this task hierarchy. Please try again.'));
       throw error;
     } finally {
       pendingProjectSheetHierarchyRequests.current.delete(id);
@@ -1272,7 +1221,7 @@ export default function Projects() {
     try {
       await mutationRunner();
     } catch (error) {
-      alert(getBackendSafeMessage(error, 'We could not update this task dependency. Please try again.'));
+      toastError(getBackendSafeMessage(error, 'We could not update this task dependency. Please try again.'));
       throw error;
     } finally {
       pendingProjectSheetPredecessorRequests.current.delete(requestKey);
@@ -1335,7 +1284,7 @@ export default function Projects() {
         setTaskDialogOpen(false);
       }
     } catch (error) {
-      alert(getBackendSafeMessage(error, 'We could not delete this task. Please try again.'));
+      toastError(getBackendSafeMessage(error, 'We could not delete this task. Please try again.'));
       throw error;
     } finally {
       deletingProjectSheetTaskRequests.current.delete(id);
@@ -1386,7 +1335,7 @@ export default function Projects() {
         finish_date: dates?.finish_date,
       });
     } catch (error) {
-      alert(error?.message || 'Enter valid task schedule dates.');
+      toastError(error?.message || 'Enter valid task schedule dates.', 'Check the dates');
       return;
     }
 
@@ -1414,7 +1363,7 @@ export default function Projects() {
       await updateProjectGanttTaskSchedule.mutateAsync({ id, data: changedDates });
     } catch (_error) {
       queryClient.setQueryData(['project-gantt', projectId], previousProjectGantt);
-      alert('We could not update this task schedule. The previous dates were restored.');
+      toastError('We could not update this task schedule. The previous dates were restored.');
     } finally {
       pendingProjectGanttScheduleTaskRequests.current.delete(id);
       pendingProjectGanttScheduleRequests.current.delete(requestKey);
@@ -1437,7 +1386,7 @@ export default function Projects() {
     try {
       await mutationRunner();
     } catch (error) {
-      alert(getBackendSafeMessage(error, 'We could not update this task dependency. Please try again.'));
+      toastError(getBackendSafeMessage(error, 'We could not update this task dependency. Please try again.'));
     } finally {
       pendingProjectGanttDependencyRequests.current.delete(requestKey);
       setPendingProjectGanttDependencyTaskIds(prev => {
@@ -1466,20 +1415,6 @@ export default function Projects() {
     );
   };
 
-  const handleUpdateTask = (id, data) => {
-    updateTask.mutate({ id, data });
-  };
-
-  const handleUpdateProject = (id, data) => {
-    if (selectedType === 'program') {
-      updateProgram.mutate({ id, data });
-    } else if (selectedType === 'portfolio') {
-      updatePortfolio.mutate({ id, data });
-    } else {
-      updateProject.mutate({ id, data });
-    }
-  };
-
   const handleRenameItem = (id, newName, type) => {
     if (type === 'program') {
       updateProgram.mutate({ id, data: { name: newName } });
@@ -1488,10 +1423,6 @@ export default function Projects() {
     } else {
       updateProject.mutate({ id, data: { name: newName } });
     }
-  };
-
-  const handleDeleteTask = (id) => {
-    deleteTask.mutate(id);
   };
 
   const handleToggleExpand = (taskId) => {
@@ -1584,15 +1515,9 @@ export default function Projects() {
     );
   }
 
-  const getTitle = () => {
-    if (viewMode === 'portfolio') return 'Portfolio View';
-    if (viewMode === 'program') return selectedItem?.name || 'Program View';
-    return selectedItem?.name || 'Select a project';
-  };
-
   return (
     <div className="h-screen flex bg-slate-50" style={{ fontFamily: 'Segoe UI, sans-serif' }}>
-      <ProjectSidebar
+      {!sheetFocusMode && <ProjectSidebar
         projects={projects}
         programs={programs}
         portfolios={portfolios}
@@ -1610,10 +1535,10 @@ export default function Projects() {
           setProjectDialogOpen(true);
         }}
         onShowVacationCalendar={() => setVacationCalendarOpen(true)}
-      />
+      />}
       
       {/* Directory views pad themselves; a project page always needs padding, even when opened from a program. */}
-      <div className={`flex-1 flex flex-col overflow-hidden ${!hasProjectRoute && ['all_portfolios','all_programs','portfolio','program'].includes(viewMode) ? '' : 'p-8'}`}>
+      <div className={`flex-1 flex flex-col overflow-hidden ${!hasProjectRoute && ['all_portfolios','all_programs','portfolio','program'].includes(viewMode) ? '' : sheetFocusMode ? 'p-3' : 'p-8'}`}>
         {hasProjectRoute ? (
           !hasValidProjectRoute ? (
             <PortfolioState title="Invalid project link" message="This project URL is not a valid Project Hub UUID." />
@@ -1623,113 +1548,124 @@ export default function Projects() {
             <PortfolioState title="Project not found" message="We could not load this project. It may have been removed or you may not have access." onRetry={retryProjectRoute} />
           ) : (
             <>
-              <div className="flex items-center gap-3 mb-5">
-                <div className="flex-1">
-                  <ViewToggle
-                    view={activeProjectTab === 'board' ? 'mondayboard' : activeProjectTab}
-                    onViewChange={(nextView) => {
-                      const nextTab = nextView === 'mondayboard' || nextView === 'board' ? 'board' : nextView;
-                      navigate(`/projects/${projectDetail.id}/${PROJECT_TABS.includes(nextTab) ? nextTab : 'sheet'}`);
-                    }}
-                  />
-                </div>
-                <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-1 py-1 bg-white shadow-sm">
-                  <ExportMenu tasks={routedProjectData.tasks} project={projectDetail} viewType={activeProjectTab} />
-                  {canEditProjectTasks && (
-                    <>
-                      <Button variant="outline" size="sm" onClick={() => setTaskImportOpen(true)}>
-                        <FileUp className="w-4 h-4 mr-2" /> Import
-                      </Button>
-                      <TaskCsvImport
-                        open={taskImportOpen}
-                        onOpenChange={setTaskImportOpen}
-                        projectId={projectDetail.id}
-                        onDone={invalidateProjectTaskWorkspaces}
-                      />
-                    </>
-                  )}
-                  <ReportGenerator
-                    project={projectDetail}
-                    tasks={routedProjectData.tasks}
-                    risks={routedProjectData.risks}
-                    issues={routedProjectData.issues}
-                    programs={programs}
-                    assumptions={routedProjectData.assumptions}
-                    decisions={routedProjectData.decisions}
-                    changeRequests={routedProjectData.changeRequests}
-                    sprints={routedProjectData.sprints}
-                    stories={routedProjectData.stories}
-                  />
-                  <Button size="sm" variant="ghost" onClick={() => setShareOpen(true)} className="h-9 gap-1.5 text-slate-600">
-                    <Users className="w-3.5 h-3.5" /> People
-                  </Button>
-                  <div className="w-px h-6 bg-slate-200" />
-                  <Button size="sm" variant="ghost"
-                    onClick={() => { setEditingProject(projectDetail); setDialogType('project'); setProjectDialogOpen(true); }}
-                    className="h-9 text-slate-500 hover:text-slate-700 hover:bg-slate-50" title="Project Settings">
-                    <Settings className="w-3.5 h-3.5" />
+              {sheetFocusMode ? (
+                <div className="flex items-center gap-2 mb-2 text-sm">
+                  <span className="font-semibold text-slate-800 truncate">{projectDetail.name}</span>
+                  <span className="text-xs text-slate-400">Focus mode</span>
+                  <Button size="sm" variant="ghost" className="ml-auto h-7 gap-1 text-slate-600" onClick={() => setSheetFocusModeOn(false)}>
+                    <Minimize2 className="w-3.5 h-3.5" /> Exit focus
                   </Button>
                 </div>
-              </div>
-              <ShareDialog open={shareOpen} onOpenChange={setShareOpen} item={projectDetail} itemType="project" />
-
-              <div className="mb-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    {projectNameDraft !== null ? (
-                      <div className="flex items-center gap-2">
-                        <Input
-                          value={projectNameDraft}
-                          onChange={(e) => setProjectNameDraft(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') handleSaveProjectName(); if (e.key === 'Escape') setProjectNameDraft(null); }}
-                          disabled={renameRouteProject.isPending}
-                          className="text-2xl font-bold h-10 max-w-md"
-                          autoFocus
+              ) : (
+                <>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex-1">
+                    <ViewToggle
+                      view={activeProjectTab === 'board' ? 'mondayboard' : activeProjectTab}
+                      onViewChange={(nextView) => {
+                        const nextTab = nextView === 'mondayboard' || nextView === 'board' ? 'board' : nextView;
+                        navigate(`/projects/${projectDetail.id}/${PROJECT_TABS.includes(nextTab) ? nextTab : 'sheet'}`);
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-1 py-1 bg-white shadow-sm">
+                    <ExportMenu tasks={routedProjectData.tasks} project={projectDetail} viewType={activeProjectTab} />
+                    {canEditProjectTasks && (
+                      <>
+                        <Button variant="outline" size="sm" onClick={() => setTaskImportOpen(true)}>
+                          <FileUp className="w-4 h-4 mr-2" /> Import
+                        </Button>
+                        <TaskCsvImport
+                          open={taskImportOpen}
+                          onOpenChange={setTaskImportOpen}
+                          projectId={projectDetail.id}
+                          onDone={invalidateProjectTaskWorkspaces}
                         />
-                        <Button size="sm" onClick={handleSaveProjectName} disabled={renameRouteProject.isPending}>
-                          {renameRouteProject.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save'}
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setProjectNameDraft(null)} disabled={renameRouteProject.isPending}>Cancel</Button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <h1 className="text-2xl font-bold text-slate-800">{projectDetail.name}</h1>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Rename project" onClick={() => setProjectNameDraft(projectDetail.name || '')}>
-                          <Edit2 className="w-3.5 h-3.5 text-slate-400" />
-                        </Button>
-                        <StarButton type="project" id={projectDetail.id} name={projectDetail.name} color={projectDetail.color} iconClassName="w-4 h-4" />
-                      </div>
+                      </>
                     )}
-                    <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5 flex-wrap">
-                      <button
-                        onClick={() => projectDetail.program_id ? navigate(`/programs/${projectDetail.program_id}`) : navigate('/Projects?view=all_programs')}
-                        className="flex items-center gap-1 hover:text-indigo-600 group transition-colors"
-                      >
-                        <span>Back to: <span className="text-indigo-500 font-medium">{projectProgram?.name || 'Program'}</span></span>
-                      </button>
-                      <span>•</span>
-                      <span>Portfolio: <span className="text-amber-600 font-medium">{projectPortfolio?.name || 'Unavailable'}</span></span>
-                      {projectDetail.status && <><span>•</span><span>Status: <span className="font-medium text-slate-600">{projectDetail.status}</span></span></>}
-                      {(projectDetail.start_date || projectDetail.end_date) && <><span>•</span><span>{projectDetail.start_date || '—'} – {projectDetail.end_date || '—'}</span></>}
-                    </div>
-                    {projectDetail.description && <p className="text-sm text-slate-500 mt-2 max-w-3xl">{projectDetail.description}</p>}
+                    <ReportGenerator
+                      project={projectDetail}
+                      tasks={routedProjectData.tasks}
+                      risks={routedProjectData.risks}
+                      issues={routedProjectData.issues}
+                      programs={programs}
+                      assumptions={routedProjectData.assumptions}
+                      decisions={routedProjectData.decisions}
+                      changeRequests={routedProjectData.changeRequests}
+                      sprints={routedProjectData.sprints}
+                      stories={routedProjectData.stories}
+                    />
+                    <Button size="sm" variant="ghost" onClick={() => setShareOpen(true)} className="h-9 gap-1.5 text-slate-600">
+                      <Users className="w-3.5 h-3.5" /> People
+                    </Button>
+                    <div className="w-px h-6 bg-slate-200" />
+                    <Button size="sm" variant="ghost"
+                      onClick={() => { setEditingProject(projectDetail); setDialogType('project'); setProjectDialogOpen(true); }}
+                      className="h-9 text-slate-500 hover:text-slate-700 hover:bg-slate-50" title="Project Settings">
+                      <Settings className="w-3.5 h-3.5" />
+                    </Button>
                   </div>
                 </div>
-              </div>
-
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-xs text-slate-500 font-medium whitespace-nowrap">Project Manager:</span>
-                <span className="text-sm text-slate-700">{projectDetail.owner || projectDetail.project_manager || 'Not assigned'}</span>
-                {projectDetail.progress !== undefined && projectDetail.progress !== null && (
-                  <>
-                    <span className="text-xs text-slate-300">•</span>
-                    <span className="text-xs text-slate-500 font-medium">Progress:</span>
-                    <span className="text-sm text-slate-700">{projectDetail.progress}%</span>
-                  </>
-                )}
-                {projectDetail.open_risks !== undefined && <><span className="text-xs text-slate-300">•</span><span className="text-xs text-slate-500">Open risks: {projectDetail.open_risks}</span></>}
-                {projectDetail.open_issues !== undefined && <><span className="text-xs text-slate-300">•</span><span className="text-xs text-slate-500">Open issues: {projectDetail.open_issues}</span></>}
-              </div>
+                <div className="mb-3">
+                  <div className="flex items-center gap-x-4 gap-y-1 flex-wrap">
+                  {projectNameDraft !== null ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={projectNameDraft}
+                        onChange={(e) => setProjectNameDraft(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveProjectName(); if (e.key === 'Escape') setProjectNameDraft(null); }}
+                        disabled={renameRouteProject.isPending}
+                        className="text-xl font-bold h-9 max-w-md"
+                        autoFocus
+                      />
+                      <Button size="sm" onClick={handleSaveProjectName} disabled={renameRouteProject.isPending}>
+                        {renameRouteProject.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save'}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setProjectNameDraft(null)} disabled={renameRouteProject.isPending}>Cancel</Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <h1 className="text-xl font-bold text-slate-800 truncate">{projectDetail.name}</h1>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Rename project" onClick={() => setProjectNameDraft(projectDetail.name || '')}>
+                        <Edit2 className="w-3.5 h-3.5 text-slate-400" />
+                      </Button>
+                      <StarButton type="project" id={projectDetail.id} name={projectDetail.name} color={projectDetail.color} iconClassName="w-4 h-4" />
+                    </div>
+                  )}
+                    <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-slate-500">
+                      {projectDetail.status && <span>Status: <span className="font-medium text-slate-700">{projectDetail.status}</span></span>}
+                      {projectDetail.progress !== undefined && projectDetail.progress !== null && <span>Progress: <span className="font-medium text-slate-700">{projectDetail.progress}%</span></span>}
+                      <span>PM: <span className="font-medium text-slate-700">{projectDetail.owner || projectDetail.project_manager || 'Not assigned'}</span></span>
+                      {projectDetail.open_risks !== undefined && <span>Open risks: <span className="font-medium text-slate-700">{projectDetail.open_risks}</span></span>}
+                      {projectDetail.open_issues !== undefined && <span>Open issues: <span className="font-medium text-slate-700">{projectDetail.open_issues}</span></span>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setProjectDetailsOpen(open => !open)}
+                      aria-expanded={projectDetailsOpen}
+                      className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-600"
+                    >
+                      Details <ChevronDown className={`w-3 h-3 transition-transform ${projectDetailsOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+                  {projectDetailsOpen && (
+                    <div className="mt-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500 space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span>Program: <button
+                          onClick={() => projectDetail.program_id ? navigate(`/programs/${projectDetail.program_id}`) : navigate('/Projects?view=all_programs')}
+                          className="text-indigo-500 font-medium hover:text-indigo-700"
+                        >{projectProgram?.name || 'Program'}</button></span>
+                        <span>•</span>
+                        <span>Portfolio: <span className="text-amber-600 font-medium">{projectPortfolio?.name || 'Unavailable'}</span></span>
+                        {(projectDetail.start_date || projectDetail.end_date) && <><span>•</span><span>{projectDetail.start_date || '—'} – {projectDetail.end_date || '—'}</span></>}
+                      </div>
+                      {projectDetail.description && <p className="text-sm text-slate-600 max-w-3xl whitespace-pre-line">{projectDetail.description}</p>}
+                    </div>
+                  )}
+                </div>
+                </>
+              )}
+              <ShareDialog open={shareOpen} onOpenChange={setShareOpen} item={projectDetail} itemType="project" />
 
               {!canSeeProjectTasks && activeProjectTab !== 'audit' ? (
                 <ProjectSheetState title="Tasks aren't shared with you" message="Your access to this project doesn't include its tasks. Ask a project manager or account owner if you need them." />
@@ -1793,6 +1729,9 @@ export default function Projects() {
                     }}
                     selectedAccountId={selectedAccountId}
                     projectId={projectId}
+                    focusTaskId={focusTaskId}
+                    focusMode={sheetFocusMode}
+                    onToggleFocusMode={() => setSheetFocusModeOn(on => !on)}
                   />
                 )
               ) : activeProjectTab === 'board' ? (
@@ -1932,7 +1871,6 @@ export default function Projects() {
             projects={projects}
             programs={programs}
             portfolios={portfolios}
-            tasks={tasks}
             onSelectProject={(p) => handleSelectItem(p, 'project')}
             onNewProject={() => { setEditingProject({}); setDialogType('project'); setProjectDialogOpen(true); }}
           />
@@ -1987,105 +1925,6 @@ export default function Projects() {
             onDeleteProject={(id) => handleDeleteItem({ id }, 'project')}
             onBackToInventory={() => { setSelectedItem(null); setViewMode('all_programs'); }}
           />
-        ) : selectedItem ? (
-          <>
-
-            <div className="flex items-center gap-3 mb-5">
-              <div className="flex-1"><ViewToggle view={view} onViewChange={setView} /></div>
-              <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-1 py-1 bg-white shadow-sm">
-                <ExportMenu tasks={tasks} project={selectedItem} viewType={view} />
-                <ReportGenerator
-                  project={selectedItem}
-                  tasks={tasks}
-                  risks={risks}
-                  issues={issues}
-                  programs={programs}
-                  assumptions={assumptions}
-                  decisions={decisions}
-                  changeRequests={changeRequests}
-                  sprints={sprints}
-                  stories={stories}
-                />
-                <Button size="sm" variant="ghost" onClick={() => setShareOpen(true)} className="h-9 gap-1.5 text-slate-600">
-                  <Users className="w-3.5 h-3.5" /> People
-                </Button>
-                <div className="w-px h-6 bg-slate-200" />
-                <Button size="sm" variant="ghost"
-                  onClick={() => { setEditingProject(selectedItem); setDialogType('project'); setProjectDialogOpen(true); }}
-                  className="h-9 text-slate-500 hover:text-slate-700 hover:bg-slate-50" title="Project Settings">
-                  <Settings className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            </div>
-            <ShareDialog open={shareOpen} onOpenChange={setShareOpen} item={selectedItem} itemType="project" />
-            {loadingTasks ? (
-              <div className="flex-1 flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-              </div>
-            ) : (
-              <>
-                {view === 'sheet' && (
-                  <TaskSheet
-                    tasks={tasks}
-                    project={selectedItem}
-                    projects={projects}
-                    programs={programs}
-                    onAddTask={handleSaveTask}
-                    onUpdateTask={handleUpdateTask}
-                    onDeleteTask={handleDeleteTask}
-                    viewMode={viewMode}
-                    onUpdateProject={handleUpdateProject}
-                    vacations={vacations}
-                    risks={risks}
-                    issues={issues}
-                  assumptions={assumptions}
-                  decisions={decisions}
-                    resources={resources}
-                    onGoBack={() => {
-                      if (selectedItem?.program_id) {
-                        const prog = programs.find(p => p.id === selectedItem.program_id);
-                        if (prog) handleSelectItem(prog, 'program');
-                      }
-                    }}
-                  />
-                )}
-                {view === 'gantt' && (
-                  <GanttChart
-                    tasks={tasks}
-                    project={selectedItem}
-                    onTaskClick={handleTaskClick}
-                    onTaskUpdate={handleUpdateTask}
-                    expandedTasks={expandedTasks}
-                    onToggleExpand={handleToggleExpand}
-                    onBack={() => handleSelectItem(null, 'all_projects')}
-                  />
-                )}
-                {view === 'mondayboard' && (
-                  <BoardView
-                    tasks={tasks}
-                    onTaskClick={handleTaskClick}
-                    onTaskUpdate={handleUpdateTask}
-                    onAddTask={handleCreateTask}
-                    onDeleteTask={handleDeleteTask}
-                  />
-                )}
-                {view === 'board' && (
-                  <KanbanBoard
-                    tasks={tasks}
-                    onTaskClick={handleTaskClick}
-                    onTaskUpdate={handleUpdateTask}
-                  />
-                )}
-                {view === 'audit' && (
-                  <AuditView
-                    tasks={tasks}
-                    vacations={vacations}
-                    onTaskClick={handleTaskClick}
-                  />
-                )}
-              </>
-            )}
-          </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-slate-400">
             <div className="text-center">
@@ -2100,7 +1939,7 @@ export default function Projects() {
         <TaskDetailPanel
           task={editingTask}
           resources={resources}
-          onClose={() => { setTaskDialogOpen(false); setEditingTask(null); }}
+          onClose={() => { setTaskDialogOpen(false); setEditingTask(null); clearFocusTaskParam(); }}
           onUpdate={(id, data) => {
             if (hasProjectRoute && !canEditProjectTasks) return;
             updateTask.mutate({ id, data }, { onSuccess: () => { if (hasProjectRoute) invalidateProjectTaskWorkspaces(); } });

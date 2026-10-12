@@ -161,4 +161,9 @@ function useToast() {
   };
 }
 
-export { useToast, toast }; 
+// Drop-in replacement for window.alert on failures.
+function toastError(message, title = 'Something went wrong') {
+  return toast({ variant: 'destructive', title, description: message });
+}
+
+export { useToast, toast, toastError }; 

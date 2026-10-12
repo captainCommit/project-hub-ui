@@ -268,8 +268,10 @@ export type DueTaskRow = {
   assigned_to?: string | null;
   assignee_name?: string | null;
   resource_name?: string | null;
+  resources?: { id: string; user_id: string | null; name: string }[];
   status?: string | null;
   status_id?: string | null;
+  status_color?: string | null;
   start_date?: string | null;
   finish_date?: string | null;
   due_date?: string | null;
@@ -1027,20 +1029,50 @@ export const mapDueTask = (taskInput: unknown): DueTaskRow | null => {
     row.name = taskTitle;
   }
 
+  // The due endpoint nests project/program/status and lists resources; flat fields are kept as overrides.
+  const project = getObject(task.project);
+  const program = getObject(task.program);
+  copyDueFieldIfPresent(row, project, 'id', 'project_id');
+  copyDueFieldIfPresent(row, project, 'name', 'project_name');
+  copyDueFieldIfPresent(row, program, 'id', 'program_id');
+  copyDueFieldIfPresent(row, program, 'name', 'program_name');
   copyDueFieldIfPresent(row, task, 'project_id');
   copyDueFieldIfPresent(row, task, 'project_name');
   copyDueFieldIfPresent(row, task, 'program_id');
   copyDueFieldIfPresent(row, task, 'program_name');
   copyDueFieldIfPresent(row, task, 'assigned_to');
+
+  const resources = getArray(task.resources)
+    .map(getObject)
+    .filter((resource) => typeof resource.name === 'string' && resource.name)
+    .map((resource) => ({
+      id: String(resource.id ?? resource.user_id ?? resource.name),
+      user_id: (resource.user_id as string | null | undefined) ?? null,
+      name: resource.name as string,
+    }));
+  row.resources = resources;
   if (typeof assigneeName === 'string') {
     row.assignee_name = assigneeName;
     row.resource_name = assigneeName;
+  } else if (resources.length > 0) {
+    const names = resources.map((resource) => resource.name).join(', ');
+    row.assignee_name = names;
+    row.resource_name = names;
   }
-  copyDueFieldIfPresent(row, task, 'status');
+
+  if (task.status && typeof task.status === 'object') {
+    const status = getObject(task.status);
+    copyDueFieldIfPresent(row, status, 'label', 'status');
+    copyDueFieldIfPresent(row, status, 'id', 'status_id');
+    copyDueFieldIfPresent(row, status, 'color', 'status_color');
+  } else {
+    copyDueFieldIfPresent(row, task, 'status');
+  }
   copyDueFieldIfPresent(row, task, 'status_id');
   copyDueFieldIfPresent(row, task, 'start_date');
   copyDueFieldIfPresent(row, task, 'finish_date');
   copyDueFieldIfPresent(row, task, 'finish_date', 'due_date');
+  copyDueFieldIfPresent(row, task, 'due_status', 'due_state');
   copyDueFieldIfPresent(row, task, 'due_state');
   copyDueFieldIfPresent(row, task, 'days_overdue');
   copyDueFieldIfPresent(row, task, 'days_until_due');

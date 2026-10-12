@@ -8,6 +8,7 @@ import { buildCommentThreads, commentsApi } from '@/api/comments';
 import { useAuth } from '@/lib/AuthContext';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { toastError } from '@/components/ui/use-toast';
 
 export default function TaskDetailPanel({ task, resources = [], onClose, onUpdate }) {
   const [title, setTitle] = useState(task?.title || '');
@@ -75,7 +76,7 @@ export default function TaskDetailPanel({ task, resources = [], onClose, onUpdat
       await Promise.all(attachments.map(a => attachmentsApi.upload('COMMENT', comment.id, a.file)));
       setText(''); setAttachments([]); setTagged([]); setTagOpen(false);
     } catch (error) {
-      window.alert(error.message);
+      toastError(error.message);
     } finally {
       setUploading(false);
       queryClient.invalidateQueries({ queryKey: threadKey });
@@ -93,7 +94,7 @@ export default function TaskDetailPanel({ task, resources = [], onClose, onUpdat
     try {
       window.open(await attachmentsApi.downloadUrl(attachmentId), '_blank', 'noopener,noreferrer');
     } catch (error) {
-      window.alert(error.message);
+      toastError(error.message);
     }
   };
 

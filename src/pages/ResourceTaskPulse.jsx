@@ -72,7 +72,11 @@ export default function ResourceTaskPulse() {
     .map(task => ({ id: task.program_id || task.program_name, name: task.program_name || task.program_id || 'Untitled Program' }))), [tasks]);
 
   const portfolios = [];
-  const assignees = useMemo(() => [...new Set(tasks.map(task => String(task.assigned_to || task.resource_name || task.assignee_name || '')).filter(Boolean))].sort(), [tasks]);
+  // The API filters assigned_to by resource id or user id, so options carry the id and show the name.
+  const assignees = useMemo(() => uniqueById(tasks.flatMap(task => (task.resources || [])
+    .filter(resource => resource.id !== resource.name)
+    .map(resource => ({ id: resource.id, name: resource.name }))))
+    .sort((a, b) => a.name.localeCompare(b.name)), [tasks]);
   const getProject = (id) => projects.find(p => p.id === id);
 
   // Build flat rows: {resourceName, task, isOverdue, daysNum}
@@ -88,9 +92,14 @@ export default function ResourceTaskPulse() {
       const upcomingDays = toNumber(task.days_until_due);
       const fallbackDays = hasValidDue ? Math.abs(differenceInCalendarDays(due, today)) : 0;
       const daysNum = isOverdue ? (overdueDays ?? fallbackDays) : (upcomingDays ?? fallbackDays);
-      const resourceName = task.resource_name || task.assignee_name || task.assigned_to || 'Unassigned';
+      const rowTask = { ...task, due_date: dueDate, title: task.title || task.name || 'Untitled Task' };
+      const resources = task.resources?.length
+        ? task.resources
+        : [{ id: '', name: task.resource_name || task.assignee_name || 'Unassigned' }];
 
-      rows.push({ resourceName, task: { ...task, due_date: dueDate, title: task.title || task.name || 'Untitled Task' }, isOverdue, daysNum });
+      resources.forEach(resource => {
+        rows.push({ resourceName: resource.name, resourceId: resource.id, task: rowTask, isOverdue, daysNum });
+      });
     });
     return rows.sort((a, b) => {
       if (a.resourceName !== b.resourceName) return a.resourceName < b.resourceName ? -1 : 1;
@@ -107,10 +116,7 @@ export default function ResourceTaskPulse() {
     if (search && !row.resourceName.toLowerCase().includes(search.toLowerCase()) && !String(row.task.title || '').toLowerCase().includes(search.toLowerCase())) return false;
     if (selectedProgramId && row.task.program_id && row.task.program_id !== selectedProgramId) return false;
     if (selectedProjectId && row.task.project_id !== selectedProjectId) return false;
-    if (selectedAssignee) {
-      const rowAssignee = row.task.assigned_to || row.task.resource_name || row.task.assignee_name;
-      if (rowAssignee && rowAssignee !== selectedAssignee) return false;
-    }
+    if (selectedAssignee && row.resourceId !== selectedAssignee) return false;
     if (filter === 'overdue' && !row.isOverdue) return false;
     if (filter === 'upcoming' && row.isOverdue) return false;
     return true;
@@ -215,7 +221,7 @@ export default function ResourceTaskPulse() {
           <select value={selectedAssignee} onChange={e => { setSelectedAssignee(e.target.value); setSelectedForNudge(new Set()); }}
             className="h-8 text-sm border border-slate-200 rounded-md px-2 text-slate-700 bg-white">
             <option value="">All Assignees</option>
-            {assignees.map(name => <option key={name} value={String(name)}>{name}</option>)}
+            {assignees.map(assignee => <option key={assignee.id} value={assignee.id}>{assignee.name}</option>)}
           </select>
           <div className="relative w-52">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />

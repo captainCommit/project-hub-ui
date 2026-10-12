@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { Settings, Plus, Download, Edit2, Check, X, Trash2, AlertTriangle, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import { Settings, Download, Edit2, Check, X, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { formatDateRange, parseDate } from '@/lib/dateUtils';

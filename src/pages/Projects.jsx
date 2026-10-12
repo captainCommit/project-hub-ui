@@ -1782,7 +1782,7 @@ export default function Projects() {
                 ) : projectAuditTimeline.length === 0 ? (
                   <ProjectAuditState title="No audit entries" message="This project does not have audit or activity entries to show yet." />
                 ) : (
-                  <AuditView auditEntries={projectAuditTimeline} readOnly />
+                  <AuditView auditEntries={projectAuditTimeline} />
                 )
               )}
             </>
@@ -1871,6 +1871,7 @@ export default function Projects() {
             projects={projects}
             programs={programs}
             portfolios={portfolios}
+            tasks={accountTasks}
             onSelectProject={(p) => handleSelectItem(p, 'project')}
             onNewProject={() => { setEditingProject({}); setDialogType('project'); setProjectDialogOpen(true); }}
           />

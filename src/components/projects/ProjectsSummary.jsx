@@ -24,7 +24,7 @@ export default function ProjectsSummary({ projects = [], programs = [], portfoli
 
   const getTaskStats = (projectId) => {
     const relevant = tasks.filter(t => t.project_id === projectId);
-    const done = relevant.filter(t => t.status === 'done').length;
+    const done = relevant.filter(t => t.status === 'done' || Number(t.progress) >= 100).length;
     return { total: relevant.length, done, progress: relevant.length ? Math.round(done / relevant.length * 100) : 0 };
   };
 

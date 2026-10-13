@@ -3,13 +3,15 @@ import { useAuth } from '@/lib/AuthContext';
 import { cn } from '@/lib/utils';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import SettingsContent from '@/components/projects/SettingsContent';
-import { Bell, Bot, CreditCard, UserCircle, Settings as SettingsIcon, Users } from 'lucide-react';
+import { Bell, Bot, CreditCard, Plug, Link2, UserCircle, Settings as SettingsIcon, Users } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import ProfileEditor from '@/components/Account/ProfileEditor';
 import AccountUsers from '@/components/Account/AccountUsers';
 import AccountBilling from '@/components/Account/AccountBilling';
 import NotificationPreferences from '@/components/Account/NotificationPreferences';
 import AiAssistantSettings from '@/components/Account/AiAssistantSettings';
+import IntegrationsSettings from '@/components/Account/IntegrationsSettings';
+import ConnectedApps from '@/components/Account/ConnectedApps';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
@@ -29,6 +31,7 @@ function InfoRow({ label, value }) {
 export default function Account() {
   const [searchParams] = useSearchParams();
   // Stripe Checkout and the billing portal send owners back to ?tab=billing; notification emails link to ?tab=notifications.
+  // Slack/Microsoft sign-ins come back to ?tab=integrations (owners) and ?tab=connected (everyone).
   const [tab, setTab] = useState(() => searchParams.get('tab') || 'account');
   const { user, appPublicSettings, accounts, selectedAccount, selectedAccountId, setSelectedAccountId } = useAuth();
 
@@ -41,9 +44,11 @@ export default function Account() {
   const tabs = [
     { id: 'account', label: 'Account', icon: UserCircle },
     { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'connected', label: 'Connected apps', icon: Link2 },
     canManageUsers && { id: 'users', label: 'Users', icon: Users },
     isAdmin && { id: 'billing', label: 'Billing', icon: CreditCard },
     isAdmin && { id: 'ai', label: 'AI assistant', icon: Bot },
+    isAdmin && { id: 'integrations', label: 'Integrations', icon: Plug },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ].filter(Boolean);
   const sheetsOwned = projects.filter(p => p.created_by_id === user?.id || p.owner === user?.full_name).length;
@@ -116,6 +121,22 @@ export default function Account() {
           <div className="flex-1 overflow-auto p-8">
             <div className="max-w-3xl">
               <AccountBilling accountId={selectedAccountId} checkoutResult={searchParams.get('checkout')} />
+            </div>
+          </div>
+        ) : tab === 'integrations' && isAdmin ? (
+          <div className="flex-1 overflow-auto p-8">
+            <div className="max-w-3xl">
+              <IntegrationsSettings
+                accountId={selectedAccountId}
+                returnedFrom={searchParams.get('connected')}
+                returnError={searchParams.get('integration_error')}
+              />
+            </div>
+          </div>
+        ) : tab === 'connected' || tab === 'integrations' ? (
+          <div className="flex-1 overflow-auto p-8">
+            <div className="max-w-3xl">
+              <ConnectedApps accountId={selectedAccountId} />
             </div>
           </div>
         ) : tab === 'ai' && isAdmin ? (

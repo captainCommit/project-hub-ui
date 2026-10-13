@@ -44,7 +44,7 @@ function KeyForm({ accountId, onSaved, onCancel }) {
 
   const save = useMutation({
     mutationFn: () => aiSettingsApi.saveKey(accountId, {
-      provider: form.provider,
+      provider: /** @type {import('@/api/ai').AiProvider} */ (form.provider),
       model: form.model.trim(),
       api_key: form.api_key.trim(),
       base_url: provider.needsEndpoint ? form.base_url.trim() : null,
@@ -126,7 +126,7 @@ export default function AiAssistantSettings({ accountId }) {
     queryClient.invalidateQueries({ queryKey: ['ai-status', accountId] });
   };
   const update = useMutation({
-    mutationFn: (changes) => aiSettingsApi.update(accountId, changes),
+    mutationFn: (/** @type {{ assistant_enabled?: boolean, retention_days?: number }} */ changes) => aiSettingsApi.update(accountId, changes),
     onSuccess: applied,
     onError: (e) => toastError(e?.message || 'The setting could not be saved.'),
   });

@@ -1,44 +1,36 @@
 import { apiClient } from './client';
 
-// AI features (assistant chat, AI-written reports) are deferred: the Project Hub API
-// has no LLM endpoints yet. These adapters keep the existing screens usable and
-// tell the user plainly instead of failing.
+// The assistant chat. Asking returns at once; the answer is written by a background worker, so the chat polls the
+// conversation (useAssistantChat) while active_run_id is set.
 
-type Message = { role: 'user' | 'assistant'; content: string; tool_calls?: unknown[] };
-type Conversation = { id: string; agent_name?: string; metadata?: Record<string, unknown>; messages: Message[] };
-type Listener = (conversation: Conversation) => void;
+export type AiConversation = { id: string; title: string | null; created_at: string; updated_at: string };
 
-export const AI_UNAVAILABLE_MESSAGE =
-  'The AI assistant is not available yet. It will be enabled once Project Hub has its own AI service.';
-
-const conversations = new Map<string, Conversation>();
-const listeners = new Map<string, Set<Listener>>();
-
-const notify = (conversation: Conversation) => {
-  listeners.get(conversation.id)?.forEach((listener) => listener({ ...conversation, messages: [...conversation.messages] }));
+export type AiChatMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
+  // Answers only: QUEUED/RUNNING while being written.
+  status?: 'QUEUED' | 'RUNNING' | 'DONE' | 'FAILED' | null;
+  progress?: string | null;
+  // The lookups it made, e.g. "Looking up tasks".
+  steps?: string[];
+  error?: string | null;
 };
 
-/** Session-only stand-in for the Base44 agents API that answers with an availability notice. */
-export const aiAgents = {
-  listConversations: async (_filter?: Record<string, unknown>) => [...conversations.values()].reverse(),
-  createConversation: async (data: { agent_name?: string; metadata?: Record<string, unknown> }) => {
-    const conversation: Conversation = { id: `local-${Date.now()}-${conversations.size}`, ...data, messages: [] };
-    conversations.set(conversation.id, conversation);
-    return conversation;
-  },
-  getConversation: async (id: string) => conversations.get(id) || { id, messages: [] },
-  addMessage: async (conversation: Conversation, message: Message) => {
-    const stored = conversations.get(conversation.id) || { ...conversation, messages: [] };
-    stored.messages = [...stored.messages, message, { role: 'assistant', content: AI_UNAVAILABLE_MESSAGE }];
-    conversations.set(stored.id, stored);
-    notify(stored);
-    return message;
-  },
-  subscribeToConversation: (id: string, listener: Listener) => {
-    if (!listeners.has(id)) listeners.set(id, new Set());
-    listeners.get(id)!.add(listener);
-    return () => listeners.get(id)?.delete(listener);
-  },
+export type AiConversationDetail = AiConversation & { messages: AiChatMessage[]; active_run_id: string | null };
+
+export const aiChatApi = {
+  list: (accountId: string) =>
+    apiClient.get(`/api/v1/accounts/${accountId}/ai/conversations`, undefined, { silent: true }) as Promise<AiConversation[]>,
+  create: (accountId: string) =>
+    apiClient.post(`/api/v1/accounts/${accountId}/ai/conversations`, {}, { silent: true }) as Promise<AiConversation>,
+  // Polled, so it stays out of the global loading indicator.
+  get: (conversationId: string) =>
+    apiClient.get(`/api/v1/ai/conversations/${conversationId}`, undefined, { silent: true }) as Promise<AiConversationDetail>,
+  ask: (conversationId: string, content: string) =>
+    apiClient.post(`/api/v1/ai/conversations/${conversationId}/messages`, { content }, { silent: true }) as Promise<AiConversationDetail>,
+  remove: (conversationId: string) => apiClient.delete(`/api/v1/ai/conversations/${conversationId}`),
 };
 
 export const aiApi = {

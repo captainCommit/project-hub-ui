@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { aiAgents } from '@/api/ai';
 import { Bot, Send, X, Plus, MessageSquare, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
-
-const AGENT = 'project_assistant';
+import { useAuth } from '@/lib/AuthContext';
+import { useAssistantChat } from '@/hooks/useAssistantChat';
+import { AnswerSteps, AssistantMarkdown, AssistantUnavailable, isAnswerActive } from '@/components/assistant/AssistantParts';
 
 function MessageBubble({ message }) {
   const isUser = message.role === 'user';
-  const isThinking = message.role === 'assistant' && !message.content && (!message.tool_calls || message.tool_calls.length === 0);
+  const isThinking = isAnswerActive(message) && !message.progress && !message.steps?.length;
 
   return (
     <div className={cn('flex gap-2 mb-3', isUser ? 'flex-row-reverse' : 'flex-row')}>
@@ -28,24 +27,11 @@ function MessageBubble({ message }) {
           </div>
         ) : (
           <>
-            {message.tool_calls?.map((tc, i) => {
-              const running = ['pending', 'running', 'in_progress'].includes(tc.status);
-              const dp = tc.display_projection;
-              if (dp?.hide_details && dp?.details_redacted) {
-                const label = running ? dp.active_label : ['failed','error'].includes(tc.status) ? dp.error_label : dp.label;
-                return <p key={i} className="text-[10px] text-slate-400 italic mb-1">{label}</p>;
-              }
-              return (
-                <div key={i} className="text-[10px] bg-slate-50 rounded px-2 py-0.5 mb-1 border border-slate-100 text-slate-400">
-                  {running ? <span className="flex items-center gap-1"><span className="w-1 h-1 bg-violet-400 rounded-full animate-pulse" />Looking up data…</span>
-                    : <span>✓ {tc.name?.replace(/_/g, ' ')}</span>}
-                </div>
-              );
-            })}
+            {!isUser && <AnswerSteps message={message} small />}
             {message.content && (
               isUser
                 ? <p className="whitespace-pre-wrap">{message.content}</p>
-                : <div className="prose prose-xs max-w-none [&_p]:my-0.5 [&_ul]:my-0.5 [&_li]:my-0"><ReactMarkdown>{message.content}</ReactMarkdown></div>
+                : <AssistantMarkdown className="prose prose-xs max-w-none [&_p]:my-0.5 [&_ul]:my-0.5 [&_li]:my-0">{message.content}</AssistantMarkdown>
             )}
           </>
         )}
@@ -54,83 +40,42 @@ function MessageBubble({ message }) {
   );
 }
 
+const SUGGESTIONS = [
+  'What are the top open risks?',
+  'Show me all active projects',
+  'Which projects are behind schedule?',
+  'What is overdue on my plate?',
+];
+
 // `hidden` keeps the chat mounted (and its state) while a side panel needs the bottom-right corner.
 export default function AIAssistantWidget({ hidden = false }) {
   const [open, setOpen] = useState(false);
-  const [conversations, setConversations] = useState([]);
-  const [activeConvId, setActiveConvId] = useState(null);
-  const [messages, setMessages] = useState([]);
+  const { selectedAccountId } = useAuth();
+  const chat = useAssistantChat(selectedAccountId, { enabled: open });
   const [input, setInput] = useState('');
-  const [sending, setSending] = useState(false);
   const [showConvList, setShowConvList] = useState(false);
   const bottomRef = useRef(null);
-
-  useEffect(() => {
-    if (open && conversations.length === 0) loadConversations();
-  }, [open]);
+  const unavailable = !chat.statusLoading && chat.status && !chat.status.available;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [chat.messages.length, chat.messages.at(-1)?.progress, chat.messages.at(-1)?.status]);
 
-  useEffect(() => {
-    if (!activeConvId) return;
-    const unsub = aiAgents.subscribeToConversation(activeConvId, (data) => {
-      setMessages(data.messages || []);
-      if (data.messages?.at(-1)?.role === 'assistant') setSending(false);
-    });
-    return () => unsub();
-  }, [activeConvId]);
-
-  const loadConversations = async () => {
-    const convs = await aiAgents.listConversations({ agent_name: AGENT });
-    setConversations(convs || []);
-  };
-
-  const handleNewChat = async () => {
-    const conv = await aiAgents.createConversation({
-      agent_name: AGENT,
-      metadata: { name: `Chat ${new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` }
-    });
-    setActiveConvId(conv.id);
-    setMessages([]);
-    setConversations(prev => [conv, ...prev]);
+  const handleNewChat = () => {
+    chat.newChat();
     setShowConvList(false);
   };
 
-  const handleSelectConv = async (convId) => {
-    setActiveConvId(convId);
-    const conv = await aiAgents.getConversation(convId);
-    setMessages(conv.messages || []);
+  const handleSelectConv = (convId) => {
+    chat.select(convId);
     setShowConvList(false);
   };
 
-  const handleSend = async () => {
-    if (!input.trim() || sending) return;
-    let convId = activeConvId;
-    if (!convId) {
-      const conv = await aiAgents.createConversation({
-        agent_name: AGENT,
-        metadata: { name: input.trim().slice(0, 40) }
-      });
-      convId = conv.id;
-      setActiveConvId(convId);
-      setConversations(prev => [conv, ...prev]);
-    }
-    const conv = await aiAgents.getConversation(convId);
-    const msg = { role: 'user', content: input.trim() };
-    setMessages(prev => [...prev, msg, { role: 'assistant', content: '' }]);
+  const handleSend = () => {
+    if (!input.trim() || chat.busy || unavailable) return;
+    chat.send(input.trim());
     setInput('');
-    setSending(true);
-    await aiAgents.addMessage(conv, msg);
   };
-
-  const SUGGESTIONS = [
-    'What are the top open risks?',
-    'Show me all active projects',
-    'Which projects are behind schedule?',
-    'What issues are currently blocked?',
-  ];
 
   return (
     <div className={`fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2${hidden ? ' hidden' : ''}`}>
@@ -145,7 +90,7 @@ export default function AIAssistantWidget({ hidden = false }) {
             <div className="flex-1 min-w-0">
               <p className="text-white text-xs font-semibold">AI Project Assistant</p>
               <p className="text-slate-400 text-[10px] truncate">
-                {activeConvId ? conversations.find(c => c.id === activeConvId)?.metadata?.name || 'Chat' : 'Ask me anything'}
+                {chat.activeId ? chat.activeTitle || 'Chat' : 'Ask me anything'}
               </p>
             </div>
             <div className="flex items-center gap-1">
@@ -164,13 +109,13 @@ export default function AIAssistantWidget({ hidden = false }) {
           {/* Conv list dropdown */}
           {showConvList && (
             <div className="border-b border-slate-200 bg-slate-50 max-h-36 overflow-y-auto">
-              {conversations.length === 0 && <p className="text-xs text-slate-400 px-3 py-2 text-center">No conversations yet</p>}
-              {conversations.map(conv => (
+              {chat.conversations.length === 0 && <p className="text-xs text-slate-400 px-3 py-2 text-center">No conversations yet</p>}
+              {chat.conversations.map(conv => (
                 <button key={conv.id} onClick={() => handleSelectConv(conv.id)}
                   className={cn('w-full text-left px-3 py-1.5 text-xs flex items-center gap-2',
-                    conv.id === activeConvId ? 'bg-violet-50 text-violet-700 font-medium' : 'text-slate-600 hover:bg-white')}>
+                    conv.id === chat.activeId ? 'bg-violet-50 text-violet-700 font-medium' : 'text-slate-600 hover:bg-white')}>
                   <MessageSquare className="w-3 h-3 opacity-50 flex-shrink-0" />
-                  <span className="truncate">{conv.metadata?.name || 'Chat'}</span>
+                  <span className="truncate">{conv.title || 'New chat'}</span>
                 </button>
               ))}
             </div>
@@ -178,7 +123,7 @@ export default function AIAssistantWidget({ hidden = false }) {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-3 py-3 bg-slate-50">
-            {!activeConvId && messages.length === 0 && (
+            {!chat.activeId && chat.messages.length === 0 && !unavailable && (
               <div className="flex flex-col gap-2 h-full justify-center">
                 <p className="text-xs text-slate-400 text-center mb-2">Suggestions:</p>
                 {SUGGESTIONS.map(s => (
@@ -189,24 +134,29 @@ export default function AIAssistantWidget({ hidden = false }) {
                 ))}
               </div>
             )}
-            {messages.map((msg, i) => <MessageBubble key={i} message={msg} />)}
+            {chat.messages.map(msg => <MessageBubble key={msg.id} message={msg} />)}
             <div ref={bottomRef} />
           </div>
 
           {/* Input */}
-          <div className="border-t border-slate-200 bg-white px-3 py-2.5 flex gap-2 items-center flex-shrink-0">
-            <Input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-              placeholder="Ask about your projects…"
-              className="flex-1 text-xs h-8"
-              disabled={sending}
-            />
-            <Button size="sm" className="h-8 w-8 p-0 bg-violet-600 hover:bg-violet-700 text-white" onClick={handleSend} disabled={!input.trim() || sending}>
-              <Send className="w-3.5 h-3.5" />
-            </Button>
-          </div>
+          {unavailable ? (
+            <div className="border-t border-slate-200 bg-white flex-shrink-0"><AssistantUnavailable status={chat.status} small /></div>
+          ) : (
+            <div className="border-t border-slate-200 bg-white px-3 py-2.5 flex gap-2 items-center flex-shrink-0">
+              <Input
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
+                placeholder="Ask about your projects…"
+                className="flex-1 text-xs h-8"
+                maxLength={4000}
+                disabled={chat.busy}
+              />
+              <Button size="sm" className="h-8 w-8 p-0 bg-violet-600 hover:bg-violet-700 text-white" onClick={handleSend} disabled={!input.trim() || chat.busy}>
+                <Send className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

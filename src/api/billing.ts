@@ -35,6 +35,8 @@ export interface AccountBilling extends BillingState {
   viewer_seats: number;
   pending_invites: number;
   estimated_monthly_cents: number;
+  /** This month's platform AI usage, when the account uses a platform-provided model. */
+  ai_usage?: import('./ai').AiUsage | null;
   subscription_status: string | null;
   current_period_end: string | null;
   cancel_at_period_end: boolean;

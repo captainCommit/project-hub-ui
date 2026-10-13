@@ -73,6 +73,17 @@ export default function AccountBilling({ accountId, checkoutResult = null }) {
           <Row label={`Viewer seats · ${money(data.viewer_seat_price_cents)} each`}>{data.viewer_seats}</Row>
           <Row label="Pending invites (not billed)">{data.pending_invites}</Row>
           <Row label="Monthly, before tax">{money(data.estimated_monthly_cents)}</Row>
+          {data.ai_usage && (
+            <Row label={`AI assistant this month · ${new Intl.NumberFormat().format(data.ai_usage.tokens)} tokens`}>
+              {money(data.ai_usage.billable_cents)}
+              <span className="block text-xs font-normal text-slate-500">
+                {data.ai_usage.allowance_kind === 'CREDIT'
+                  ? `after ${money(data.ai_usage.allowance_amount)} free`
+                  : `after ${new Intl.NumberFormat().format(data.ai_usage.allowance_amount)} free tokens`}
+                {data.ai_usage.cap_cents != null ? ` · capped at ${money(data.ai_usage.cap_cents)}` : ''}
+              </span>
+            </Row>
+          )}
           {subscribed && (
             <Row label={data.cancel_at_period_end ? 'Ends on' : 'Renews on'}>{formatDate(data.current_period_end)}</Row>
           )}

@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Activity, ArrowLeft, Building2, ChevronLeft, ChevronRight, CreditCard, Loader2, LogOut, RefreshCw, ScrollText, Shield } from 'lucide-react';
+import { Activity, ArrowLeft, Bot, Building2, ChevronLeft, ChevronRight, CreditCard, Loader2, LogOut, RefreshCw, ScrollText, Shield } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { isCognitoMode } from '@/lib/cognitoSession';
 import { cn } from '@/lib/utils';
 import { platformApi } from '@/api/platform';
 import { billingApi } from '@/api/billing';
 import PlatformAccounts from '@/components/Account/PlatformAccounts';
+import PlatformAiAdmin from '@/components/Account/PlatformAiAdmin';
 
 const TABS = [
   { id: 'accounts', label: 'Accounts', icon: Building2 },
   { id: 'billing', label: 'Billing', icon: CreditCard },
+  { id: 'ai', label: 'AI', icon: Bot },
   { id: 'system', label: 'System', icon: Activity },
   { id: 'audit', label: 'Audit Log', icon: ScrollText },
 ];
@@ -26,6 +28,12 @@ const AUDIT_ACTION_LABELS = {
   'account.billing_enabled': 'Turned billing on',
   'account.billing_disabled': 'Turned billing off',
   'account.billing_synced': 'Synced seats to Stripe',
+  'account.ai_platform_enabled': 'Switched on the AI model',
+  'account.ai_platform_disabled': 'Switched off the AI model',
+  'account.ai_platform_declined': 'Declined the AI model request',
+  'account.ai_platform_updated': 'Changed AI terms',
+  'ai.platform_model_created': 'Added an AI model',
+  'ai.platform_model_updated': 'Changed an AI model',
 };
 
 const describeAuditDetails = (event) => {
@@ -333,6 +341,7 @@ export default function PlatformAdmin() {
       <main className="max-w-6xl mx-auto px-4 sm:px-8 py-8">
         {tab === 'accounts' ? <div className="max-w-3xl"><PlatformAccounts /></div>
           : tab === 'billing' ? <BillingView />
+          : tab === 'ai' ? <PlatformAiAdmin />
           : tab === 'system' ? <SystemView />
           : <AuditView />}
       </main>

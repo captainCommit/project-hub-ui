@@ -71,10 +71,37 @@ export type AiKey = {
   key_updated_by_name: string | null;
 };
 
+export type AiUsage = {
+  month_start: string;
+  tokens: number;
+  // Cents, before and after the monthly allowance.
+  charge_cents: number;
+  billable_cents: number;
+  allowance_kind: 'TOKENS' | 'CREDIT';
+  // Tokens or cents, depending on allowance_kind.
+  allowance_amount: number;
+  allowance_left: number;
+  cap_cents: number | null;
+  // Whether usage past the allowance can be invoiced; if not, the allowance is the limit.
+  can_bill: boolean;
+  limit_reached: boolean;
+};
+
+export type AiPlatformStatus = 'REQUESTED' | 'ENABLED' | 'DISABLED' | 'DECLINED';
+
+export type AiPlatformInfo = {
+  status: AiPlatformStatus | null;
+  model_label: string | null;
+  requested_at: string | null;
+  usage: AiUsage | null;
+  currency: string;
+};
+
 export type AiSettings = {
   assistant_enabled: boolean;
   retention_days: number;
   key: AiKey | null;
+  platform: AiPlatformInfo;
   key_storage_available: boolean;
 };
 
@@ -96,4 +123,65 @@ export const aiSettingsApi = {
     apiClient.patch(aiPath(accountId, '/settings'), changes) as Promise<AiSettings>,
   saveKey: (accountId: string, key: AiKeyInput) => apiClient.put(aiPath(accountId, '/key'), key) as Promise<AiSettings>,
   removeKey: (accountId: string) => apiClient.delete(aiPath(accountId, '/key')) as Promise<AiSettings>,
+  requestPlatform: (accountId: string) =>
+    apiClient.post(aiPath(accountId, '/platform-request'), { accept_terms: true }) as Promise<AiSettings>,
+  cancelPlatform: (accountId: string) => apiClient.delete(aiPath(accountId, '/platform-request')) as Promise<AiSettings>,
 };
+
+// --- Platform admins ------------------------------------------------------------------------------------
+
+export type AiPlatformModel = {
+  id: string;
+  label: string;
+  provider: 'OPENAI' | 'ANTHROPIC' | 'GEMINI';
+  model: string;
+  // The provider's cost in cents per million tokens; the charge adds margin_percent.
+  input_cost_per_mtok_cents: number;
+  output_cost_per_mtok_cents: number;
+  margin_percent: number;
+  is_active: boolean;
+  key_configured: boolean;
+};
+
+export type AiPlatformModelInput = Omit<AiPlatformModel, 'id' | 'key_configured'>;
+
+export type AiPlatformAccount = {
+  account_id: string;
+  account_name: string;
+  status: AiPlatformStatus;
+  platform_model_id: string | null;
+  model_label: string | null;
+  allowance_kind: 'TOKENS' | 'CREDIT';
+  allowance_amount: number;
+  monthly_cap_cents: number | null;
+  has_own_key: boolean;
+  requested_at: string | null;
+  requested_by_email: string | null;
+  decided_at: string | null;
+  usage: AiUsage;
+};
+
+export type AiPlatformDecision = {
+  status: 'ENABLED' | 'DISABLED' | 'DECLINED';
+  platform_model_id?: string | null;
+  allowance_kind?: 'TOKENS' | 'CREDIT';
+  allowance_amount?: number;
+  monthly_cap_cents?: number | null;
+  clear_cap?: boolean;
+};
+
+export const aiAdminApi = {
+  models: () => apiClient.get('/api/v1/admin/ai/models') as Promise<AiPlatformModel[]>,
+  createModel: (model: AiPlatformModelInput) => apiClient.post('/api/v1/admin/ai/models', model) as Promise<AiPlatformModel>,
+  updateModel: (id: string, changes: Partial<AiPlatformModelInput>) =>
+    apiClient.patch(`/api/v1/admin/ai/models/${id}`, changes) as Promise<AiPlatformModel>,
+  accounts: () => apiClient.get('/api/v1/admin/ai/accounts') as Promise<AiPlatformAccount[]>,
+  decide: (accountId: string, decision: AiPlatformDecision) =>
+    apiClient.put(`/api/v1/admin/ai/accounts/${accountId}`, decision) as Promise<AiPlatformAccount>,
+};
+
+/** "12,000 tokens" or "$1.50" for an allowance, depending on its kind. */
+export const formatAllowance = (kind: 'TOKENS' | 'CREDIT', amount: number, currency: string) =>
+  kind === 'CREDIT'
+    ? new Intl.NumberFormat(undefined, { style: 'currency', currency, minimumFractionDigits: 2 }).format(amount / 100)
+    : `${new Intl.NumberFormat().format(amount)} tokens`;

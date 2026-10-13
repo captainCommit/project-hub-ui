@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bot, Info, KeyRound, Loader2, ShieldCheck } from 'lucide-react';
+import { Bot, Building2, Info, KeyRound, Loader2, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toastError } from '@/components/ui/use-toast';
-import { AI_PROVIDERS, aiSettingsApi } from '@/api/ai';
+import { AI_PROVIDERS, aiSettingsApi, formatAllowance } from '@/api/ai';
+import { formatMoney } from '@/api/billing';
 
 const RETENTION_OPTIONS = [30, 60, 90, 180, 365, 730];
 const EMPTY_FORM = { provider: 'OPENAI', model: '', api_key: '', base_url: '', azure_api_version: '', accept_data_notice: false };
@@ -114,6 +115,100 @@ function KeyForm({ accountId, onSaved, onCancel }) {
   );
 }
 
+function UsageSummary({ usage, currency }) {
+  const allowance = formatAllowance(usage.allowance_kind, usage.allowance_amount, currency);
+  const left = formatAllowance(usage.allowance_kind, usage.allowance_left, currency);
+  return (
+    <div className="grid sm:grid-cols-3 gap-3 text-sm">
+      <div className="rounded-lg bg-slate-50 px-3 py-2">
+        <p className="text-xs text-slate-500">Used this month</p>
+        <p className="font-medium text-slate-800 tabular-nums">{new Intl.NumberFormat().format(usage.tokens)} tokens</p>
+      </div>
+      <div className="rounded-lg bg-slate-50 px-3 py-2">
+        <p className="text-xs text-slate-500">Free allowance left</p>
+        <p className="font-medium text-slate-800 tabular-nums">{left} <span className="text-xs text-slate-500 font-normal">of {allowance}</span></p>
+      </div>
+      <div className="rounded-lg bg-slate-50 px-3 py-2">
+        <p className="text-xs text-slate-500">Added to your bill</p>
+        <p className="font-medium text-slate-800 tabular-nums">
+          {formatMoney(usage.billable_cents, currency)}
+          {usage.cap_cents != null && <span className="text-xs text-slate-500 font-normal"> of {formatMoney(usage.cap_cents, currency)} cap</span>}
+        </p>
+      </div>
+      {usage.limit_reached && (
+        <p className="sm:col-span-3 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+          {usage.can_bill
+            ? 'This month’s cap is reached, so the assistant is paused until the 1st.'
+            : 'The free allowance is used up, so the assistant is paused until the 1st. Set up billing to keep using it past the allowance.'}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PlatformCard({ accountId, platform, hasOwnKey, onChanged }) {
+  const [accepted, setAccepted] = useState(false);
+  const request = useMutation({
+    mutationFn: () => aiSettingsApi.requestPlatform(accountId),
+    onSuccess: onChanged,
+    onError: (e) => toastError(e?.message || 'The request could not be sent.'),
+  });
+  const cancel = useMutation({
+    mutationFn: () => aiSettingsApi.cancelPlatform(accountId),
+    onSuccess: onChanged,
+    onError: (e) => toastError(e?.message || 'That did not work.'),
+  });
+  const status = platform.status;
+  const formatDay = (value) => (value ? new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '');
+
+  return (
+    <Card title="Project Hub's model" icon={Building2}>
+      {hasOwnKey && (
+        <p className="text-sm text-slate-600">Your own model is connected, so it is used instead of Project Hub's.</p>
+      )}
+      {status === 'ENABLED' ? (
+        <>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-slate-700">
+              Using <span className="font-medium">{platform.model_label}</span>, provided by Project Hub.
+            </p>
+            <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" disabled={cancel.isPending} onClick={() => cancel.mutate()}>
+              Stop using it
+            </Button>
+          </div>
+          {platform.usage && <UsageSummary usage={platform.usage} currency={platform.currency} />}
+        </>
+      ) : status === 'REQUESTED' ? (
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-sm text-slate-700">
+            Requested{platform.requested_at ? ` on ${formatDay(platform.requested_at)}` : ''}. Project Hub will switch it on and confirm the free allowance.
+          </p>
+          <Button size="sm" variant="outline" disabled={cancel.isPending} onClick={() => cancel.mutate()}>Withdraw</Button>
+        </div>
+      ) : (
+        <>
+          <p className="text-sm text-slate-600">
+            No AI provider of your own? Project Hub can provide a model. Each month starts with a free allowance;
+            usage past it is added to your Project Hub bill.
+            {status === 'DECLINED' && ' Your last request was declined; contact Project Hub support before asking again.'}
+          </p>
+          <label className="flex gap-2.5 items-start rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm text-slate-700 cursor-pointer">
+            <Checkbox checked={accepted} onCheckedChange={value => setAccepted(value === true)} className="mt-0.5" />
+            <span>
+              I agree that usage past the free allowance is added to our bill, and that the assistant sends the
+              project data it looks up to the AI provider Project Hub uses.
+            </span>
+          </label>
+          <Button size="sm" onClick={() => request.mutate()} disabled={!accepted || request.isPending} className="bg-[#c87b14] hover:bg-[#a86610] text-white">
+            {request.isPending && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
+            Request Project Hub's model
+          </Button>
+        </>
+      )}
+    </Card>
+  );
+}
+
 /** Owners: switch the assistant on or off, choose how long chats are kept, and connect the account's own model. */
 export default function AiAssistantSettings({ accountId }) {
   const queryClient = useQueryClient();
@@ -202,6 +297,8 @@ export default function AiAssistantSettings({ accountId }) {
           />
         )}
       </Card>
+
+      <PlatformCard accountId={accountId} platform={data.platform} hasOwnKey={!!key} onChanged={applied} />
     </div>
   );
 }

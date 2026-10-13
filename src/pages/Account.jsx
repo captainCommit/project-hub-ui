@@ -3,12 +3,13 @@ import { useAuth } from '@/lib/AuthContext';
 import { cn } from '@/lib/utils';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import SettingsContent from '@/components/projects/SettingsContent';
-import { Bell, CreditCard, UserCircle, Settings as SettingsIcon, Users } from 'lucide-react';
+import { Bell, Bot, CreditCard, UserCircle, Settings as SettingsIcon, Users } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import ProfileEditor from '@/components/Account/ProfileEditor';
 import AccountUsers from '@/components/Account/AccountUsers';
 import AccountBilling from '@/components/Account/AccountBilling';
 import NotificationPreferences from '@/components/Account/NotificationPreferences';
+import AiAssistantSettings from '@/components/Account/AiAssistantSettings';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
@@ -42,6 +43,7 @@ export default function Account() {
     { id: 'notifications', label: 'Notifications', icon: Bell },
     canManageUsers && { id: 'users', label: 'Users', icon: Users },
     isAdmin && { id: 'billing', label: 'Billing', icon: CreditCard },
+    isAdmin && { id: 'ai', label: 'AI assistant', icon: Bot },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ].filter(Boolean);
   const sheetsOwned = projects.filter(p => p.created_by_id === user?.id || p.owner === user?.full_name).length;
@@ -114,6 +116,12 @@ export default function Account() {
           <div className="flex-1 overflow-auto p-8">
             <div className="max-w-3xl">
               <AccountBilling accountId={selectedAccountId} checkoutResult={searchParams.get('checkout')} />
+            </div>
+          </div>
+        ) : tab === 'ai' && isAdmin ? (
+          <div className="flex-1 overflow-auto p-8">
+            <div className="max-w-3xl">
+              <AiAssistantSettings accountId={selectedAccountId} />
             </div>
           </div>
         ) : (

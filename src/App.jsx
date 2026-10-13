@@ -31,6 +31,7 @@ import Favorites from './pages/Favorites';
 import MyWork from './pages/MyWork';
 import PlatformAdmin from './pages/PlatformAdmin';
 import BillingBanner from '@/components/BillingBanner';
+import TimezoneSync from '@/components/TimezoneSync';
 
 const { Pages, Layout } = pagesConfig;
 const ProjectsPage = Pages.Projects;
@@ -40,6 +41,7 @@ const ProjectsPage = Pages.Projects;
 const LayoutWrapper = ({ children, currentPageName }) => (
   <div className="h-screen flex flex-col">
     <BillingBanner />
+    <TimezoneSync />
     <div className="flex-1 min-h-0 overflow-auto [&>.h-screen]:h-full [&>.min-h-screen]:min-h-full">
       {Layout ? <Layout currentPageName={currentPageName}>{children}</Layout> : children}
     </div>

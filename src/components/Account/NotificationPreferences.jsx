@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Info, Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { toastError } from '@/components/ui/use-toast';
 import { notificationPreferencesApi } from '@/api/notifications';
 
@@ -20,7 +21,7 @@ const FREQUENCIES = [
   { value: 'OFF', label: 'Off' },
 ];
 
-const FIELDS = [...CATEGORIES.map(c => c.key), 'timezone', 'digest_hour'];
+const FIELDS = [...CATEGORIES.map(c => c.key), 'my_work_summary', 'timezone', 'digest_hour'];
 
 const hourLabel = (hour) => {
   const suffix = hour < 12 ? 'AM' : 'PM';
@@ -121,6 +122,17 @@ export default function NotificationPreferences() {
                 </Select>
               </div>
             ))}
+          </div>
+
+          <div className="flex items-center justify-between gap-4 border border-slate-100 rounded-lg px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-slate-800">My work summary</p>
+              <p className="text-xs text-slate-500">
+                Your overdue, due-today and blocked tasks, plus new mentions, in the daily digest. Skipped on days with nothing to report.
+              </p>
+            </div>
+            <Switch checked={form.my_work_summary} onCheckedChange={value => setField('my_work_summary', value)}
+              aria-label="My work summary emails" className="data-[state=checked]:bg-[#c87b14]" />
           </div>
 
           <div className="space-y-2">

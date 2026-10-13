@@ -1583,18 +1583,7 @@ export default function Projects() {
                         />
                       </>
                     )}
-                    <ReportGenerator
-                      project={projectDetail}
-                      tasks={routedProjectData.tasks}
-                      risks={routedProjectData.risks}
-                      issues={routedProjectData.issues}
-                      programs={programs}
-                      assumptions={routedProjectData.assumptions}
-                      decisions={routedProjectData.decisions}
-                      changeRequests={routedProjectData.changeRequests}
-                      sprints={routedProjectData.sprints}
-                      stories={routedProjectData.stories}
-                    />
+                    <ReportGenerator project={projectDetail} />
                     <Button size="sm" variant="ghost" onClick={() => setShareOpen(true)} className="h-9 gap-1.5 text-slate-600">
                       <Users className="w-3.5 h-3.5" /> People
                     </Button>

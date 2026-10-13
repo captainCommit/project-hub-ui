@@ -1,309 +1,288 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Link } from 'react-router-dom';
+import { AlertCircle, ArrowLeft, Copy, FileText, Loader2, Presentation, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { FileText, Loader2, Download } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
-import pptxgen from 'pptxgenjs';
-import { aiApi } from '@/api/ai';
-import { toastError } from '@/components/ui/use-toast';
+import { aiReportsApi, aiSettingsApi } from '@/api/ai';
+import { AssistantUnavailable } from '@/components/assistant/AssistantParts';
+import { toast, toastError } from '@/components/ui/use-toast';
+import { useAuth } from '@/lib/AuthContext';
+import { downloadPdf, downloadPpt, reportFileName } from '@/lib/reportExport';
+import { cn } from '@/lib/utils';
+
+const POLL_MS = 1500;
 
 const REPORT_TYPES = [
   {
     id: 'weekly_status',
+    scopes: ['PROJECT'],
     title: 'Weekly Status Report',
-    description: 'Concise weekly summary of project progress, highlights, and blockers.',
+    description: 'Progress, highlights, blockers, risks and next steps for the period.',
     color: 'bg-blue-50 border-blue-200 text-blue-700',
-    accent: '#3b82f6',
   },
   {
     id: 'steering_committee',
+    scopes: ['PROJECT'],
     title: 'Steering Committee Update',
-    description: 'Executive-level update covering key decisions, risks, and milestones.',
+    description: 'Decisions needed, milestones, the risk and issue register, and recommendations.',
     color: 'bg-purple-50 border-purple-200 text-purple-700',
-    accent: '#8b5cf6',
   },
   {
-    id: 'executive_dashboard',
-    title: 'Executive Dashboard Summary',
-    description: 'High-level portfolio health overview for C-suite and senior leadership.',
+    id: 'executive_summary',
+    scopes: ['PROJECT'],
+    title: 'Executive Summary',
+    description: 'One-page health, key figures and what leadership needs to know.',
     color: 'bg-amber-50 border-amber-200 text-amber-700',
-    accent: '#f59e0b',
   },
   {
     id: 'raid',
+    scopes: ['PROJECT'],
     title: 'RAID Report',
-    description: 'All risks, issues, assumptions, decisions, and change requests for the selected project.',
+    description: 'Open risks, issues, assumptions, decisions and change requests, as tables.',
     color: 'bg-rose-50 border-rose-200 text-rose-700',
-    accent: '#e11d48',
+  },
+  {
+    id: 'health',
+    scopes: ['PROGRAM', 'PORTFOLIO'],
+    title: 'Health Summary',
+    description: 'Every project’s health, the ones needing attention, top risks, pending decisions and milestones.',
+    color: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+  },
+  {
+    id: 'changes',
+    scopes: ['PROJECT', 'PROGRAM', 'PORTFOLIO'],
+    title: 'What Changed',
+    description: 'Everything that moved since the start date: finished work, changes, new risks and decisions.',
+    color: 'bg-slate-50 border-slate-200 text-slate-700',
   },
 ];
 
-const PROGRAM_REPORT_TYPE = {
-  id: 'program_health',
-  title: 'Program Health Summary',
-  description: 'Health summary for every project in this program, with all associated risks, issues, assumptions, decisions, and changes.',
-  color: 'bg-emerald-50 border-emerald-200 text-emerald-700',
-  accent: '#10b981',
-};
+const TYPE_TITLES = Object.fromEntries(REPORT_TYPES.map((type) => [type.id, type.title]));
 
-const PORTFOLIO_REPORT_TYPE = {
-  id: 'portfolio_health',
-  title: 'Portfolio Health Summary',
-  description: 'Health summary for every program and project in this portfolio, with all associated risks, issues, assumptions, decisions, and changes.',
-  color: 'bg-amber-50 border-amber-200 text-amber-700',
-  accent: '#f59e0b',
-};
+const isoDay = (date) => date.toISOString().slice(0, 10);
+const daysAgo = (days) => isoDay(new Date(Date.now() - days * 86_400_000));
+const isActive = (report) => report && ['QUEUED', 'RUNNING'].includes(report.status);
 
-const FORMAT_OPTIONS = [
-  { id: 'pdf', label: 'PDF', icon: '📄' },
-  { id: 'ppt', label: 'PPT', icon: '📊' },
-];
+// Report links point into the app (/projects/…); the dialog closes when one is followed.
+const markdownComponents = (onNavigate) => ({
+  h1: ({ children }) => <h1 className="text-xl font-bold text-[#002046] mb-2">{children}</h1>,
+  h2: ({ children }) => <h2 className="text-base font-semibold text-[#002046] border-b-2 border-[#c87b14] pb-1 mt-5 mb-2">{children}</h2>,
+  h3: ({ children }) => <h3 className="text-sm font-semibold text-slate-800 mt-3 mb-1">{children}</h3>,
+  p: ({ children }) => <p className="text-sm text-slate-700 mb-2 leading-relaxed">{children}</p>,
+  ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-1 text-sm text-slate-700">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-1 text-sm text-slate-700">{children}</ol>,
+  table: ({ children }) => <table className="w-full text-xs border-collapse mb-3">{children}</table>,
+  th: ({ children }) => <th className="bg-[#002046] text-white text-left font-semibold px-2 py-1.5 border border-slate-300">{children}</th>,
+  td: ({ children }) => <td className="px-2 py-1.5 border border-slate-200 align-top">{children}</td>,
+  a: ({ href = '', children }) => (href.startsWith('/')
+    ? <Link to={href} onClick={onNavigate} className="text-[#002046] underline underline-offset-2">{children}</Link>
+    : <span>{children}</span>),
+});
 
-function buildRaidAndSprintContext(project, risks, issues, assumptions, decisions, changeRequests, sprints, stories) {
-  const pid = project?.id;
-  const projRisks = risks.filter(r => r.project_id === pid);
-  const projIssues = issues.filter(i => i.project_id === pid);
-  const projAssumptions = (assumptions || []).filter(a => a.project_id === pid);
-  const projDecisions = (decisions || []).filter(d => d.project_id === pid);
-  const projChangeRequests = (changeRequests || []).filter(c => c.project_id === pid);
-  const projSprints = (sprints || []).filter(s => s.project_id === pid);
-  const projStories = (stories || []).filter(s => projSprints.some(sp => sp.id === s.sprint_id));
+/**
+ * Writes AI reports for a project, program or portfolio. The report is written on the server from what the
+ * signed-in person can see; this dialog asks for it, polls until it's written, shows it, and downloads it.
+ */
+export default function ReportGenerator({ scope = 'project', project, program, portfolio }) {
+  const scopeType = scope.toUpperCase();
+  const entity = scopeType === 'PROGRAM' ? program : scopeType === 'PORTFOLIO' ? portfolio : project;
+  const { selectedAccountId: accountId } = useAuth();
+  const queryClient = useQueryClient();
+  const previewRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [since, setSince] = useState(() => daysAgo(7));
+  const [reportId, setReportId] = useState(/** @type {string | null} */ (null));
+  const [exporting, setExporting] = useState(/** @type {string | null} */ (null));
 
-  const riskSummary = projRisks.map(r => `- [${r.priority}] ${r.title}: ${r.description || ''}`).join('\n');
-  const issueSummary = projIssues.map(i => `- [${i.priority}] ${i.title}: ${i.description || ''}`).join('\n');
-  const assumptionSummary = projAssumptions.map(a => `- [${a.status}] ${a.description}`).join('\n');
-  const decisionSummary = projDecisions.map(d => `- [${d.status}] ${d.decision}`).join('\n');
-  const changeSummary = projChangeRequests.map(c => `- [${c.status}] ${c.title}`).join('\n');
+  const types = REPORT_TYPES.filter((type) => type.scopes.includes(scopeType));
+  const enabled = open && !!accountId && !!entity?.id;
+  const recentKey = ['ai-reports', accountId, scopeType, entity?.id];
 
-  const completedSprints = projSprints.filter(s => s.status === 'completed').length;
-  const activeSprint = projSprints.find(s => s.status === 'active');
-  const activeSprintStories = activeSprint ? projStories.filter(s => s.sprint_id === activeSprint.id) : [];
-  const activeSprintDone = activeSprintStories.filter(s => s.status === 'done').length;
+  const statusQuery = useQuery({
+    queryKey: ['ai-status', accountId],
+    queryFn: () => aiSettingsApi.status(accountId),
+    enabled,
+  });
+  const recentQuery = useQuery({
+    queryKey: recentKey,
+    queryFn: () => aiReportsApi.list(accountId, scopeType, entity.id),
+    enabled,
+  });
+  const reportQuery = useQuery({
+    queryKey: ['ai-report', reportId],
+    queryFn: () => aiReportsApi.get(reportId),
+    enabled: open && !!reportId,
+    refetchInterval: (query) => (isActive(query.state.data) ? POLL_MS : false),
+  });
+  const report = reportId ? reportQuery.data : null;
 
-  const sprintSummary = projSprints.length > 0
-    ? `Total Sprints: ${projSprints.length}. Completed Sprints: ${completedSprints}.${activeSprint ? ` Sprint In Progress: "${activeSprint.name}" (${activeSprintDone}/${activeSprintStories.length} tasks completed).` : ' No sprint currently in progress.'}`
-    : 'No sprints associated with this project.';
-
-  return {
-    riskSummary, issueSummary, assumptionSummary, decisionSummary, changeSummary, sprintSummary,
-    projRisks, projIssues, projAssumptions, projDecisions, projChangeRequests, projSprints,
-  };
-}
-
-function buildPrompts(project, program, tasks, risks, issues, assumptions, decisions, changeRequests, sprints, stories) {
-  const taskSummary = tasks.map(t => `- ${t.title} [${t.status}]${t.due_date ? ` due ${t.due_date}` : ''}${t.assignee ? ` (${t.assignee})` : ''}`).join('\n');
-  const ctx = buildRaidAndSprintContext(project, risks, issues, assumptions, decisions, changeRequests, sprints, stories);
-  const { riskSummary, issueSummary, assumptionSummary, decisionSummary, changeSummary, sprintSummary, projRisks, projIssues } = ctx;
-  const completedTasks = tasks.filter(t => t.status === 'done').length;
-  const totalTasks = tasks.length;
-  const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-  const projectName = project?.name || 'Project';
-  const programName = program?.name || 'N/A';
-  const raidBlock = `Risks:\n${riskSummary || 'None.'}\nIssues:\n${issueSummary || 'None.'}\nAssumptions:\n${assumptionSummary || 'None.'}\nDecisions:\n${decisionSummary || 'None.'}\nChange Requests:\n${changeSummary || 'None.'}\nSprint Status: ${sprintSummary}`;
-
-  return {
-    weekly_status: `Generate a professional Weekly Status Report in HTML format for project "${projectName}". Program: ${programName}. Progress: ${progress}% (${completedTasks}/${totalTasks} tasks done).\nTasks:\n${taskSummary || 'None.'}\n${raidBlock}\nInclude: Executive Summary, Progress This Week, Key Highlights, Blockers/Risks, Assumptions & Decisions, Sprint Delivery Status, Next Steps. Use professional HTML with inline CSS, Color scheme: navy #002046 headers, orange #c87b14 accents, white #ffffff background. Clean professional tables.`,
-    steering_committee: `Generate a professional Steering Committee Update in HTML for project "${projectName}". Program: ${programName}. Progress: ${progress}%.\nTasks:\n${taskSummary || 'None.'}\n${raidBlock}\nInclude: Project Overview, Key Decisions Required, Milestone Status, Risk & Issue Register table, Assumption Log, Change Request Log, Sprint Delivery Status, Financial Status placeholder, Recommendations. Use formal HTML, Color scheme: navy #002046 for header backgrounds and borders, orange #c87b14 for key highlights, white #ffffff background.`,
-    executive_dashboard: `Generate an Executive Dashboard Summary in HTML for project "${projectName}". Program: ${programName}. Progress: ${progress}%. Tasks: ${completedTasks} done, ${tasks.filter(t => t.status === 'in_progress').length} in progress, ${tasks.filter(t => t.status === 'todo').length} not started. Critical Risks: ${projRisks.filter(r => r.priority === 'critical').length}. Open Issues: ${projIssues.filter(i => i.status !== 'closed').length}.\n${raidBlock}\nInclude: KPI Summary Cards, Project Health RAG indicator, Top Priorities, RAID Summary (risks, issues, assumptions, decisions, change requests), Sprint Delivery Status, Key Metrics table. Modern HTML with inline CSS, Color scheme: navy #002046 for card headers, orange #c87b14 for KPI accents, white #ffffff background. Use green/amber/red for RAG indicators.`,
-    program_health: `Generate a detailed Program Health Summary in HTML for program "${programName}" / project "${projectName}". Progress: ${progress}%. Tasks: ${completedTasks} done, ${tasks.filter(t => t.status === 'in_progress').length} in progress, ${tasks.filter(t => t.status === 'todo').length} todo. Risks: Critical(${projRisks.filter(r => r.priority === 'critical').length}), High(${projRisks.filter(r => r.priority === 'high').length}), Medium(${projRisks.filter(r => r.priority === 'medium').length}).\n${raidBlock}\nInclude: Program Overview, Schedule Health, Risk Register Table, Issue Register Table, Assumption Log, Decision Log, Change Request Log, Sprint Delivery Status, Upcoming Milestones. Use Color scheme: navy #002046 for headers, orange #c87b14 for section dividers, white #ffffff background.`,
-    raid: `Generate a comprehensive RAID Report in HTML for project "${projectName}" (Program: ${programName}).\n${raidBlock}\nInclude clean HTML tables for each category: Risks (ID, priority, status, description), Issues (ID, priority, status, description), Assumptions (status, description), Decisions (status, decision), Change Requests (status, title). If a category has no items, state "None." Use professional HTML with inline CSS, Color scheme: navy #002046 headers, orange #c87b14 accents, white #ffffff background.`,
-  };
-}
-
-function buildPptPrompts(project, program, tasks, risks, issues, assumptions, decisions, changeRequests, sprints, stories) {
-  const completedTasks = tasks.filter(t => t.status === 'done').length;
-  const totalTasks = tasks.length;
-  const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-  const ctx = buildRaidAndSprintContext(project, risks, issues, assumptions, decisions, changeRequests, sprints, stories);
-
-  const base = `Return ONLY valid JSON (no markdown fences) in this exact format:
-{"title":"Report Title","slides":[{"title":"Slide Title","bullets":["bullet 1","bullet 2"]}]}
-Generate a PowerPoint presentation for project "${project?.name || 'Project'}" (Program: ${program?.name || 'N/A'}).
-Progress: ${progress}% (${completedTasks}/${totalTasks} tasks).
-Top risks: ${ctx.projRisks.slice(0, 3).map(r => r.title).join(', ') || 'None'}.
-Top issues: ${ctx.projIssues.slice(0, 3).map(i => i.title).join(', ') || 'None'}.
-Top assumptions: ${ctx.projAssumptions.slice(0, 3).map(a => a.description).join(', ') || 'None'}.
-Top decisions: ${ctx.projDecisions.slice(0, 3).map(d => d.decision).join(', ') || 'None'}.
-Change requests: ${ctx.projChangeRequests.slice(0, 3).map(c => c.title).join(', ') || 'None'}.
-Sprint status: ${ctx.sprintSummary}`;
-
-  const slideTypes = {
-    weekly_status: base + ' Include slides: Title, Executive Summary, Progress Update, Key Highlights, Risks & Blockers, Assumptions & Decisions, Sprint Status, Next Steps (7-8 slides, 4-6 bullets each).',
-    steering_committee: base + ' Include slides: Title, Project Overview, Key Decisions Required, Milestone Status, Risk Register, Issue Register, Change Requests, Sprint Status, Recommendations (8-9 slides).',
-    executive_dashboard: base + ' Include slides: Title, Executive Summary, KPI Dashboard, Project Health Status, Top Priorities, RAID Summary, Sprint Status, Financial Overview, Next Steps (8 slides).',
-    program_health: base + ' Include slides: Title, Program Overview, Schedule Health, Resource Summary, Risk Register, Issue Register, Assumption & Decision Log, Sprint Status, Upcoming Milestones, Health Score (9 slides).',
-    raid: base + ' Include slides: Title, Risk Register, Issue Register, Assumption Log, Decision Log, Change Request Log, Summary (6-7 slides, list each item as a bullet with its status/priority).',
-  };
-  return slideTypes;
-}
-
-function buildScopedHealthPrompt(scopeLabel, entityName, childProjects, risks, issues, assumptions, decisions, changeRequests) {
-  const sections = childProjects.map(proj => {
-    const ctx = buildRaidAndSprintContext(proj, risks, issues, assumptions, decisions, changeRequests, [], []);
-    return `Project: "${proj.name}" [${proj.status}]\nRisks:\n${ctx.riskSummary || 'None.'}\nIssues:\n${ctx.issueSummary || 'None.'}\nAssumptions:\n${ctx.assumptionSummary || 'None.'}\nDecisions:\n${ctx.decisionSummary || 'None.'}\nChange Requests:\n${ctx.changeSummary || 'None.'}`;
-  }).join('\n\n');
-  const completed = childProjects.filter(p => p.status === 'completed').length;
-  return `Generate a detailed ${scopeLabel} Health Summary in HTML for ${entityName}. It contains ${childProjects.length} project(s), ${completed} completed.\n\nPer-project details:\n${sections || 'No projects.'}\n\nInclude: Overview, overall health RAG indicator, a summary table listing every project with its status, and for each project a breakdown of its risks, issues, assumptions, decisions, and change requests (or "None." if empty). Use professional HTML with inline CSS, Color scheme: navy #002046 headers, orange #c87b14 accents, white #ffffff background, clean tables.`;
-}
-
-async function generatePdf(html, filename) {
-  const container = document.createElement('div');
-  container.style.cssText = 'position:fixed;left:-9999px;top:0;width:900px;background:#fff;';
-  container.innerHTML = html;
-  document.body.appendChild(container);
-  await new Promise(r => setTimeout(r, 300));
-  const canvas = await html2canvas(container, { scale: 1.5, useCORS: true, logging: false });
-  document.body.removeChild(container);
-  const imgData = canvas.toDataURL('image/jpeg', 0.92);
-  const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: 'a4' });
-  const pageW = pdf.internal.pageSize.getWidth();
-  const pageH = pdf.internal.pageSize.getHeight();
-  const imgW = pageW;
-  const imgH = (canvas.height * imgW) / canvas.width;
-  let y = 0;
-  while (y < imgH) {
-    if (y > 0) pdf.addPage();
-    pdf.addImage(imgData, 'JPEG', 0, -y, imgW, imgH);
-    y += pageH;
-  }
-  pdf.save(filename);
-}
-
-async function generatePpt(slidesJson, reportType, projectName) {
-  const prs = new pptxgen();
-  prs.layout = 'LAYOUT_WIDE';
-  const accent = '#002046';
-  const accentBar = 'c87b14';
-
-  slidesJson.slides.forEach((slideData, idx) => {
-    const slide = prs.addSlide();
-    // Background
-    slide.background = { color: idx === 0 ? accent.replace('#', '') : 'FFFFFF' };
-    // Title
-    slide.addText(slideData.title, {
-      x: 0.5, y: idx === 0 ? 1.5 : 0.3,
-      w: '90%', h: idx === 0 ? 1.2 : 0.7,
-      fontSize: idx === 0 ? 32 : 22,
-      bold: true,
-      color: idx === 0 ? 'FFFFFF' : '1e293b',
-      fontFace: 'Calibri',
-    });
-    if (idx === 0 && slidesJson.title) {
-      slide.addText(slidesJson.title, {
-        x: 0.5, y: 0.5, w: '90%', h: 0.8,
-        fontSize: 18, color: 'FFFFFF', fontFace: 'Calibri', italic: true,
-      });
-    }
-    // Bullets
-    if (slideData.bullets?.length && idx > 0) {
-      const bullets = slideData.bullets.map(b => ({ text: b, options: { bullet: true, fontSize: 16, color: '334155', paraSpaceAfter: 8 } }));
-      slide.addText(bullets, { x: 0.5, y: 1.2, w: '90%', h: 4.5, fontFace: 'Calibri', valign: 'top' });
-    }
-    // Accent bar for non-title slides
-    if (idx > 0) {
-      slide.addShape(prs.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 0.08, fill: { color: accentBar } });
-    }
+  const create = useMutation({
+    mutationFn: ({ type, regenerate = false }) =>
+      aiReportsApi.create(accountId, { scope_type: scopeType, scope_id: entity.id, report_type: type, since, regenerate }),
+    onSuccess: (created) => {
+      queryClient.setQueryData(['ai-report', created.id], created);
+      setReportId(created.id);
+      queryClient.invalidateQueries({ queryKey: recentKey });
+    },
+    onError: (error) => {
+      toastError(error?.message || 'The report could not be started.');
+      queryClient.invalidateQueries({ queryKey: ['ai-status', accountId] });
+    },
   });
 
-  await prs.writeFile({ fileName: `${reportType}_${projectName?.replace(/\s+/g, '_') || 'report'}_${new Date().toISOString().slice(0, 10)}.pptx` });
-}
+  const remove = useMutation({
+    mutationFn: (id) => aiReportsApi.remove(id),
+    onSuccess: (_result, id) => {
+      if (id === reportId) setReportId(null);
+      queryClient.invalidateQueries({ queryKey: recentKey });
+    },
+    onError: (error) => toastError(error?.message || 'The report could not be deleted.'),
+  });
 
-export default function ReportGenerator({ scope = 'project', project, program, portfolio, projects = [], programs = [], tasks = [], risks = [], issues = [], assumptions = [], decisions = [], changeRequests = [], sprints = [], stories = [] }) {
-  const [open, setOpen] = useState(false);
-  const [generating, setGenerating] = useState(null);
-  const [format, setFormat] = useState('pdf');
-
-  const reportTypes = scope === 'program' ? [PROGRAM_REPORT_TYPE] : scope === 'portfolio' ? [PORTFOLIO_REPORT_TYPE] : REPORT_TYPES;
-
-  const generate = async (reportType) => {
-    setGenerating(reportType.id);
-    const entityName = scope === 'program' ? (program?.name || 'report') : scope === 'portfolio' ? (portfolio?.name || 'report') : (project?.name || 'report');
-
+  const exportAs = async (kind) => {
+    if (!report?.content) return;
+    setExporting(kind);
     try {
-      if (reportType.id === 'program_health' || reportType.id === 'portfolio_health') {
-        const childProjects = reportType.id === 'program_health'
-          ? projects.filter(p => p.program_id === program?.id)
-          : projects.filter(p => p.portfolio_id === portfolio?.id || programs.filter(pg => pg.portfolio_id === portfolio?.id).some(pg => pg.id === p.program_id));
-        const scopeLabel = reportType.id === 'program_health' ? 'Program' : 'Portfolio';
-        const prompt = buildScopedHealthPrompt(scopeLabel, `${scopeLabel.toLowerCase()} "${entityName}"`, childProjects, risks, issues, assumptions, decisions, changeRequests);
-        const html = await aiApi.invokeLLM({ prompt });
-        const htmlStr = typeof html === 'string' ? html : JSON.stringify(html);
-        await generatePdf(htmlStr, `${reportType.id}_${entityName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`);
-      } else if (format === 'ppt') {
-        const proj_program = programs.find(p => p.id === project?.program_id);
-        const pptPrompts = buildPptPrompts(project, proj_program, tasks, risks, issues, assumptions, decisions, changeRequests, sprints, stories);
-        const result = await aiApi.invokeLLM({
-          prompt: pptPrompts[reportType.id],
-          response_json_schema: {
-            type: 'object',
-            properties: {
-              title: { type: 'string' },
-              slides: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, bullets: { type: 'array', items: { type: 'string' } } } } }
-            }
-          }
-        });
-        await generatePpt(result, reportType.id, entityName);
-      } else {
-        const proj_program = programs.find(p => p.id === project?.program_id);
-        const prompts = buildPrompts(project, proj_program, tasks, risks, issues, assumptions, decisions, changeRequests, sprints, stories);
-        const html = await aiApi.invokeLLM({ prompt: prompts[reportType.id] });
-        const htmlStr = typeof html === 'string' ? html : JSON.stringify(html);
-        await generatePdf(htmlStr, `${reportType.id}_${entityName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`);
-      }
-      setOpen(false);
+      if (kind === 'pdf') await downloadPdf(previewRef.current, reportFileName(report, 'pdf'));
+      else await downloadPpt(report.content, reportFileName(report, 'pptx'));
     } catch (error) {
-      toastError(error.message);
+      toastError(error?.message || 'The file could not be created.');
     } finally {
-      setGenerating(null);
+      setExporting(null);
     }
   };
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(report.content);
+      toast({ title: 'Report copied as Markdown.' });
+    } catch {
+      toastError('Copying isn’t allowed in this browser.');
+    }
+  };
+
+  const status = statusQuery.data;
+  const unavailable = status && !status.available;
+  const recent = recentQuery.data || [];
 
   return (
     <>
-      <Button size="sm" variant="outline" onClick={() => setOpen(true)} className="h-9 gap-1.5">
+      <Button size="sm" variant="outline" onClick={() => setOpen(true)} className="h-9 gap-1.5" disabled={!entity?.id}>
         <FileText className="w-3.5 h-3.5" /> Reports
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className={cn('max-h-[90vh] flex flex-col', report ? 'max-w-4xl' : 'max-w-2xl')}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-indigo-500" /> Generate Report
+              {report ? (
+                <button type="button" onClick={() => setReportId(null)} className="text-slate-500 hover:text-slate-800" aria-label="Back to report types">
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+              ) : <FileText className="w-5 h-5 text-indigo-500" />}
+              {report ? report.title : `Reports for ${entity?.name || ''}`}
             </DialogTitle>
           </DialogHeader>
 
-          {/* Format selector */}
-          {scope === 'project' && (
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-sm text-slate-500 mr-1">Format:</span>
-              {FORMAT_OPTIONS.map(f => (
-                <button key={f.id} onClick={() => setFormat(f.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${format === f.id ? 'bg-[#002046] text-white border-[#002046]' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>
-                  <span>{f.icon}</span> {f.label}
-                </button>
-              ))}
+          {!report && (
+            <div className="overflow-y-auto -mx-1 px-1">
+              {unavailable ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 mb-4"><AssistantUnavailable status={status} /></div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 mb-4 text-sm text-slate-600">
+                    <label htmlFor="report-since">Changes since</label>
+                    <Input id="report-since" type="date" value={since} min={daysAgo(90)} max={isoDay(new Date())}
+                      onChange={(event) => setSince(event.target.value || daysAgo(7))} className="h-8 w-40" />
+                    <span className="text-xs text-slate-400">Reports are written by AI from what you can see.</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {types.map((type) => {
+                      const starting = create.isPending && create.variables?.type === type.id;
+                      return (
+                        <button key={type.id} type="button" onClick={() => create.mutate({ type: type.id })} disabled={create.isPending || !status}
+                          className={cn('text-left p-4 rounded-xl border-2 hover:shadow-md transition-all disabled:opacity-60', type.color, !create.isPending && 'hover:scale-[1.02]')}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-semibold">{type.title}</span>
+                            {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 opacity-50" />}
+                          </div>
+                          <p className="text-xs opacity-75 leading-relaxed">{type.description}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {recent.length > 0 && (
+                <div className="mt-5">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Your recent reports</p>
+                  <ul className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
+                    {recent.map((item) => (
+                      <li key={item.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                        <button type="button" onClick={() => setReportId(item.id)} className="flex-1 text-left min-w-0">
+                          <span className="font-medium text-slate-800">{TYPE_TITLES[item.report_type] || item.title}</span>
+                          <span className="text-xs text-slate-500 ml-2">
+                            since {item.since} · {new Date(item.created_at).toLocaleString()}
+                            {item.status === 'FAILED' && <span className="text-red-600"> · failed</span>}
+                            {isActive(item) && <span className="text-indigo-600"> · writing…</span>}
+                          </span>
+                        </button>
+                        <button type="button" onClick={() => remove.mutate(item.id)} className="text-slate-400 hover:text-red-600" aria-label="Delete report">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            {reportTypes.map(rt => (
-              <button key={rt.id} onClick={() => generate(rt)} disabled={!!generating}
-                className={`text-left p-4 rounded-xl border-2 hover:shadow-md transition-all ${rt.color} ${generating === rt.id ? 'opacity-75' : 'hover:scale-[1.02]'}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold">{rt.title}</span>
-                  {generating === rt.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 opacity-50" />}
-                </div>
-                <p className="text-xs opacity-75 leading-relaxed">{rt.description}</p>
-              </button>
-            ))}
-          </div>
-
-          {generating && (
-            <div className="flex items-center gap-2 text-sm text-slate-500 mt-2">
-              <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
-              Generating {format.toUpperCase()} report with AI… this may take a moment.
+          {report && isActive(report) && (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-slate-500">
+              <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+              {report.progress || 'Waiting to start…'}
+              <span className="text-xs text-slate-400">Longer reports can take up to a minute.</span>
             </div>
+          )}
+
+          {report?.status === 'FAILED' && (
+            <div className="flex flex-col items-center gap-3 py-12 text-sm">
+              <p className="text-red-600 flex items-center gap-1.5"><AlertCircle className="w-4 h-4" />{report.error}</p>
+              <Button size="sm" variant="outline" onClick={() => create.mutate({ type: report.report_type, regenerate: true })} disabled={create.isPending}>
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Try again
+              </Button>
+            </div>
+          )}
+
+          {report?.status === 'DONE' && report.content && (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button size="sm" onClick={() => exportAs('pdf')} disabled={!!exporting} className="bg-[#002046] hover:bg-[#003070]">
+                  {exporting === 'pdf' ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <FileText className="w-3.5 h-3.5 mr-1.5" />} PDF
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => exportAs('ppt')} disabled={!!exporting}>
+                  {exporting === 'ppt' ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Presentation className="w-3.5 h-3.5 mr-1.5" />} PowerPoint
+                </Button>
+                <Button size="sm" variant="outline" onClick={copy}><Copy className="w-3.5 h-3.5 mr-1.5" /> Copy</Button>
+                <Button size="sm" variant="ghost" onClick={() => create.mutate({ type: report.report_type, regenerate: true })} disabled={create.isPending}>
+                  <RefreshCw className={cn('w-3.5 h-3.5 mr-1.5', create.isPending && 'animate-spin')} /> Write again
+                </Button>
+                <span className="ml-auto text-xs text-slate-400">
+                  AI-written · since {report.since} · {new Date(report.finished_at || report.created_at).toLocaleString()}
+                </span>
+              </div>
+              <div className="overflow-y-auto border border-slate-200 rounded-lg">
+                <div ref={previewRef} className="bg-white p-6">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents(() => setOpen(false))}>{report.content}</ReactMarkdown>
+                </div>
+              </div>
+            </>
           )}
         </DialogContent>
       </Dialog>

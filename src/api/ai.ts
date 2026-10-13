@@ -33,10 +33,47 @@ export const aiChatApi = {
   remove: (conversationId: string) => apiClient.delete(`/api/v1/ai/conversations/${conversationId}`),
 };
 
-export const aiApi = {
-  invokeLLM: async (_request: Record<string, unknown>): Promise<never> => {
-    throw new Error('AI report generation is not available yet.');
-  },
+// Written reports. Like questions, asking returns at once and the report is written in the background, so the
+// dialog polls it while status is QUEUED or RUNNING. An identical request made recently returns the stored report.
+
+export type AiReportScope = 'PROJECT' | 'PROGRAM' | 'PORTFOLIO';
+export type AiReportType = 'weekly_status' | 'steering_committee' | 'executive_summary' | 'raid' | 'health' | 'changes';
+
+export type AiReport = {
+  id: string;
+  scope_type: AiReportScope;
+  scope_id: string;
+  scope_name: string;
+  report_type: AiReportType;
+  title: string;
+  // First day of the period the report covers (YYYY-MM-DD).
+  since: string;
+  status: 'QUEUED' | 'RUNNING' | 'DONE' | 'FAILED';
+  progress: string | null;
+  error: string | null;
+  // Markdown; only on a finished report fetched on its own, never in lists.
+  content: string | null;
+  model: string | null;
+  created_at: string;
+  finished_at: string | null;
+};
+
+export type AiReportRequest = {
+  scope_type: AiReportScope;
+  scope_id: string;
+  report_type: AiReportType;
+  since?: string;
+  regenerate?: boolean;
+};
+
+export const aiReportsApi = {
+  list: (accountId: string, scopeType: AiReportScope, scopeId: string) =>
+    apiClient.get(aiPath(accountId, '/reports'), { scope_type: scopeType, scope_id: scopeId }, { silent: true }) as Promise<AiReport[]>,
+  create: (accountId: string, request: AiReportRequest) =>
+    apiClient.post(aiPath(accountId, '/reports'), request, { silent: true }) as Promise<AiReport>,
+  // Polled, so it stays out of the global loading indicator.
+  get: (reportId: string) => apiClient.get(`/api/v1/ai/reports/${reportId}`, undefined, { silent: true }) as Promise<AiReport>,
+  remove: (reportId: string) => apiClient.delete(`/api/v1/ai/reports/${reportId}`),
 };
 
 // --- Assistant settings ---------------------------------------------------------------------------------

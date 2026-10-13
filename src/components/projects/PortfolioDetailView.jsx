@@ -506,7 +506,7 @@ export default function PortfolioDetailView({
               <Download className="w-3.5 h-3.5 mr-1.5" /> Export
             </Button>
             <div className="[&_button]:border-[#002046]/30 [&_button]:text-[#002046] [&_button]:hover:bg-[#002046]/10 [&_button]:bg-transparent [&_button]:h-8">
-              <ReportGenerator scope="portfolio" portfolio={portfolio} programs={portfolioPrograms} projects={allPortfolioProjects} risks={risks} issues={issues} />
+              <ReportGenerator scope="portfolio" portfolio={portfolio} />
             </div>
             <button onClick={() => onEditItem && onEditItem(portfolio, 'portfolio')}
               className="p-1.5 bg-[#002046]/10 hover:bg-[#002046]/20 rounded-lg"><Settings className="w-4 h-4 text-[#002046]" /></button>

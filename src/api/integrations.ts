@@ -1,14 +1,14 @@
 import { apiClient } from './client';
 
-// Slack, Microsoft Teams and Outlook. Owners manage the account's connections and channels; everyone manages their
-// own Slack/Teams link, direct messages and calendar.
+// Slack and Outlook. Owners manage the account's connections and Slack channels; everyone manages their own Slack
+// link, direct messages and calendar.
 
-export type ChatProvider = 'slack' | 'teams';
+export type ChatProvider = 'slack';
 export type ConnectionProvider = ChatProvider | 'microsoft-mail';
 export type ScopeType = 'PROJECT' | 'PROGRAM' | 'PORTFOLIO';
 
 export type IntegrationConnection = {
-  provider: 'SLACK' | 'TEAMS' | 'MICROSOFT_MAIL';
+  provider: 'SLACK' | 'MICROSOFT_MAIL';
   status: 'ACTIVE' | 'ERROR';
   external_name: string | null;
   last_error: string | null;
@@ -18,7 +18,7 @@ export type IntegrationConnection = {
 
 export type IntegrationDestination = {
   id: string;
-  provider: 'SLACK' | 'TEAMS' | null;
+  provider: 'SLACK' | null;
   channel_id: string;
   channel_name: string;
   scope_type: ScopeType;
@@ -30,7 +30,7 @@ export type IntegrationDestination = {
 };
 
 export type IntegrationsOverview = {
-  available: { slack: boolean; teams: boolean; microsoft: boolean };
+  available: { slack: boolean; microsoft: boolean };
   connections: IntegrationConnection[];
   destinations: IntegrationDestination[];
   events: { key: string; label: string }[];
@@ -51,10 +51,9 @@ export type DestinationInput = {
 export type UserLink = { provider: string; external_name: string | null; dm_categories: string[]; linked_at: string };
 
 export type MyIntegrations = {
-  available: { slack: boolean; teams: boolean; microsoft: boolean };
+  available: { slack: boolean; microsoft: boolean };
   dm_category_options: string[];
   slack: { connected: boolean; workspace: string | null; link: UserLink | null };
-  teams: { connected: boolean; workspace: string | null; link: UserLink | null };
   // null when calendar feeds aren't set up on this server.
   calendar_feed: { enabled: boolean; url: string | null; created_at: string | null } | null;
   outlook_calendar: { email: string | null; status: 'ACTIVE' | 'ERROR'; last_error: string | null; last_synced_at: string | null } | null;
@@ -66,9 +65,6 @@ export const integrationsApi = {
   overview: (accountId: string) => apiClient.get(path(accountId)) as Promise<IntegrationsOverview>,
   slackInstallUrl: (accountId: string) => apiClient.get(path(accountId, '/slack/install')) as Promise<{ url: string }>,
   microsoftMailUrl: (accountId: string) => apiClient.get(path(accountId, '/microsoft-mail/connect')) as Promise<{ url: string }>,
-  teamsCode: (accountId: string) => apiClient.post(path(accountId, '/teams/code'), {}) as Promise<{ code: string; expires_at: string }>,
-  // A plain link (not fetched): same origin, so the session cookie goes with it and the browser saves the zip.
-  teamsPackageUrl: (accountId: string) => path(accountId, '/teams/app-package'),
   disconnect: (accountId: string, provider: ConnectionProvider) => apiClient.delete(path(accountId, `/${provider}`)),
   channels: (accountId: string, provider: ChatProvider) => apiClient.get(path(accountId, `/${provider}/channels`)) as Promise<Channel[]>,
   createDestination: (accountId: string, input: DestinationInput) =>

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, CalendarDays, Copy, Hash, Loader2, RefreshCw, Users } from 'lucide-react';
+import { AlertCircle, CalendarDays, Copy, Hash, Loader2, RefreshCw } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -72,13 +72,13 @@ export default function ConnectedApps({ accountId }) {
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['my-integrations', accountId] });
   const mine = query.data;
 
-  // Arriving from Slack or Teams with ?link=…: link that user to whoever is signed in here.
+  // Arriving from Slack with ?link=…: link that user to whoever is signed in here.
   const linkToken = searchParams.get('link');
   const confirmed = useRef(false);
   const confirm = useMutation({
     mutationFn: (token) => integrationsApi.confirmLink(accountId, token),
     onSuccess: (link) => {
-      toast({ title: `Linked ${link.provider === 'SLACK' ? 'Slack' : 'Teams'}${link.external_name ? ` (${link.external_name})` : ''}.` });
+      toast({ title: `Linked Slack${link.external_name ? ` (${link.external_name})` : ''}.` });
       refresh();
     },
     onError: (error) => toastError(error?.message || 'The link could not be confirmed.'),
@@ -127,10 +127,6 @@ export default function ConnectedApps({ accountId }) {
       <Card title="Slack" icon={Hash}>
         <ChatLink accountId={accountId} provider="slack" label="Slack" howToLink={<>type <code className="px-1 rounded bg-slate-100">/projecthub link</code> in Slack</>} state={mine.slack} options={mine.dm_category_options} />
       </Card>
-      <Card title="Microsoft Teams" icon={Users}>
-        <ChatLink accountId={accountId} provider="teams" label="Teams" howToLink={<>send <code className="px-1 rounded bg-slate-100">link</code> to the Project Hub bot in a chat</>} state={mine.teams} options={mine.dm_category_options} />
-      </Card>
-
       <Card title="Calendar" icon={CalendarDays}>
         <p className="text-sm text-slate-700">See your due tasks and milestones in your calendar, across all your accounts.</p>
 

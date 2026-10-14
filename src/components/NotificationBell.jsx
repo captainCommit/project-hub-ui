@@ -18,6 +18,11 @@ const ENTITY_PAGES = {
   DECISION: 'DecisionLog',
 };
 
+// Records that open a specific item: the page plus ?<param>=<id>.
+const ITEM_PAGES = {
+  SUPPORT_TICKET: ['LearnSupport', 'ticket'],
+};
+
 const timeAgo = (value) => {
   const date = typeof value === 'string' ? parseISO(value) : null;
   return date && isValid(date) ? formatDistanceToNow(date, { addSuffix: true }) : '';
@@ -42,8 +47,12 @@ export default function NotificationBell({ compact = false }) {
 
   const handleOpenNotification = (notification) => {
     if (!notification.is_read) markRead.mutate(notification.id);
+    const item = ITEM_PAGES[notification.entity_type];
     const page = ENTITY_PAGES[notification.entity_type];
-    if (page) {
+    if (item) {
+      setOpen(false);
+      navigate(`${createPageUrl(item[0])}?${item[1]}=${notification.entity_id}`);
+    } else if (page) {
       setOpen(false);
       navigate(createPageUrl(page));
     }

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Activity, ArrowLeft, Bot, Building2, ChevronLeft, ChevronRight, CreditCard, Loader2, LogOut, RefreshCw, ScrollText, Shield } from 'lucide-react';
+import { Activity, ArrowLeft, Bot, Building2, ChevronLeft, ChevronRight, CreditCard, LifeBuoy, Loader2, LogOut, RefreshCw, ScrollText, Shield } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { isCognitoMode } from '@/lib/cognitoSession';
 import { cn } from '@/lib/utils';
@@ -9,10 +9,12 @@ import { platformApi } from '@/api/platform';
 import { billingApi } from '@/api/billing';
 import PlatformAccounts from '@/components/Account/PlatformAccounts';
 import PlatformAiAdmin from '@/components/Account/PlatformAiAdmin';
+import PlatformSupport from '@/components/Account/PlatformSupport';
 
 const TABS = [
   { id: 'accounts', label: 'Accounts', icon: Building2 },
   { id: 'billing', label: 'Billing', icon: CreditCard },
+  { id: 'support', label: 'Support', icon: LifeBuoy },
   { id: 'ai', label: 'AI', icon: Bot },
   { id: 'system', label: 'System', icon: Activity },
   { id: 'audit', label: 'Audit Log', icon: ScrollText },
@@ -34,6 +36,8 @@ const AUDIT_ACTION_LABELS = {
   'account.ai_platform_updated': 'Changed AI terms',
   'ai.platform_model_created': 'Added an AI model',
   'ai.platform_model_updated': 'Changed an AI model',
+  'support.ticket_replied': 'Replied to a support ticket',
+  'support.ticket_updated': 'Changed a support ticket',
 };
 
 const describeAuditDetails = (event) => {
@@ -304,6 +308,13 @@ function AuditView() {
 export default function PlatformAdmin() {
   const { user, accounts, logout } = useAuth();
   const [tab, setTab] = useState('accounts');
+  // Tickets waiting for a reply, shown on the Support tab.
+  const { data: ticketSummary } = useQuery({
+    queryKey: ['admin-ticket-summary'],
+    queryFn: platformApi.ticketSummary,
+    enabled: !!user?.is_platform_admin,
+    refetchInterval: 60_000,
+  });
 
   if (!user?.is_platform_admin) return <Navigate to="/" replace />;
 
@@ -333,6 +344,9 @@ export default function PlatformAdmin() {
               className={cn('flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors',
                 tab === id ? 'border-[#d97706] text-white' : 'border-transparent text-white/60 hover:text-white')}>
               <Icon className="w-4 h-4" /> {label}
+              {id === 'support' && ticketSummary?.needs_reply > 0 && (
+                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#d97706] text-white text-[10px] font-bold leading-[18px] text-center">{ticketSummary.needs_reply}</span>
+              )}
             </button>
           ))}
         </nav>
@@ -341,6 +355,7 @@ export default function PlatformAdmin() {
       <main className="max-w-6xl mx-auto px-4 sm:px-8 py-8">
         {tab === 'accounts' ? <div className="max-w-3xl"><PlatformAccounts /></div>
           : tab === 'billing' ? <BillingView />
+          : tab === 'support' ? <PlatformSupport />
           : tab === 'ai' ? <PlatformAiAdmin />
           : tab === 'system' ? <SystemView />
           : <AuditView />}

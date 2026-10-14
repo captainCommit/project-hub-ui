@@ -65,9 +65,51 @@ export interface Page<T> {
 }
 
 /** Platform admins only. Account metadata and aggregates, never an account's business data. */
+export type TicketStatus = 'OPEN' | 'AWAITING_RESPONSE' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+
+export interface SupportTicketMessage {
+  role: 'user' | 'support';
+  author: string;
+  /** Support replies only: which platform admin wrote it (customers just see "Project Hub Support"). */
+  agent?: string;
+  content: string;
+  attachments: { attachment_id: string; name: string }[];
+  date: string;
+}
+
+export interface AdminSupportTicket {
+  id: string;
+  account_id: string;
+  account_name: string;
+  ticket_number: string;
+  category: string;
+  subject: string | null;
+  description: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  status: TicketStatus;
+  requester_name: string;
+  requester_email: string;
+  message_count: number;
+  /** Not resolved or closed, and the customer spoke last. */
+  needs_reply: boolean;
+  /** Empty in lists. */
+  messages: SupportTicketMessage[];
+  created_at: string;
+  updated_at: string;
+}
+
 export const platformApi = {
   getBilling: () => apiClient.get<BillingSummary>('/api/v1/admin/billing'),
   getSystem: () => apiClient.get<SystemStatus>('/api/v1/admin/system'),
   getAudit: (page: number, pageSize = 50) =>
     apiClient.get<Page<PlatformAuditEvent>>('/api/v1/admin/audit', { page, page_size: pageSize, paginated: true }),
+  /** status: a ticket status, 'ACTIVE' (not resolved or closed), or 'ALL'. */
+  listTickets: (status: TicketStatus | 'ACTIVE' | 'ALL', search: string) =>
+    apiClient.get<AdminSupportTicket[]>('/api/v1/admin/support-tickets', { status, search: search || undefined }),
+  ticketSummary: () => apiClient.get<{ active: number; needs_reply: number }>('/api/v1/admin/support-tickets/summary', undefined, { silent: true }),
+  getTicket: (id: string) => apiClient.get<AdminSupportTicket>(`/api/v1/admin/support-tickets/${id}`),
+  replyToTicket: (id: string, content: string, attachments: { attachment_id: string; name: string }[]) =>
+    apiClient.post<AdminSupportTicket>(`/api/v1/admin/support-tickets/${id}/messages`, { content, attachments }),
+  updateTicket: (id: string, changes: Partial<Pick<AdminSupportTicket, 'status' | 'priority'>>) =>
+    apiClient.patch<AdminSupportTicket>(`/api/v1/admin/support-tickets/${id}`, changes),
 };

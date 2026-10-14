@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { PlayCircle, BookOpen, LifeBuoy, Ticket, ChevronLeft, Plus, Inbox } from 'lucide-react';
@@ -31,6 +32,22 @@ export default function LearnSupport() {
   });
 
   const openTicket = (t) => { setActiveTicket(t); setView('conversation'); };
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedTicketId = searchParams.get('ticket');
+  useEffect(() => {
+    if (!linkedTicketId) return;
+    let cancelled = false;
+    supportTicketsApi.get(linkedTicketId)
+      .then((ticket) => { if (!cancelled) openTicket(ticket); })
+      .catch(() => {})
+      .finally(() => {
+        const next = new URLSearchParams(searchParams);
+        next.delete('ticket');
+        setSearchParams(next, { replace: true });
+      });
+    return () => { cancelled = true; };
+  }, [linkedTicketId]);
 
   const handleSubmitted = (created) => {
     queryClient.invalidateQueries({ queryKey: ['support_tickets'] });

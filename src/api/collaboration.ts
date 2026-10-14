@@ -89,6 +89,7 @@ export const mapTicketFromApi = (ticket: ApiRecord) => ({
 export const supportTicketsApi = {
   list: async (accountId: string) =>
     asArray(await apiClient.get(`/api/v1/accounts/${accountId}/support-tickets`)).map(mapTicketFromApi),
+  get: async (id: string) => mapTicketFromApi(await apiClient.get<ApiRecord>(`/api/v1/support-tickets/${id}`)),
   create: async (accountId: string, data: ApiRecord) =>
     mapTicketFromApi(await apiClient.post<ApiRecord>(`/api/v1/accounts/${accountId}/support-tickets`, {
       category: upper(data.category || 'general'),

@@ -84,7 +84,7 @@ export default function TicketConversation({ ticket, onBack }) {
               </div>
               <div className={`max-w-[70%] ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-medium text-slate-600">{isUser ? m.author : 'Row Support'}</span>
+                  <span className="text-xs font-medium text-slate-600">{isUser ? m.author : (m.author || 'Project Hub Support')}</span>
                   <span className="text-[10px] text-slate-400">{new Date(m.date).toLocaleString()}</span>
                 </div>
                 <div className={`rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap ${isUser ? 'bg-[#002046] text-white rounded-tr-sm' : 'bg-white border border-slate-200 text-slate-700 rounded-tl-sm'}`}>

@@ -47,6 +47,7 @@ export interface ProjectHubProjectSummary {
   progress?: number | null;
   percent_complete?: number | null;
   owner?: string | null;
+  budget?: number | null;
   project_manager?: string | null;
   delivery_type?: string | null;
   created_by?: string | null;
@@ -174,6 +175,7 @@ export const mapProjectSummaryResponse = (payload: unknown, fallbackProgramId = 
     ...(progress !== undefined ? { progress, percent_complete: progress } : {}),
     owner: manager,
     project_manager: manager,
+    budget: maybeNumber(payload.budget) ?? null,
     delivery_type: nullableString(payload.delivery_type),
     created_by: nullableString(payload.created_by),
     created_at: optionalString(payload.created_at),
@@ -281,6 +283,7 @@ export const mapProgramProjectCreatePayload = (formValues: Record<string, unknow
   ...(optionalString(formValues.status_id) ? { status_id: optionalString(formValues.status_id) } : {}),
   ...(optionalString(formValues.portfolio_id) ? { portfolio_id: optionalString(formValues.portfolio_id) } : {}),
   ...(optionalString(formValues.delivery_type) ? { delivery_type: optionalString(formValues.delivery_type) } : {}),
+  ...(formValues.budget !== undefined && formValues.budget !== '' && formValues.budget !== null ? { budget: Number(formValues.budget) } : {}),
 });
 
 export const programsApi = {

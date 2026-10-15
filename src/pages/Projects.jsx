@@ -39,7 +39,6 @@ import PortfolioLanding from '@/components/projects/PortfolioLanding';
 import StarButton from '@/components/projects/StarButton';
 import ReportGenerator from '@/components/projects/ReportGenerator';
 import ProgramsLanding from '@/components/projects/ProgramsLanding';
-import AIAssistantWidget from '@/components/projects/AIAssistantWidget';
 import { mapIssueListFromApi, mapRiskListFromApi, raidApi } from '@/api/raid';
 import { raidEntityAdapters } from '@/api/raidEntities';
 import { mapTaskToUserStory } from '@/api/accountData';
@@ -1963,7 +1962,6 @@ export default function Projects() {
         onOpenChange={setVacationCalendarOpen}
       />
 
-      <AIAssistantWidget hidden={Boolean(taskDialogOpen && editingTask)} />
     </div>
   );
 }

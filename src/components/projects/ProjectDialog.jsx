@@ -52,7 +52,8 @@ export default function ProjectDialog({
     program_id: '',
     portfolio_id: '',
     template_id: '',
-    default_view: 'sheet'
+    default_view: 'sheet',
+    budget: ''
   });
 
   useEffect(() => {
@@ -67,7 +68,8 @@ export default function ProjectDialog({
         program_id: project.program_id || '',
         portfolio_id: project.portfolio_id || '',
         template_id: project.template_id || '',
-        default_view: 'sheet'
+        default_view: 'sheet',
+        budget: project.budget ?? ''
       });
     } else {
       setFormData({
@@ -80,13 +82,17 @@ export default function ProjectDialog({
         program_id: '',
         portfolio_id: '',
         template_id: '',
-        default_view: 'sheet'
+        default_view: 'sheet',
+        budget: ''
       });
     }
   }, [project]);
 
   const handleSave = () => {
-    onSave(formData);
+    // Send the budget only when it was changed, so saving other fields never clears one the person can't see.
+    const { budget, ...rest } = formData;
+    const budgetChanged = String(budget ?? '') !== String(project?.budget ?? '');
+    onSave(type === 'project' && budgetChanged ? { ...rest, budget } : rest);
     onOpenChange(false);
   };
 
@@ -206,6 +212,19 @@ export default function ProjectDialog({
                   {programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+          {type === 'project' && (
+            <div className="space-y-2">
+              <Label>Budget (optional)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="any"
+                value={formData.budget}
+                onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
+                placeholder="e.g. 250000"
+              />
             </div>
           )}
           {type === 'program' && portfolios.length > 0 && (

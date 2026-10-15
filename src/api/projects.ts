@@ -18,6 +18,7 @@ export interface ProjectHubProject {
   percent_complete?: number | null;
   project_manager?: string | null;
   owner?: string | null;
+  budget?: number | null;
   created_by?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -85,6 +86,7 @@ export const mapProjectResponse = (payload: unknown): ProjectHubProject => {
     target_end_date: targetEndDate,
     ...(progress !== undefined ? { progress, percent_complete: progress } : {}),
     project_manager: manager,
+    budget: maybeNumber(payload.budget) ?? null,
     owner: manager,
     created_by: nullableString(payload.created_by),
     created_at: optionalString(payload.created_at),
@@ -140,6 +142,8 @@ export const mapProjectUpdatePayload = (formValues: Record<string, unknown>) => 
   ...(optionalString(formValues.delivery_type) ? { delivery_type: optionalString(formValues.delivery_type) } : {}),
   // Sent as null to clear it.
   ...(formValues.project_manager !== undefined ? { project_manager: nullableString(formValues.project_manager) } : {}),
+  // Only sent when the budget was changed; empty clears it.
+  ...(formValues.budget !== undefined ? { budget: formValues.budget === '' || formValues.budget === null ? null : Number(formValues.budget) } : {}),
 });
 
 export const projectsApi = {

@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { getRaidStatuses, setRaidStatuses, RAID_DEFAULTS } from '@/lib/raidStatuses';
-import { X, Plus, ChevronDown, ChevronRight, AlertCircle, Loader2 } from 'lucide-react';
+import { useThemePreference } from '@/lib/theme';
+import { X, Plus, ChevronDown, ChevronRight, AlertCircle, Loader2, Sun, Moon, Monitor } from 'lucide-react';
 
 const DAYS = [{ v: 0, l: 'Sun' }, { v: 1, l: 'Mon' }, { v: 2, l: 'Tue' }, { v: 3, l: 'Wed' }, { v: 4, l: 'Thu' }, { v: 5, l: 'Fri' }, { v: 6, l: 'Sat' }];
 
@@ -333,7 +334,14 @@ function SpecificDatesCalendar({ holidays = [], onCreate, onUpdate, onDelete, is
   );
 }
 
+const THEME_CHOICES = [
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
+  { value: 'system', label: 'Match system', icon: Monitor },
+];
+
 export default function SettingsContent() {
+  const [theme, setTheme] = useThemePreference();
   const queryClient = useQueryClient();
   const { selectedAccountId } = useAuth();
   const [dateFormat, setDateFormat] = useState(localStorage.getItem('app_date_format') || 'MM/dd/yyyy');
@@ -599,6 +607,23 @@ export default function SettingsContent() {
               <span>{mutationError}</span>
             </div>
           )}
+        </div>
+
+        {/* Appearance: saved in this browser for the person using it, unlike the account settings below */}
+        <div className="flex items-center justify-between px-5 py-4">
+          <div>
+            <p className="text-sm font-medium text-slate-800">Appearance</p>
+            <p className="text-xs text-slate-400 mt-0.5">Light or dark screens, just for you on this browser</p>
+          </div>
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+            {THEME_CHOICES.map(({ value, label, icon: Icon }) => (
+              <button key={value} onClick={() => setTheme(value)} aria-pressed={theme === value}
+                className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
+                  theme === value ? 'bg-[#002046] text-white' : 'bg-white text-slate-600 hover:bg-slate-50')}>
+                <Icon className="w-3.5 h-3.5" /> {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Date Format */}

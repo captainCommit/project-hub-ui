@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { resourcesApi } from '@/api/resources';
+import { accountsApi } from '@/api/accounts';
+import { toastError } from '@/components/ui/use-toast';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,6 +60,7 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
       department: resource.department || '',
       allocation: resource.allocation ?? resource.utilization ?? '',
       non_project_hours: resource.non_project_hours ?? '',
+      user_id: resource.user_id || '',
       ...extra,
     };
   };
@@ -92,6 +95,7 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
       invalidateResources(resource?.id);
       setNewRow(null);
     },
+    onError: (error) => toastError(error.message),
   });
   const update = useMutation({
     mutationFn: ({ id, data }) => resourcesApi.updateResource(id, data),
@@ -99,7 +103,31 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
       invalidateResources(variables.id);
       setEditingId(null);
     },
+    onError: (error) => toastError(error.message),
   });
+  // Account members, for linking a resource to someone's login (their assigned work then counts as theirs).
+  const { data: accountUsers = [] } = useQuery({
+    queryKey: ['account-members', selectedAccountId],
+    queryFn: () => accountsApi.listMembers(selectedAccountId),
+    enabled: Boolean(selectedAccountId) && showCapacity,
+  });
+  const userById = useMemo(() => Object.fromEntries(accountUsers.map(u => [u.id, u])), [accountUsers]);
+  const userLabel = (user) => user?.full_name || user?.email || 'Unknown user';
+  const LinkedUserSelect = ({ value, resourceId, onChange }) => {
+    // People already linked to another resource can't be picked again.
+    const taken = new Set(resources.filter(r => r.id !== resourceId && r.user_id).map(r => r.user_id));
+    return (
+      <Select value={value || 'none'} onValueChange={v => onChange(v === 'none' ? '' : v)}>
+        <SelectTrigger className="h-7 text-xs bg-white"><SelectValue placeholder="Not linked" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">Not linked</SelectItem>
+          {accountUsers.filter(u => !taken.has(u.id) || u.id === value).map(u => (
+            <SelectItem key={u.id} value={u.id}>{userLabel(u)}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  };
   const remove = useMutation({
     mutationFn: id => resourcesApi.deleteResource(id),
     onSuccess: (_result, resourceId) => invalidateResources(resourceId),
@@ -534,6 +562,7 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
                     <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">
                       <span className="flex items-center gap-1">Full Name <SortIcon col="full_name" /></span>
                     </th>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500" title="The login this resource belongs to; work assigned to the resource counts as theirs">Linked User</th>
                     <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">
                       <span className="flex items-center gap-1">Weekly Capacity <SortIcon col="weekly_capacity" /></span>
                     </th>
@@ -562,10 +591,10 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
                   </tr>
                 </thead>
                 <tbody>
-                  {!selectedAccountId && <tr><td colSpan={9 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">Select an account to view resources.</td></tr>}
-                  {selectedAccountId && isLoading && <tr><td colSpan={9 + customColumns.length} className="text-center py-8 text-slate-400 text-xs">Loading resources...</td></tr>}
-                  {selectedAccountId && isError && <tr><td colSpan={9 + customColumns.length} className="text-center py-8 text-xs"><div className="flex flex-col items-center gap-2 text-slate-500"><span>{error?.message || 'Unable to load resources.'}</span><Button size="sm" variant="outline" onClick={() => refetch()}>Retry</Button></div></td></tr>}
-                  {selectedAccountId && !isLoading && !isError && resources.length === 0 && !newRow && <tr><td colSpan={9 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">No resources yet. Click "New Resource" to get started.</td></tr>}
+                  {!selectedAccountId && <tr><td colSpan={10 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">Select an account to view resources.</td></tr>}
+                  {selectedAccountId && isLoading && <tr><td colSpan={10 + customColumns.length} className="text-center py-8 text-slate-400 text-xs">Loading resources...</td></tr>}
+                  {selectedAccountId && isError && <tr><td colSpan={10 + customColumns.length} className="text-center py-8 text-xs"><div className="flex flex-col items-center gap-2 text-slate-500"><span>{error?.message || 'Unable to load resources.'}</span><Button size="sm" variant="outline" onClick={() => refetch()}>Retry</Button></div></td></tr>}
+                  {selectedAccountId && !isLoading && !isError && resources.length === 0 && !newRow && <tr><td colSpan={10 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">No resources yet. Click "New Resource" to get started.</td></tr>}
                   {dirResources.map(r => {
                     const rw = resourceWeekly[r.full_name] || { projects: [], weekly: 0 };
                     const pctAlloc = r.weekly_capacity ? Math.round((rw.weekly / r.weekly_capacity) * 100) : null;
@@ -574,6 +603,7 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
                         {editingId === r.id ? (
                           <>
                             <td className="px-3 py-2"><Input value={editData.full_name} onChange={e => setEditData(p => ({ ...p, full_name: e.target.value }))} className="h-7 text-sm" autoFocus /></td>
+                            <td className="px-3 py-2"><LinkedUserSelect value={editData.user_id} resourceId={r.id} onChange={v => setEditData(p => ({ ...p, user_id: v }))} /></td>
                             <td className="px-3 py-2"><Select value={editData.weekly_capacity != null ? String(editData.weekly_capacity) : ''} onValueChange={v => setEditData(p => ({ ...p, weekly_capacity: Number(v) }))}><SelectTrigger className="h-7 text-xs bg-white"><SelectValue placeholder="—" /></SelectTrigger><SelectContent><SelectItem value="20">20 hrs</SelectItem><SelectItem value="40">40 hrs</SelectItem></SelectContent></Select></td>
                             <td className="px-3 py-2 text-xs text-slate-400 italic">Auto-computed</td>
                             <td className="px-3 py-2"><Input value={editData.role} onChange={e => setEditData(p => ({ ...p, role: e.target.value }))} className="h-7 text-sm" placeholder="e.g. Developer" /></td>
@@ -592,6 +622,7 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
                         ) : (
                           <>
                             <td className="px-3 py-2 font-medium text-slate-800">{r.full_name}</td>
+                            <td className="px-3 py-2 text-xs text-slate-500">{r.user_id ? userLabel(userById[r.user_id]) : <span className="text-slate-300">Not linked</span>}</td>
                             <td className="px-3 py-2 text-slate-500">{r.weekly_capacity != null ? `${r.weekly_capacity} hrs` : '—'}</td>
                             <td className="px-3 py-2 text-slate-500">{rw.weekly > 0 ? `${rw.weekly.toFixed(1)} hrs` : '—'}</td>
                             <td className="px-3 py-2 text-slate-500">{r.role || '—'}</td>
@@ -634,6 +665,7 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
                   {newRow && (
                     <tr className="border-b border-slate-50 bg-emerald-50/30">
                       <td className="px-3 py-2"><Input value={newRow.full_name} onChange={e => setNewRow(p => ({ ...p, full_name: e.target.value }))} className="h-7 text-sm" placeholder="Full name*" autoFocus onKeyDown={e => e.key === 'Enter' && handleSaveNew()} /></td>
+                      <td className="px-3 py-2"><LinkedUserSelect value={newRow.user_id} onChange={v => setNewRow(p => ({ ...p, user_id: v }))} /></td>
                       <td className="px-3 py-2"><Select value={newRow.weekly_capacity != null ? String(newRow.weekly_capacity) : ''} onValueChange={v => setNewRow(p => ({ ...p, weekly_capacity: Number(v) }))}><SelectTrigger className="h-7 text-xs bg-white"><SelectValue placeholder="—" /></SelectTrigger><SelectContent><SelectItem value="20">20 hrs</SelectItem><SelectItem value="40">40 hrs</SelectItem></SelectContent></Select></td>
                       <td className="px-3 py-2 text-xs text-slate-300 italic">—</td>
                       <td className="px-3 py-2"><Input value={newRow.role} onChange={e => setNewRow(p => ({ ...p, role: e.target.value }))} className="h-7 text-sm" placeholder="e.g. Developer" /></td>

@@ -3,7 +3,10 @@ import { Plus, Search } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import HomeNotifications from '@/components/home/HomeNotifications';
 
-export default function HomeHeader({ greeting, subtitle, search, onSearchChange, onCreate }) {
+export default function HomeHeader({
+  greeting, subtitle, search, onSearchChange,
+  notifications = [], notificationsReadAt, onOpenNotification, onMarkAllRead, markingRead, onCreate,
+}) {
   return (
     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
       <div className="min-w-0">
@@ -23,7 +26,13 @@ export default function HomeHeader({ greeting, subtitle, search, onSearchChange,
           />
         </div>
 
-        <HomeNotifications />
+        <HomeNotifications
+          items={notifications}
+          readAt={notificationsReadAt}
+          onOpen={onOpenNotification}
+          onMarkAllRead={onMarkAllRead}
+          markingRead={markingRead}
+        />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

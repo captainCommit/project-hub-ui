@@ -56,7 +56,7 @@ function AddAssumptionDialog({ open, onOpenChange, projects, programs, resources
   return (
     <Dialog open={open} onOpenChange={v => { onOpenChange(v); if (!v) { setForm(emptyForm()); setResourceQ(''); } }}>
       <DialogContent className="sm:max-w-lg">
-        <DialogHeader><DialogTitle>Add Assumption</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>New Assumption</DialogTitle></DialogHeader>
         <div className="space-y-3 py-1">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -120,7 +120,7 @@ function AddAssumptionDialog({ open, onOpenChange, projects, programs, resources
         </div>
         <div className="flex justify-end gap-2 pt-3 border-t mt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={!form.description || !form.project_id} className="bg-[#c87b14] hover:bg-[#a86610]">Add Assumption</Button>
+          <Button onClick={handleSubmit} disabled={!form.description || !form.project_id} className="bg-[#c87b14] hover:bg-[#a86610]">New Assumption</Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -276,7 +276,7 @@ export default function AssumptionLog() {
               <Download className="w-3.5 h-3.5" /> Export
             </Button>
             <Button size="sm" onClick={() => setAddDialogOpen(true)} className="bg-[#c87b14] hover:bg-[#a86610] h-8 gap-1 text-xs">
-              <Plus className="w-3.5 h-3.5" /> Add Assumption
+              <Plus className="w-3.5 h-3.5" /> New Assumption
             </Button>
           </div>
         </div>
@@ -323,7 +323,7 @@ export default function AssumptionLog() {
                 {filtered.length === 0 && (
                   <tr>
                     <td colSpan={8} className="px-6 py-12 text-center text-slate-400 text-sm">
-                      No assumptions yet. Click "Add Assumption" to create one.
+                      No assumptions yet. Click "New Assumption" to create one.
                     </td>
                   </tr>
                 )}

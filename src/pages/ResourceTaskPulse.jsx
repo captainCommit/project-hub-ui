@@ -128,6 +128,34 @@ export default function ResourceTaskPulse() {
 
   const rowKey = (row) => `${row.resourceName}||${row.task.id}`;
 
+  // Nudges open a pre-filled email in the person's mail app, one per resource.
+  const projectNameOf = (row) => row.task.project_name || getProject(row.task.project_id)?.name || '';
+  const buildEmailBodyForRows = (resourceName, rows) => {
+    const line = (r, tag) => `  • ${tag}${r.task.title}${projectNameOf(r) ? ` | Project: ${projectNameOf(r)}` : ''} – due ${r.task.due_date}`;
+    const overdue = rows.filter(r => r.isOverdue);
+    const upcoming = rows.filter(r => !r.isOverdue);
+    let body = `Hi ${resourceName},\n\nThis is a friendly reminder about your tasks:\n\n`;
+    if (overdue.length) body += `OVERDUE:\n${overdue.map(r => line(r, '[OVERDUE] ')).join('\n')}\n\n`;
+    if (upcoming.length) body += `COMING UP:\n${upcoming.map(r => line(r, '')).join('\n')}\n\n`;
+    body += 'Please review and update the status of your tasks at your earliest convenience.\n\nThank you.';
+    return body;
+  };
+  const openNudgeEmail = (resourceName, rows) => {
+    const subject = encodeURIComponent(`Action Required: Task Reminder for ${resourceName}`);
+    const body = encodeURIComponent(buildEmailBodyForRows(resourceName, rows));
+    window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+  };
+  // Browsers may block several windows opened at once, so space them out.
+  const nudgeEach = (groups) => groups.forEach(([resourceName, rows], i) => setTimeout(() => openNudgeEmail(resourceName, rows), i * 300));
+  const handleBulkNudge = () => {
+    const byResource = {};
+    filteredRows.filter(r => selectedForNudge.has(rowKey(r))).forEach(r => { (byResource[r.resourceName] ||= []).push(r); });
+    nudgeEach(Object.entries(byResource));
+  };
+  const handleNudgeAll = () => nudgeEach(uniqueResources
+    .filter(name => name !== 'Unassigned')
+    .map(name => [name, filteredRows.filter(r => r.resourceName === name)]));
+
   const toggleRowSelect = (row, checked) => {
     setSelectedForNudge(prev => {
       const next = new Set(prev);
@@ -180,13 +208,13 @@ export default function ResourceTaskPulse() {
             </Button>
             {selectedForNudge.size > 0 && (
               <Button size="sm" className="h-8 gap-1.5 bg-violet-600 hover:bg-violet-700 text-white"
-                disabled title="Nudge notifications are unavailable until a backend nudge endpoint is added.">
+                onClick={handleBulkNudge} title="Opens a reminder email for each selected person">
                 <Mail className="w-3.5 h-3.5" /> Nudge Selected ({selectedForNudge.size})
               </Button>
             )}
             {uniqueResources.length > 0 && (
               <Button variant="outline" size="sm" className="h-8 gap-1.5 text-slate-600"
-                disabled title="Nudge notifications are unavailable until a backend nudge endpoint is added.">
+                onClick={handleNudgeAll} title="Opens a reminder email for everyone listed">
                 <Mail className="w-3.5 h-3.5" /> Nudge All
               </Button>
             )}

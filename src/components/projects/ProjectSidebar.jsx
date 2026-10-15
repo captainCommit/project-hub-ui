@@ -98,23 +98,6 @@ export default function ProjectSidebar(/** @type {any} */ {
     try { localStorage.setItem(EXPANDED_KEY, JSON.stringify(expandedFolders)); } catch {}
   }, [expandedFolders]);
 
-  // Open the folders above whatever is on screen so the active item is visible in the collapsed tree.
-  // A layout effect, so the list has its final height before the saved scroll position is restored below.
-  useLayoutEffect(() => {
-    const [, kind, id] = pathname.match(/^\/(portfolios|programs|projects)\/([^/]+)/) || [];
-    if (!kind) return;
-    let ancestors = [];
-    if (kind === 'programs') {
-      const program = sidebarHierarchy.programs.find(p => p.id.toLowerCase() === id);
-      if (program) ancestors = [`portfolio:${program.portfolio_id}`];
-    } else if (kind === 'projects') {
-      const project = sidebarHierarchy.projects.find(p => p.id.toLowerCase() === id);
-      if (project) ancestors = [`portfolio:${project.portfolio_id}`, `program:${project.program_id}`];
-    }
-    if (!ancestors.length) return;
-    setExpandedFolders(prev => (ancestors.every(f => prev.includes(f)) ? prev : Array.from(new Set([...prev, ...ancestors]))));
-  }, [sidebarHierarchy, pathname]);
-
   const toggleCollapsed = () => {
     setCollapsed(p => {
       const next = !p;
@@ -442,14 +425,6 @@ export default function ProjectSidebar(/** @type {any} */ {
             </div>
           </>
         )}
-
-        {/* The full portfolio → program → project tree, as its own section rather than under any one directory link. */}
-        <div className="border-t border-slate-200 my-3" />
-        <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: MUTED }}>Browse</p>
-        <div className="mb-2 space-y-0.5">
-          <HierarchyState />
-          {hierarchyLoaded && sidebarHierarchy.portfolios.map(renderPortfolio)}
-        </div>
         </>
         )}
 

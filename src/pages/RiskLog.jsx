@@ -23,7 +23,11 @@ const RAID_TABS = [
 export default function RiskLog() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
+  // ?tab=risks|issues|assumptions|dependencies opens that tab (links from the Home page use it).
+  const [activeTab, setActiveTab] = useState(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab');
+    return RAID_TABS.some(t => t.key === requested) ? requested : 'overview';
+  });
   // Tabs for modules this person can't see in any project are left out.
   const { canViewAnywhere } = useMyAccess();
   const queryClient = useQueryClient();
@@ -261,7 +265,6 @@ export default function RiskLog() {
             ]}
             showImpactDelay
             showFallbackPlan
-            showAssignedTo
           />
         ))}
       </div>

@@ -847,7 +847,7 @@ export default function SprintView({ projects, programs = [], portfolios = [], r
             <>
               <div className="flex justify-end">
                 <Button variant="outline" size="sm" className="h-7 text-xs text-slate-400 border-slate-200 cursor-not-allowed" disabled title="Sprint Board is read-only">
-                  <Plus className="w-3 h-3 mr-1" /> Add Story
+                  <Plus className="w-3 h-3 mr-1" /> New Story
                 </Button>
               </div>
 

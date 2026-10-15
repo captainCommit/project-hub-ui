@@ -6,15 +6,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageSquare, X } from "lucide-react";
+import { MessageSquare, X, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { confirmAction } from '@/components/ui/confirm-dialog';
 
 const priorityColors = {
-  low: 'bg-blue-100 text-blue-700',
-  medium: 'bg-yellow-100 text-yellow-700',
-  high: 'bg-orange-100 text-orange-700',
-  critical: 'bg-red-100 text-red-700'
+  low: 'bg-blue-100 text-black',
+  medium: 'bg-yellow-100 text-black',
+  high: 'bg-orange-100 text-black',
+  critical: 'bg-red-100 text-black'
 };
 
 function DField({ label, children }) {
@@ -120,6 +120,16 @@ export default function RiskIssueDetail({
                 </SelectContent>
               </Select>
             </DField>
+          </div>
+
+          {/* Escalate */}
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline"
+              className={cn('h-8 text-xs gap-1', formData.status === 'escalated' ? 'text-red-700 bg-red-50 border-red-200' : 'text-amber-600 hover:bg-amber-50')}
+              disabled={formData.status === 'escalated'}
+              onClick={() => { setFormData(f => ({ ...f, status: 'escalated' })); save('status', 'escalated'); }}>
+              <Bell className="w-3.5 h-3.5" />{formData.status === 'escalated' ? 'Escalated' : 'Escalate'}
+            </Button>
           </div>
 
           {/* Assigned To */}

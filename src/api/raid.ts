@@ -116,6 +116,8 @@ export const mapAssumptionFromApi = (assumption: ApiRecord = {}) => ({
   title: assumption.description || '',
   entered_by: assumption.entered_by_name || assumption.created_by_name || '',
   date_entered: dateOnly(assumption.date_entered || assumption.created_at),
+  assigned_to: assumption.assigned_to_name || '',
+  target_date: dateOnly(assumption.target_date),
 });
 
 export const mapAssumptionListFromApi = (response: any) => asArray(response).map(mapAssumptionFromApi);
@@ -125,6 +127,8 @@ export const mapAssumptionInputToPayload = (input: ApiRecord = {}) => buildPaylo
   status: 'status',
   entered_by: 'entered_by_name',
   date_entered: 'date_entered',
+  assigned_to: 'assigned_to_name',
+  target_date: 'target_date',
 });
 
 export const mapDecisionFromApi = (decision: ApiRecord = {}) => ({

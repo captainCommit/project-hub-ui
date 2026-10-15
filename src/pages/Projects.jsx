@@ -1015,19 +1015,18 @@ export default function Projects() {
     setViewMode(nextView);
   }, [location.pathname, location.search, hasPortfolioRoute, hasProgramRoute, hasProjectRoute, navigate, _defaultLanding]);
 
+  // Deleting a portfolio or program also deletes everything under it (the API cascades).
   const handleDeleteItem = (item, type) => {
-    if (type === 'program') {
-      toastError('Program delete is not supported by Project Hub yet.', 'Not available yet');
-      return;
-    } else if (type === 'portfolio') {
-      toastError('Portfolio delete is not available yet.', 'Not available yet');
-      return;
-    } else {
-      projectsApi.delete(item.id)
-        .then(() => invalidateHierarchy(queryClient))
-        .catch(error => toastError(getBackendSafeMessage(error, 'The project could not be deleted.')));
-    }
-    if (selectedItem?.id === item.id) { setSelectedItem(null); setViewMode('project'); }
+    const remove = { portfolio: portfoliosApi.delete, program: programsApi.delete, project: projectsApi.delete }[type] || projectsApi.delete;
+    const directory = { portfolio: 'all_portfolios', program: 'all_programs', project: 'all_projects' }[type] || 'all_projects';
+    remove(item.id)
+      .then(() => {
+        invalidateHierarchy(queryClient);
+        // Leave a page that shows the record we just deleted.
+        if (hasPortfolioRoute || hasProgramRoute || hasProjectRoute) navigate(`/Projects?view=${directory}`);
+      })
+      .catch(error => toastError(getBackendSafeMessage(error, `The ${type} could not be deleted.`)));
+    if (selectedItem?.id === item.id) { setSelectedItem(null); setViewMode(directory); }
   };
 
   const handleNewProject = () => {
@@ -1942,7 +1941,7 @@ export default function Projects() {
         onOpenChange={setProjectDialogOpen}
         project={editingProject}
         onSave={handleSaveProject}
-        onDelete={dialogType === 'portfolio' || dialogType === 'program' || (hasProjectRoute && dialogType === 'project') ? undefined : () => {
+        onDelete={() => {
           if (editingProject && dialogType === 'portfolio') {
             handleDeleteItem(editingProject, 'portfolio');
             setSelectedItem(null); setViewMode('all_portfolios');

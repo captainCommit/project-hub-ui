@@ -112,7 +112,7 @@ export default function AIAssistant() {
             <Compass className="w-4 h-4 text-violet-600" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-slate-800">Compass</h1>
+            <h1 className="text-sm font-semibold text-slate-800">Ask Compass</h1>
             <p className="text-xs text-slate-400">
               Ask anything about your projects, risks, resources, and more
               {chat.status?.available && chat.status.model ? ` · ${chat.status.provider_label} ${chat.status.model}` : ''}
@@ -128,7 +128,7 @@ export default function AIAssistant() {
                 <div className="w-14 h-14 bg-violet-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
                   <Compass className="w-7 h-7 text-violet-600" />
                 </div>
-                <h2 className="text-base font-semibold text-slate-700 mb-1">Compass</h2>
+                <h2 className="text-base font-semibold text-slate-700 mb-1">Ask Compass</h2>
                 <p className="text-xs text-slate-400 max-w-xs">Ask me anything about your projects, risks, issues, resources, or team status.</p>
               </div>
               {!unavailable && (
@@ -148,7 +148,7 @@ export default function AIAssistant() {
 
         {/* Disclaimer */}
         <div className="px-4 pt-2 text-center text-[11px] text-slate-400 flex-shrink-0">
-          Compass can make mistakes. Please verify important information.
+          Ask Compass can make mistakes. Please verify important information.
         </div>
         {/* Input */}
         {unavailable ? (

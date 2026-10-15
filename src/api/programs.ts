@@ -292,6 +292,8 @@ export const programsApi = {
   get: async (programId: string) => mapProgramResponse(await apiClient.get(`/api/v1/programs/${programId}`)),
   update: async (programId: string, data: Record<string, unknown>) =>
     mapProgramResponse(await apiClient.patch(`/api/v1/programs/${programId}`, mapProgramUpdatePayload(data))),
+  /** Deletes the program with every project under it. */
+  delete: (programId: string) => apiClient.delete(`/api/v1/programs/${programId}`),
   getOverview: async (programId: string) =>
     mapProgramOverviewResponse(await apiClient.get(`/api/v1/programs/${programId}/overview`)),
   getProjects: async (programId: string) =>

@@ -245,7 +245,26 @@ export default function ResourceCalendar({ open, onOpenChange }) {
       return isValid(s) && isValid(e) && day >= s && day <= e;
     });
 
-  const getConflicts = (_resourceName) => [];
+  // A conflict is work allocated to someone on dates they have booked off.
+  const overlaps = (aStart, aEnd, bStart, bEnd) => {
+    const [as, ae, bs, be] = [aStart, aEnd, bStart, bEnd].map(v => (v ? parseISO(v) : null));
+    return [as, ae, bs, be].every(d => d && isValid(d)) && as <= be && ae >= bs;
+  };
+  const conflictsByResource = useMemo(() => {
+    const map = {};
+    allocations.forEach(a => {
+      if (!a.resource_name) return;
+      vacations
+        .filter(v => v.resource_name === a.resource_name && overlaps(a.start_date, a.end_date, v.start_date, v.end_date))
+        .forEach(v => { (map[a.resource_name] ||= []).push({ allocation: a, vacation: v }); });
+    });
+    return map;
+  }, [allocations, vacations]);
+  const getConflicts = (resourceName) => conflictsByResource[resourceName] || [];
+  const conflictTitle = (conflicts) => conflicts
+    .map(({ allocation }) => allocation.task_name || allocation.project_name || 'Allocated work')
+    .filter((label, i, all) => all.indexOf(label) === i)
+    .join(', ');
 
   const getAssignedProjects = (resourceName) => {
     const resourceAllocations = allocations.filter(a => a.resource_name === resourceName);
@@ -256,7 +275,7 @@ export default function ResourceCalendar({ open, onOpenChange }) {
 
   const filteredResources = allResources.filter(r => r.toLowerCase().includes(search.toLowerCase()));
 
-  const totalConflicts = 0;
+  const totalConflicts = allResources.reduce((sum, name) => sum + getConflicts(name).length, 0);
   const hasCalendarData = allResources.length > 0 || vacations.length > 0 || allocations.length > 0;
 
   const weekLabel = (wdays) => {
@@ -395,7 +414,9 @@ export default function ResourceCalendar({ open, onOpenChange }) {
                               )}
                             </div>
                             {conflicts.length > 0 && (
-                              <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                              <span title={`Time off overlaps: ${conflictTitle(conflicts)}`}>
+                                <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                              </span>
                             )}
                           </div>
                         </td>
@@ -406,7 +427,8 @@ export default function ResourceCalendar({ open, onOpenChange }) {
                             const allocation = getAllocationForDay(name, day);
                             const isWeekend = di === 0 || di === 6;
                             const isT = isSameDay(day, today);
-                            const hasConflict = false;
+                            // Booked off on a day that also has allocated work.
+                            const hasConflict = off && conflicts.some(c => overlaps(c.allocation.start_date, c.allocation.end_date, format(day, 'yyyy-MM-dd'), format(day, 'yyyy-MM-dd')));
                             return (
                               <td key={day.toISOString()} className={cn(
                                 'w-8 h-8 border-r border-slate-100 text-center align-middle',

@@ -24,10 +24,10 @@ const statusOptions = getDecisionStatuses();
 const getStatus = (val) => statusOptions.find(s => s.value === val) || statusOptions[0] || { value: val, label: val };
 
 const priorityColors = {
-  low: 'bg-blue-100 text-blue-700',
-  medium: 'bg-yellow-100 text-yellow-700',
-  high: 'bg-orange-100 text-orange-700',
-  critical: 'bg-red-100 text-red-700',
+  low: 'bg-blue-100 text-black',
+  medium: 'bg-yellow-100 text-black',
+  high: 'bg-orange-100 text-black',
+  critical: 'bg-red-100 text-black',
 };
 
 const empty = { project_id: '', program_id: '', priority: 'medium', decision: '', description: '', proposed_date: '', proposed_by: '', status: 'draft' };
@@ -209,7 +209,7 @@ export default function DecisionLog({ embedded = false }) {
                 <Download className="w-3.5 h-3.5" /> Export
               </button>
               <button onClick={() => setAddDialogOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#c87b14] hover:bg-[#a86610] text-white text-sm font-medium rounded-lg transition-colors">
-                + Add Decision
+                + New Decision
               </button>
             </div>
           </div>
@@ -251,7 +251,7 @@ export default function DecisionLog({ embedded = false }) {
                       </tr>
                       ))}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={9} className="py-10 text-center text-slate-400 text-sm">No decisions found. Click "Add Decision" to create one.</td></tr>
+                    <tr><td colSpan={9} className="py-10 text-center text-slate-400 text-sm">No decisions found. Click "New Decision" to create one.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -540,7 +540,7 @@ function AddDecisionDialog({ open, onOpenChange, projects, programs, resources, 
   return (
     <Dialog open={open} onOpenChange={v => { onOpenChange(v); if (!v) { setForm(emptyForm()); setProposedByQ(''); } }}>
       <DialogContent className="sm:max-w-lg">
-        <DialogHeader><DialogTitle>Add Decision</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>New Decision</DialogTitle></DialogHeader>
         <div className="space-y-3 py-1">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -619,7 +619,7 @@ function AddDecisionDialog({ open, onOpenChange, projects, programs, resources, 
         </div>
         <div className="flex justify-end gap-2 pt-3 border-t mt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={!form.decision || !form.project_id} className="bg-[#c87b14] hover:bg-[#a86610]">Add Decision</Button>
+          <Button onClick={handleSubmit} disabled={!form.decision || !form.project_id} className="bg-[#c87b14] hover:bg-[#a86610]">New Decision</Button>
         </div>
       </DialogContent>
     </Dialog>

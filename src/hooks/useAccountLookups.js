@@ -42,6 +42,8 @@ export function useAccountResources() {
 export const invalidateHierarchy = (queryClient) => {
   queryClient.invalidateQueries({ queryKey: [HIERARCHY_QUERY_KEY] });
   queryClient.invalidateQueries({ queryKey: ['account-programs-projects'] });
+  queryClient.invalidateQueries({ queryKey: ['account-sidebar'] });
+  queryClient.invalidateQueries({ queryKey: ['my-home'] });
   queryClient.invalidateQueries({ queryKey: ['account-portfolios'] });
 };
 

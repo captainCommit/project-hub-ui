@@ -30,7 +30,7 @@ const toNumber = (value) => {
   return Number.isFinite(numeric) ? numeric : undefined;
 };
 
-function SprintRow({ sprint }) {
+function SprintRow({ sprint, onOpenSprint }) {
   const total = toNumber(sprint.story_count) ?? 0;
   const done  = toNumber(sprint.completed_count) ?? 0;
   const totalPts = toNumber(sprint.story_points) ?? 0;
@@ -41,7 +41,7 @@ function SprintRow({ sprint }) {
   const daysLeft = sprint.end_date ? Math.max(0, differenceInDays(parseDate(sprint.end_date), new Date())) : null;
 
   return (
-    <tr className="border-b border-slate-50 hover:bg-slate-50">
+    <tr className={cn('border-b border-slate-50 hover:bg-slate-50', onOpenSprint && 'cursor-pointer')} onClick={() => onOpenSprint?.(sprint)}>
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
           <span className={cn('w-2 h-2 rounded-full flex-shrink-0', cfg.dot)} />
@@ -73,7 +73,7 @@ function SprintRow({ sprint }) {
   );
 }
 
-export default function DeliverySummary({ portfolios = [], onNavigateToSprints }) {
+export default function DeliverySummary({ portfolios = [], onNavigateToSprints, onOpenSprint }) {
   const { selectedAccountId } = useAuth();
   const [expandedPrograms, setExpandedPrograms] = useState({});
   const [expandedProjects, setExpandedProjects] = useState({});
@@ -84,10 +84,11 @@ export default function DeliverySummary({ portfolios = [], onNavigateToSprints }
   const deliveryFilters = useMemo(() => {
     /** @type {Record<string, unknown>} */
     const query = {};
+    if (filterPortfolioId) query.portfolio_id = filterPortfolioId;
     if (filterProgramId) query.program_id = filterProgramId;
     if (filterProjectId) query.project_id = filterProjectId;
     return query;
-  }, [filterProgramId, filterProjectId]);
+  }, [filterPortfolioId, filterProgramId, filterProjectId]);
 
   const {
     data: delivery = DEFAULT_DELIVERY_OVERVIEW,
@@ -107,40 +108,28 @@ export default function DeliverySummary({ portfolios = [], onNavigateToSprints }
 
   const toggleProgram = id => setExpandedPrograms(p => ({ ...p, [id]: !p[id] }));
   const toggleProject = id => setExpandedProjects(p => ({ ...p, [id]: !p[id] }));
-  const supportsPortfolioFilter = portfolios.length > 0 && [...programs, ...projects].some(item => item?.portfolio_id);
-
-  // Filter programs/projects by portfolio
-  const portfolioFilteredPrograms = filterPortfolioId
-    ? programs.filter(p => p.portfolio_id === filterPortfolioId)
-    : programs;
-  const portfolioFilteredProjects = filterPortfolioId
-    ? projects.filter(p => p.portfolio_id === filterPortfolioId || portfolioFilteredPrograms.some(pr => pr.id === p.program_id))
+  // The overview comes back already scoped to the chosen portfolio, program and project.
+  const projectsForFilter = filterProgramId
+    ? projects.filter(p => p.program_id === filterProgramId)
     : projects;
 
-  const projectsForFilter = filterProgramId
-    ? portfolioFilteredProjects.filter(p => p.program_id === filterProgramId)
-    : portfolioFilteredProjects;
-
-  const topLevelProjectIds = new Set(projectsForFilter.map(p => p.id));
-  const visibleSprints = filterPortfolioId ? sprints.filter(s => topLevelProjectIds.has(s.project_id)) : sprints;
-
-  const totalSprints = filterPortfolioId ? visibleSprints.length : delivery.total_sprints;
-  const activeSprints = filterPortfolioId ? visibleSprints.filter(s => s.status === 'active').length : delivery.active_sprints;
-  const totalStories = filterPortfolioId ? visibleSprints.reduce((sum, sprint) => sum + (Number(sprint.story_count) || 0), 0) : delivery.story_count;
-  const doneStories = filterPortfolioId ? visibleSprints.reduce((sum, sprint) => sum + (Number(sprint.completed_count) || 0), 0) : delivery.completed_count;
+  const totalSprints = delivery.total_sprints;
+  const activeSprints = delivery.active_sprints;
+  const totalStories = delivery.story_count;
+  const doneStories = delivery.completed_count;
 
   // Group: programs → projects → sprints
   const visiblePrograms = filterProgramId
-    ? portfolioFilteredPrograms.filter(p => p.id === filterProgramId)
-    : portfolioFilteredPrograms;
+    ? programs.filter(p => p.id === filterProgramId)
+    : programs;
   const programsWithData = visiblePrograms.map((/** @type {Record<string, any>} */ program) => {
-    const progProjects = portfolioFilteredProjects.filter(p => p.program_id === program.id)
+    const progProjects = projects.filter(p => p.program_id === program.id)
       .filter(p => !filterProjectId || p.id === filterProjectId);
     return { ...program, projects: progProjects };
   }).filter(p => p.projects.some(proj => sprints.some(s => s.project_id === proj.id)));
 
   // Standalone projects (no program)
-  const standaloneProjects = portfolioFilteredProjects
+  const standaloneProjects = projects
     .filter(p => !p.program_id && sprints.some(s => s.project_id === p.id))
     .filter(p => !filterProjectId || p.id === filterProjectId)
     .filter(() => !filterProgramId);
@@ -167,17 +156,15 @@ export default function DeliverySummary({ portfolios = [], onNavigateToSprints }
         </div>
       </div>
       <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex items-center gap-3">
-        {supportsPortfolioFilter && (
-          <select value={filterPortfolioId} onChange={e => { setFilterPortfolioId(e.target.value); setFilterProgramId(''); setFilterProjectId(''); }}
-            className="h-8 text-sm border border-slate-200 rounded-md px-2 text-slate-700 bg-white">
-            <option value="">All Portfolios</option>
-            {portfolios.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        )}
+        <select value={filterPortfolioId} onChange={e => { setFilterPortfolioId(e.target.value); setFilterProgramId(''); setFilterProjectId(''); }}
+          className="h-8 text-sm border border-slate-200 rounded-md px-2 text-slate-700 bg-white">
+          <option value="">All Portfolios</option>
+          {portfolios.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
         <select value={filterProgramId} onChange={e => { setFilterProgramId(e.target.value); setFilterProjectId(''); }}
           className="h-8 text-sm border border-slate-200 rounded-md px-2 text-slate-700 bg-white">
           <option value="">All Programs</option>
-          {portfolioFilteredPrograms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <select value={filterProjectId} onChange={e => setFilterProjectId(e.target.value)}
           className="h-8 text-sm border border-slate-200 rounded-md px-2 text-slate-700 bg-white">
@@ -262,7 +249,7 @@ export default function DeliverySummary({ portfolios = [], onNavigateToSprints }
                               </tr>
                             </thead>
                             <tbody>
-                              {projSprints.map(sprint => <SprintRow key={sprint.id} sprint={sprint} />)}
+                              {projSprints.map(sprint => <SprintRow key={sprint.id} sprint={sprint} onOpenSprint={onOpenSprint} />)}
                             </tbody>
                           </table>
                         )}
@@ -307,7 +294,7 @@ export default function DeliverySummary({ portfolios = [], onNavigateToSprints }
                           </tr>
                         </thead>
                         <tbody>
-                          {projSprints.map(sprint => <SprintRow key={sprint.id} sprint={sprint} />)}
+                          {projSprints.map(sprint => <SprintRow key={sprint.id} sprint={sprint} onOpenSprint={onOpenSprint} />)}
                         </tbody>
                       </table>
                     )}

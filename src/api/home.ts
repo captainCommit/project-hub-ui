@@ -7,7 +7,7 @@ type StatusSummary = { id: string; label: string; value: string; color: string |
 
 export type HomeApiPriority = {
   id: string;
-  kind: 'TASK' | 'RISK' | 'ISSUE';
+  kind: 'TASK' | 'RISK' | 'ISSUE' | 'ASSUMPTION' | 'DEPENDENCY';
   title: string;
   project: ProjectRef;
   due_date: string;
@@ -37,19 +37,32 @@ export type HomeApiActivity = {
   created_at: string;
 };
 
+export type HomeApiNotification = {
+  id: string;
+  kind: 'APPROVAL' | 'ASSIGNMENT' | 'MENTION';
+  title: string;
+  subtitle: string;
+  entity_type: string;
+  entity_id: string;
+  project: ProjectRef | null;
+  created_at: string;
+};
+
 export type HomeApiRead = {
   priorities: HomeApiPriority[];
   counts: { all: number; overdue: number; week: number; upcoming: number };
   active_project_count: number;
   my_projects: HomeApiProject[];
   recent_activity: HomeApiActivity[];
+  notifications: HomeApiNotification[];
+  notifications_read_at: string | null;
 };
 
 export type HomeBucket = 'overdue' | 'week' | 'upcoming';
 
 export type HomePriority = {
   id: string;
-  kind: 'Task' | 'Risk' | 'Issue';
+  kind: 'Task' | 'Risk' | 'Issue' | 'Assumption' | 'Dependency';
   title: string;
   projectId: string;
   projectName: string;
@@ -77,15 +90,29 @@ export type HomeActivity = {
   ts: string;
 };
 
+// Something waiting on the person, shown in the Home page bell.
+export type HomeNotification = {
+  id: string;
+  kind: 'approval' | 'assignment' | 'mention';
+  title: string;
+  subtitle: string;
+  entityType: string;
+  entityId: string;
+  projectId: string | null;
+  ts: string;
+};
+
 export type HomeData = {
   priorities: HomePriority[];
   counts: { all: number; overdue: number; week: number; upcoming: number };
   activeProjectCount: number;
   myProjects: HomeProject[];
   activity: HomeActivity[];
+  notifications: HomeNotification[];
+  notificationsReadAt: string | null;
 };
 
-const KIND_LABEL = { TASK: 'Task', RISK: 'Risk', ISSUE: 'Issue' } as const;
+const KIND_LABEL = { TASK: 'Task', RISK: 'Risk', ISSUE: 'Issue', ASSUMPTION: 'Assumption', DEPENDENCY: 'Dependency' } as const;
 
 const ACTION_VERB: Record<string, string> = {
   CREATE: 'added',
@@ -137,9 +164,22 @@ export const mapHomeFromApi = (data: HomeApiRead): HomeData => ({
     dueDate: project.target_end_date || '',
   })),
   activity: (data.recent_activity || []).map(mapHomeActivity),
+  notifications: (data.notifications || []).map((item) => ({
+    id: item.id,
+    kind: item.kind.toLowerCase() as HomeNotification['kind'],
+    title: item.title,
+    subtitle: item.subtitle,
+    entityType: item.entity_type,
+    entityId: item.entity_id,
+    projectId: item.project?.id ?? null,
+    ts: item.created_at,
+  })),
+  notificationsReadAt: data.notifications_read_at ?? null,
 });
 
 export const homeApi = {
   get: async (accountId: string): Promise<HomeData> =>
     mapHomeFromApi(await apiClient.get(`/api/v1/accounts/${accountId}/me/home`) as HomeApiRead),
+  markNotificationsRead: (accountId: string) =>
+    apiClient.post(`/api/v1/accounts/${accountId}/me/home/notifications/read`) as Promise<{ notifications_read_at: string }>,
 };

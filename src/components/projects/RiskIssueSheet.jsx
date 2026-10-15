@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Bell, Download } from "lucide-react";
+import { Plus, Download } from "lucide-react";
 import SavedFilterView from './SavedFilterView';
 import MultiSelectFilter from './MultiSelectFilter';
 import { cn } from "@/lib/utils";
@@ -15,10 +15,10 @@ import { exportRecords } from '@/lib/exportUtils';
 
 import { parseDate } from '@/lib/dateUtils';
 const priorityColors = {
-  low: 'bg-blue-100 text-blue-700',
-  medium: 'bg-yellow-100 text-yellow-700',
-  high: 'bg-orange-100 text-orange-700',
-  critical: 'bg-red-100 text-red-700'
+  low: 'bg-blue-100 text-black',
+  medium: 'bg-yellow-100 text-black',
+  high: 'bg-orange-100 text-black',
+  critical: 'bg-red-100 text-black'
 };
 
 const statusColors = {
@@ -95,7 +95,7 @@ export function AddDialog({ open, onOpenChange, type, projects, programs, resour
   return (
     <Dialog open={open} onOpenChange={v => { onOpenChange(v); if (!v) { setForm(emptyForm()); setResourceQ(''); } }}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Add {label}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>New {label}</DialogTitle></DialogHeader>
         <div className="space-y-3 py-1">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -216,7 +216,7 @@ export function AddDialog({ open, onOpenChange, type, projects, programs, resour
         <div className="flex justify-end gap-2 pt-3 border-t mt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={!isValid} className="bg-[#c87b14] hover:bg-[#a86610]">
-            Add {label}
+            New {label}
           </Button>
         </div>
       </DialogContent>
@@ -258,11 +258,6 @@ export default function RiskIssueSheet({
       </span>
     </th>
   );
-  const [escalateDialog, setEscalateDialog] = useState(null);
-  const [escalateTo, setEscalateTo] = useState('');
-  const [escalateDrop, setEscalateDrop] = useState(false);
-  const [escalateMode, setEscalateMode] = useState('resource'); // 'resource' | 'department'
-
   const idField = type === 'risk' ? 'risk_id' : 'issue_id';
   const label = type === 'risk' ? 'Risk' : 'Issue';
   const btnClass = 'h-7 text-xs gap-1 text-white bg-[#c87b14] hover:bg-[#a86610]';
@@ -355,7 +350,7 @@ export default function RiskIssueSheet({
           <Download className="w-3.5 h-3.5" /> Export
         </Button>
         <Button size="sm" className={btnClass} onClick={() => setAddOpen(true)}>
-          <Plus className="w-3.5 h-3.5" /> Add {label}
+          <Plus className="w-3.5 h-3.5" /> New {label}
         </Button>
       </div>
 
@@ -371,16 +366,13 @@ export default function RiskIssueSheet({
               <th className="py-2 px-3 text-xs font-semibold text-slate-700 text-left min-w-[240px]">Title</th>
               <SortTh field="assigned_to" label="Assigned To" className="text-left w-28" />
               <SortTh field="target_date" label="Target Date" className="text-center w-28" />
-              <SortTh field="logged_by" label="Entered By" className="text-left w-28" />
-              <SortTh field="date_entered" label="Entered Date" className="text-center w-28" />
-              <th className="py-2 px-3 text-xs font-semibold text-slate-700 text-center w-20">Escalate</th>
             </tr>
           </thead>
           <tbody>
             {filteredItems.length === 0 && (
               <tr>
-                <td colSpan={11} className="py-12 text-center text-slate-400 text-sm">
-                  No {label.toLowerCase()}s found. Click "Add {label}" to create one.
+                <td colSpan={8} className="py-12 text-center text-slate-400 text-sm">
+                  No {label.toLowerCase()}s found. Click "New {label}" to create one.
                 </td>
               </tr>
             )}
@@ -406,16 +398,6 @@ export default function RiskIssueSheet({
                 )}>
                   {item.target_date ? format(parseDate(item.target_date), 'MMM d, yyyy') : '—'}
                 </td>
-                <td className="py-2 px-3 text-sm text-slate-500">{item.logged_by || '—'}</td>
-                <td className="py-2 px-3 text-xs text-center text-slate-500">{item.date_entered || '—'}</td>
-                <td className="py-2 px-3 text-center" onClick={e => e.stopPropagation()}>
-                  <Button size="sm" variant="ghost"
-                    className={cn('h-6 text-xs gap-1', item.status === 'escalated' ? 'text-red-700 bg-red-50' : 'text-amber-600 hover:bg-amber-50')}
-                    disabled={item.status === 'escalated'}
-                    onClick={e => { e.stopPropagation(); setEscalateDialog(item); setEscalateTo(''); }}>
-                    <Bell className="w-3 h-3" />{item.status === 'escalated' ? 'Escalated' : 'Escalate'}
-                  </Button>
-                </td>
               </tr>
             ))}
           </tbody>
@@ -432,86 +414,6 @@ export default function RiskIssueSheet({
         existingCount={items.length}
         onAdd={onAddItem}
       />
-
-      {/* Escalate Dialog */}
-      {escalateDialog && (
-        <Dialog open={!!escalateDialog} onOpenChange={() => { setEscalateDialog(null); setEscalateTo(''); setEscalateMode('resource'); }}>
-          <DialogContent className="sm:max-w-sm">
-            <DialogHeader><DialogTitle>Escalate {label}</DialogTitle></DialogHeader>
-            <div className="space-y-3 py-1">
-              <p className="text-xs text-slate-500 bg-slate-50 rounded p-2">{escalateDialog.title}</p>
-
-              {/* Mode toggle */}
-              <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs">
-                <button onClick={() => { setEscalateMode('resource'); setEscalateTo(''); }}
-                  className={`flex-1 py-1.5 font-medium transition-colors ${escalateMode === 'resource' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
-                  Resource
-                </button>
-                <button onClick={() => { setEscalateMode('department'); setEscalateTo(''); }}
-                  className={`flex-1 py-1.5 font-medium transition-colors ${escalateMode === 'department' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
-                  Department
-                </button>
-              </div>
-
-              {escalateMode === 'resource' ? (
-                <div>
-                  <Label className="text-xs text-slate-600">Escalate to resource</Label>
-                  <div className="relative mt-1">
-                    <Input value={escalateTo}
-                      onChange={e => { setEscalateTo(e.target.value); setEscalateDrop(true); }}
-                      onFocus={() => setEscalateDrop(true)}
-                      onBlur={() => setTimeout(() => setEscalateDrop(false), 200)}
-                      placeholder="Search resources..." className="h-8 text-sm" autoFocus />
-                    {escalateDrop && escalateTo && (
-                      <div className="absolute z-30 top-9 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-md">
-                        {resources.filter(r => r.full_name.toLowerCase().includes(escalateTo.toLowerCase())).slice(0, 8).map(r => (
-                          <button key={r.id} onMouseDown={() => { setEscalateTo(r.full_name); setEscalateDrop(false); }}
-                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-700 flex justify-between">
-                            <span>{r.full_name}</span>
-                            {r.department && <span className="text-slate-400">{r.department}</span>}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <Label className="text-xs text-slate-600">Escalate to department</Label>
-                  <select value={escalateTo} onChange={e => setEscalateTo(e.target.value)}
-                    className="mt-1 w-full h-8 text-sm border border-input rounded-md px-2 bg-white">
-                    <option value="">Select department...</option>
-                    {[...new Set(resources.filter(r => r.department).map(r => r.department))].map(dept => (
-                      <option key={dept} value={dept}>{dept} ({resources.filter(r => r.department === dept).length} members)</option>
-                    ))}
-                  </select>
-                  {escalateTo && (
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      Will notify: {resources.filter(r => r.department === escalateTo).map(r => r.full_name).join(', ')}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end gap-2 pt-3 border-t">
-              <Button variant="outline" size="sm" onClick={() => { setEscalateDialog(null); setEscalateTo(''); setEscalateMode('resource'); }}>Cancel</Button>
-              <Button size="sm" disabled={!escalateTo.trim()} className="bg-red-600 hover:bg-red-700 text-white"
-                onClick={() => {
-                  const item = escalateDialog;
-                  onUpdateItem(item.id, { status: 'escalated' });
-                  const subject = encodeURIComponent(`[ESCALATED] ${label}: ${item.title}`);
-                  const deptMembers = escalateMode === 'department' ? resources.filter(r => r.department === escalateTo).map(r => r.full_name).join(', ') : '';
-                  const toLine = escalateMode === 'department' ? `Department: ${escalateTo}\nNotify: ${deptMembers}` : `Resource: ${escalateTo}`;
-                  const body = encodeURIComponent(`This ${type} has been escalated.\n\n${toLine}\n\nID: ${item[idField]}\nTitle: ${item.title}\nPriority: ${item.priority}\n\nPlease review and take immediate action.`);
-                  window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
-                  setEscalateDialog(null); setEscalateTo(''); setEscalateMode('resource');
-                }}>
-                Escalate &amp; Email
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }

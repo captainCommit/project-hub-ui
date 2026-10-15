@@ -21,6 +21,7 @@ import { homeApi } from '@/api/home';
 import { tasksApi, mapTaskFormToPayload, mapAccountOptionsToTaskStatusOptions } from '@/api/tasks';
 import { programsApi } from '@/api/programs';
 import { raidApi, mapRiskInputToPayload } from '@/api/raid';
+import { dependenciesApi } from '@/api/projectLogs';
 
 const BADGE = {
   overdue: { tone: 'urgent', badge: 'Overdue' },
@@ -28,8 +29,17 @@ const BADGE = {
   upcoming: { tone: 'muted', badge: 'Upcoming' },
 };
 
-// Risks and issues open their log; tasks open on the project sheet.
-const ITEM_PAGES = { Risk: '/RiskLog', Issue: '/IssueLog' };
+// Where each kind of record opens; tasks open on their project sheet.
+const RECORD_PAGES = {
+  RISK: '/RiskLog?tab=risks',
+  ISSUE: '/RiskLog?tab=issues',
+  ASSUMPTION: '/RiskLog?tab=assumptions',
+  DEPENDENCY: '/RiskLog?tab=dependencies',
+  DECISION: '/ChangeRegisterHub?tab=decisions',
+  CHANGE_REQUEST: '/ChangeRegisterHub?tab=changes',
+  REQUIREMENT: '/Requirements',
+  TEST_CASE: '/Testing',
+};
 
 export default function Home() {
   const { user, selectedAccountId } = useAuth();
@@ -109,11 +119,14 @@ export default function Home() {
       const status_id = item.completeStatusId;
       if (item.kind === 'Task') return tasksApi.update(item.id, { status_id, percent_complete: 100 });
       if (item.kind === 'Risk') return raidApi.updateRisk(item.id, { status_id });
-      return raidApi.updateIssue(item.id, { status_id });
+      if (item.kind === 'Issue') return raidApi.updateIssue(item.id, { status_id });
+      if (item.kind === 'Assumption') return raidApi.updateAssumption(item.id, { status_id });
+      return dependenciesApi.update(item.id, { status_id });
     },
     onSuccess: (_result, item) => {
       refreshHome();
-      queryClient.invalidateQueries({ queryKey: [item.kind === 'Task' ? 'account-tasks' : item.kind === 'Risk' ? 'account-risks' : 'account-issues'] });
+      const keys = { Task: 'account-tasks', Risk: 'account-risks', Issue: 'account-issues', Assumption: 'assumptions', Dependency: 'dependencies' };
+      queryClient.invalidateQueries({ queryKey: [keys[item.kind]] });
     },
     onError: (error) => toastError(error.message),
   });
@@ -140,10 +153,18 @@ export default function Home() {
   const greeting = firstName ? `Good ${part}, ${firstName}` : `Good ${part}`;
 
   const openProject = (projectId) => navigate(projectId ? `/projects/${projectId}/sheet` : '/Projects?view=all_projects');
-  const openPriority = (item) => {
-    if (item.kind === 'Task') navigate(`/projects/${item.projectId}/sheet?task=${item.id}`);
-    else navigate(ITEM_PAGES[item.kind] || `/projects/${item.projectId}/sheet`);
+  const openRecord = (entityType, id, projectId) => {
+    if (entityType === 'TASK') navigate(`/projects/${projectId}/sheet?task=${id}`);
+    else navigate(RECORD_PAGES[entityType] || (projectId ? `/projects/${projectId}/sheet` : '/Projects?view=all_projects'));
   };
+  const openPriority = (item) => openRecord(item.kind.toUpperCase(), item.id, item.projectId);
+  const openNotification = (item) => openRecord(item.entityType, item.entityId, item.projectId);
+
+  const markAllRead = useMutation({
+    mutationFn: () => homeApi.markNotificationsRead(selectedAccountId),
+    onSuccess: (result) => queryClient.setQueryData(homeKey, (old) => (old ? { ...old, notificationsReadAt: result.notifications_read_at } : old)),
+    onError: (error) => toastError(error.message),
+  });
 
   const handleCard = (key) => {
     if (key === 'projects') { navigate('/Projects?view=all_projects'); return; }
@@ -179,6 +200,11 @@ export default function Home() {
               subtitle="Your workspace at a glance"
               search={search}
               onSearchChange={setSearch}
+              notifications={data?.notifications || []}
+              notificationsReadAt={data?.notificationsReadAt || null}
+              onOpenNotification={openNotification}
+              onMarkAllRead={() => markAllRead.mutate()}
+              markingRead={markAllRead.isPending}
               onCreate={handleCreate}
             />
             {homeQuery.isLoading ? (

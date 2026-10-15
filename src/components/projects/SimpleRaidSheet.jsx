@@ -17,20 +17,21 @@ import { exportRecords } from '@/lib/exportUtils';
 import { cn } from '@/lib/utils';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 
+// The default assumption statuses (Escalated is only offered where the log has that status).
 const DEFAULT_STATUSES = [
+  { value: 'draft', label: 'Draft', className: 'bg-slate-100 text-slate-600' },
   { value: 'open', label: 'Open', className: 'bg-blue-100 text-blue-700' },
   { value: 'in_review', label: 'In Review', className: 'bg-yellow-100 text-yellow-700' },
   { value: 'validated', label: 'Validated', className: 'bg-emerald-100 text-emerald-700' },
   { value: 'invalidated', label: 'Invalidated', className: 'bg-red-100 text-red-700' },
   { value: 'closed', label: 'Closed', className: 'bg-slate-100 text-slate-600' },
-  { value: 'escalated', label: 'Escalated', className: 'bg-red-100 text-red-700' },
 ];
 
 const priorityColors = {
-  low: 'bg-blue-100 text-blue-700',
-  medium: 'bg-yellow-100 text-yellow-700',
-  high: 'bg-orange-100 text-orange-700',
-  critical: 'bg-red-100 text-red-700',
+  low: 'bg-blue-100 text-black',
+  medium: 'bg-yellow-100 text-black',
+  high: 'bg-orange-100 text-black',
+  critical: 'bg-red-100 text-black',
 };
 
 function ResourceInput({ value, onChange, resources, placeholder }) {
@@ -59,9 +60,9 @@ function ResourceInput({ value, onChange, resources, placeholder }) {
   );
 }
 
-function AddRecordDialog({ open, onOpenChange, projects, programs, resources, noun, descriptionLabel, idPrefix, idField, idStart, existingCount, statuses, showImpactDelay, showFallbackPlan, showAssignedTo, onCreate }) {
+function AddRecordDialog({ open, onOpenChange, projects, programs, resources, noun, descriptionLabel, idPrefix, idField, idStart, existingCount, statuses, showImpactDelay, showFallbackPlan, onCreate }) {
   const today = new Date().toISOString().split('T')[0];
-  const emptyForm = () => ({ title: '', priority: 'medium', description: '', impact_of_delay: '', fallback_plan: '', assigned_to: '', entered_by: '', date_entered: today, project_id: '', program_id: '', status: 'open' });
+  const emptyForm = () => ({ title: '', priority: 'medium', description: '', impact_of_delay: '', fallback_plan: '', assigned_to: '', target_date: '', entered_by: '', date_entered: today, project_id: '', program_id: '', status: 'open' });
   const [form, setForm] = useState(emptyForm());
   const filteredProjects = form.program_id ? projects.filter(p => p.program_id === form.program_id) : projects;
 
@@ -76,7 +77,7 @@ function AddRecordDialog({ open, onOpenChange, projects, programs, resources, no
   return (
     <Dialog open={open} onOpenChange={v => { onOpenChange(v); if (!v) setForm(emptyForm()); }}>
       <DialogContent className="sm:max-w-lg">
-        <DialogHeader><DialogTitle>Add {noun}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>New {noun}</DialogTitle></DialogHeader>
         <div className="space-y-3 py-1">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -137,15 +138,17 @@ function AddRecordDialog({ open, onOpenChange, projects, programs, resources, no
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">
-            {showAssignedTo && (
-              <div>
-                <Label className="text-xs text-slate-500">Assigned To</Label>
-                <div className="mt-1">
-                  <ResourceInput value={form.assigned_to} onChange={v => setForm(p => ({ ...p, assigned_to: v }))} resources={resources} />
-                </div>
+            <div>
+              <Label className="text-xs text-slate-500">Assigned To</Label>
+              <div className="mt-1">
+                <ResourceInput value={form.assigned_to} onChange={v => setForm(p => ({ ...p, assigned_to: v }))} resources={resources} />
               </div>
-            )}
-            <div className={cn(showAssignedTo ? '' : 'col-span-2')}>
+            </div>
+            <div>
+              <Label className="text-xs text-slate-500">Target Date</Label>
+              <Input type="date" value={form.target_date} onChange={e => setForm(p => ({ ...p, target_date: e.target.value }))} className="h-8 text-sm mt-1" />
+            </div>
+            <div>
               <Label className="text-xs text-slate-500">Entered By</Label>
               <div className="mt-1">
                 <ResourceInput value={form.entered_by} onChange={v => setForm(p => ({ ...p, entered_by: v }))} resources={resources} />
@@ -168,14 +171,14 @@ function AddRecordDialog({ open, onOpenChange, projects, programs, resources, no
         </div>
         <div className="flex justify-end gap-2 pt-3 border-t mt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={!form.title || !form.project_id} className="bg-[#c87b14] hover:bg-[#a86610]">Add {noun}</Button>
+          <Button onClick={handleSubmit} disabled={!form.title || !form.project_id} className="bg-[#c87b14] hover:bg-[#a86610]">New {noun}</Button>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-function DetailPanel({ record, noun, idField, descriptionLabel, statuses, statusMap, showImpactDelay, showFallbackPlan, showAssignedTo, resources, commentEntityType, onUpdate, onClose, onDelete }) {
+function DetailPanel({ record, noun, idField, descriptionLabel, statuses, statusMap, showImpactDelay, showFallbackPlan, resources, commentEntityType, onUpdate, onClose, onDelete }) {
   const [local, setLocal] = useState(record);
   const [commentText, setCommentText] = useState('');
   const { comments, addComment: postComment } = useEntityComments(commentEntityType, record.id);
@@ -231,11 +234,13 @@ function DetailPanel({ record, noun, idField, descriptionLabel, statuses, status
                 onBlur={e => save('fallback_plan', e.target.value)} className="text-sm min-h-[60px]" placeholder="Describe the fallback plan..." />
             </DField>
           )}
-          {showAssignedTo && (
-            <DField label="Assigned To">
-              <ResourceInput value={local.assigned_to || ''} onChange={v => { setLocal(p => ({ ...p, assigned_to: v })); save('assigned_to', v); }} resources={resources} />
-            </DField>
-          )}
+          <DField label="Assigned To">
+            <ResourceInput value={local.assigned_to || ''} onChange={v => { setLocal(p => ({ ...p, assigned_to: v })); save('assigned_to', v); }} resources={resources} />
+          </DField>
+          <DField label="Target Date">
+            <Input type="date" value={local.target_date || ''} onChange={e => setLocal(p => ({ ...p, target_date: e.target.value }))}
+              onBlur={e => save('target_date', e.target.value)} className="h-8 text-sm" />
+          </DField>
           <DField label="Entered By">
             <ResourceInput value={local.entered_by || ''} onChange={v => { setLocal(p => ({ ...p, entered_by: v })); save('entered_by', v); }} resources={resources} />
           </DField>
@@ -251,6 +256,16 @@ function DetailPanel({ record, noun, idField, descriptionLabel, statuses, status
               </SelectContent>
             </Select>
           </DField>
+          {statusMap.escalated && (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline"
+                className={cn('h-8 text-xs gap-1', local.status === 'escalated' ? 'text-red-700 bg-red-50 border-red-200' : 'text-amber-600 hover:bg-amber-50')}
+                disabled={local.status === 'escalated'}
+                onClick={() => { setLocal(p => ({ ...p, status: 'escalated' })); save('status', 'escalated'); }}>
+                <Bell className="w-3.5 h-3.5" />{local.status === 'escalated' ? 'Escalated' : 'Escalate'}
+              </Button>
+            </div>
+          )}
           <div className="border-t pt-4">
             <div className="flex items-center gap-2 mb-3">
               <MessageSquare className="w-4 h-4 text-slate-500" />
@@ -303,15 +318,10 @@ export default function SimpleRaidSheet({
   statuses = DEFAULT_STATUSES,
   showImpactDelay = false,
   showFallbackPlan = false,
-  showAssignedTo = false,
   onCountChange,
 }) {
   const qc = useQueryClient();
   const [selected, setSelected] = useState(null);
-  const [escalateDialog, setEscalateDialog] = useState(null);
-  const [escalateTo, setEscalateTo] = useState('');
-  const [escalateMode, setEscalateMode] = useState('resource');
-  const [escalateDrop, setEscalateDrop] = useState(false);
   const [filterPortfolios, setFilterPortfolios] = useState([]);
   const [filterPrograms, setFilterPrograms] = useState([]);
   const [filterProjects, setFilterProjects] = useState([]);
@@ -366,10 +376,8 @@ export default function SimpleRaidSheet({
     { key: 'project', label: 'Project', cls: 'text-left w-32' },
     { key: 'priority', label: 'Priority', cls: 'text-center w-24' },
     { key: 'title', label: 'Title', cls: 'text-left w-[260px]' },
-    ...(showAssignedTo ? [{ key: 'assigned_to', label: 'Assigned To', cls: 'text-left w-28' }] : []),
-    { key: 'entered_by', label: 'Entered By', cls: 'text-left w-28' },
-    { key: 'date_entered', label: 'Entered Date', cls: 'text-center w-28' },
-    { key: 'escalate', label: 'Escalate', cls: 'text-center w-24' },
+    { key: 'assigned_to', label: 'Assigned To', cls: 'text-left w-28' },
+    { key: 'target_date', label: 'Target Date', cls: 'text-center w-28' },
   ];
 
   const renderCell = (r, key) => {
@@ -409,19 +417,10 @@ export default function SimpleRaidSheet({
         return <td key={key} className="px-3 py-2 text-xs text-slate-600 whitespace-nowrap text-center">{r.date_entered || '\u2014'}</td>;
       case 'assigned_to':
         return <td key={key} className="px-3 py-2 text-sm text-slate-600 whitespace-nowrap">{r.assigned_to || '\u2014'}</td>;
+      case 'target_date':
+        return <td key={key} className="px-3 py-2 text-xs text-slate-600 whitespace-nowrap text-center">{r.target_date || '\u2014'}</td>;
       case 'entered_by':
         return <td key={key} className="px-3 py-2 text-sm text-slate-600 whitespace-nowrap">{r.entered_by || '\u2014'}</td>;
-      case 'escalate':
-        return (
-          <td key={key} className="px-3 py-2 text-center" onClick={e => e.stopPropagation()}>
-            <Button size="sm" variant="ghost"
-              className={cn('h-6 text-xs gap-1', r.status === 'escalated' ? 'text-red-700 bg-red-50' : 'text-amber-600 hover:bg-amber-50')}
-              disabled={r.status === 'escalated'}
-              onClick={e => { e.stopPropagation(); setEscalateDialog(r); setEscalateTo(''); setEscalateMode('resource'); }}>
-              <Bell className="w-3 h-3" />{r.status === 'escalated' ? 'Escalated' : 'Escalate'}
-            </Button>
-          </td>
-        );
       default:
         return <td key={key} className="px-3 py-2" />;
     }
@@ -437,7 +436,8 @@ export default function SimpleRaidSheet({
     { label: descriptionLabel, key: 'description' },
     ...(showImpactDelay ? [{ label: 'Impact of Delay', key: 'impact_of_delay' }] : []),
     ...(showFallbackPlan ? [{ label: 'Fallback Plan', key: 'fallback_plan' }] : []),
-    ...(showAssignedTo ? [{ label: 'Assigned To', key: 'assigned_to' }] : []),
+    { label: 'Assigned To', key: 'assigned_to' },
+    { label: 'Target Date', key: 'target_date' },
     { label: 'Entered By', key: 'entered_by' },
     { label: 'Entered Date', key: 'date_entered' },
   ];
@@ -462,7 +462,7 @@ export default function SimpleRaidSheet({
           <SavedFilterView storageKey={storageKey} currentFilters={{ portfolios: filterPortfolios, programs: filterPrograms, projects: filterProjects }} onLoadFilters={f => { setFilterPortfolios(f.portfolios || []); setFilterPrograms(f.programs || []); setFilterProjects(f.projects || []); }} />
           <div className="flex-1" />
           <Button size="sm" variant="outline" onClick={handleExport} className="h-8 gap-1 text-xs"><Download className="w-3.5 h-3.5" /> Export</Button>
-          <Button size="sm" onClick={() => setAddOpen(true)} className="bg-[#c87b14] hover:bg-[#a86610] h-8 gap-1 text-xs"><Plus className="w-3.5 h-3.5" /> Add {noun}</Button>
+          <Button size="sm" onClick={() => setAddOpen(true)} className="bg-[#c87b14] hover:bg-[#a86610] h-8 gap-1 text-xs"><Plus className="w-3.5 h-3.5" /> New {noun}</Button>
         </div>
 
         <div className="flex-1 overflow-auto">
@@ -479,7 +479,7 @@ export default function SimpleRaidSheet({
               </thead>
               <tbody>
                 {filtered.length === 0 && (
-                  <tr><td colSpan={columns.length} className="px-6 py-12 text-center text-slate-400 text-sm">No {noun.toLowerCase()}s yet. Click "Add {noun}" to create one.</td></tr>
+                  <tr><td colSpan={columns.length} className="px-6 py-12 text-center text-slate-400 text-sm">No {noun.toLowerCase()}s yet. Click "New {noun}" to create one.</td></tr>
                 )}
                 {filtered.map(r => (
                   <tr key={r.id} onClick={() => setSelected(r)}
@@ -503,7 +503,6 @@ export default function SimpleRaidSheet({
           statusMap={statusMap}
           showImpactDelay={showImpactDelay}
           showFallbackPlan={showFallbackPlan}
-          showAssignedTo={showAssignedTo}
           resources={resources}
           commentEntityType={entity.commentEntityType}
           onUpdate={(id, data) => update.mutate({ id, data })}
@@ -527,85 +526,8 @@ export default function SimpleRaidSheet({
         statuses={statuses}
         showImpactDelay={showImpactDelay}
         showFallbackPlan={showFallbackPlan}
-        showAssignedTo={showAssignedTo}
         onCreate={(data) => create.mutate(data)}
       />
-
-      {escalateDialog && (
-        <Dialog open={!!escalateDialog} onOpenChange={() => { setEscalateDialog(null); setEscalateTo(''); setEscalateMode('resource'); }}>
-          <DialogContent className="sm:max-w-sm">
-            <DialogHeader><DialogTitle>Escalate {noun}</DialogTitle></DialogHeader>
-            <div className="space-y-3 py-1">
-              <p className="text-xs text-slate-500 bg-slate-50 rounded p-2">{escalateDialog.title}</p>
-              <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs">
-                <button onClick={() => { setEscalateMode('resource'); setEscalateTo(''); }}
-                  className={`flex-1 py-1.5 font-medium transition-colors ${escalateMode === 'resource' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
-                  Resource
-                </button>
-                <button onClick={() => { setEscalateMode('department'); setEscalateTo(''); }}
-                  className={`flex-1 py-1.5 font-medium transition-colors ${escalateMode === 'department' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
-                  Department
-                </button>
-              </div>
-              {escalateMode === 'resource' ? (
-                <div>
-                  <Label className="text-xs text-slate-600">Escalate to resource</Label>
-                  <div className="relative mt-1">
-                    <Input value={escalateTo}
-                      onChange={e => { setEscalateTo(e.target.value); setEscalateDrop(true); }}
-                      onFocus={() => setEscalateDrop(true)}
-                      onBlur={() => setTimeout(() => setEscalateDrop(false), 200)}
-                      placeholder="Search resources..." className="h-8 text-sm" autoFocus />
-                    {escalateDrop && escalateTo && (
-                      <div className="absolute z-30 top-9 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-md">
-                        {resources.filter(r => r.full_name.toLowerCase().includes(escalateTo.toLowerCase())).slice(0, 8).map(r => (
-                          <button key={r.id} onMouseDown={() => { setEscalateTo(r.full_name); setEscalateDrop(false); }}
-                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-700 flex justify-between">
-                            <span>{r.full_name}</span>
-                            {r.department && <span className="text-slate-400">{r.department}</span>}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <Label className="text-xs text-slate-600">Escalate to department</Label>
-                  <select value={escalateTo} onChange={e => setEscalateTo(e.target.value)}
-                    className="mt-1 w-full h-8 text-sm border border-input rounded-md px-2 bg-white">
-                    <option value="">Select department...</option>
-                    {[...new Set(resources.filter(r => r.department).map(r => r.department))].map(dept => (
-                      <option key={dept} value={dept}>{dept} ({resources.filter(r => r.department === dept).length} members)</option>
-                    ))}
-                  </select>
-                  {escalateTo && (
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      Will notify: {resources.filter(r => r.department === escalateTo).map(r => r.full_name).join(', ')}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end gap-2 pt-3 border-t">
-              <Button variant="outline" size="sm" onClick={() => { setEscalateDialog(null); setEscalateTo(''); setEscalateMode('resource'); }}>Cancel</Button>
-              <Button size="sm" disabled={!escalateTo.trim()} className="bg-red-600 hover:bg-red-700 text-white"
-                onClick={() => {
-                  const item = escalateDialog;
-                  update.mutate({ id: item.id, data: { status: 'escalated' } });
-                  const subject = encodeURIComponent(`[ESCALATED] ${noun}: ${item.title}`);
-                  const deptMembers = escalateMode === 'department' ? resources.filter(r => r.department === escalateTo).map(r => r.full_name).join(', ') : '';
-                  const toLine = escalateMode === 'department' ? `Department: ${escalateTo}\nNotify: ${deptMembers}` : `Resource: ${escalateTo}`;
-                  const body = encodeURIComponent(`This ${noun.toLowerCase()} has been escalated.\n\n${toLine}\n\nID: ${item[idField]}\nTitle: ${item.title}\nPriority: ${item.priority}\n\nPlease review and take immediate action.`);
-                  window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
-                  setEscalateDialog(null); setEscalateTo(''); setEscalateMode('resource');
-                }}>
-                Escalate &amp; Email
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }

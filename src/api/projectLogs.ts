@@ -24,6 +24,7 @@ export const mapDependencyFromApi = (record: ApiRecord = {}) => ({
   assigned_to: record.assigned_to_name || '',
   entered_by: record.entered_by_name || record.created_by_name || '',
   date_entered: dateOnly(record.date_entered || record.created_at),
+  target_date: dateOnly(record.target_date),
 });
 
 export const mapDependencyInputToPayload = (input: ApiRecord = {}) => buildPayload(input, {
@@ -36,6 +37,7 @@ export const mapDependencyInputToPayload = (input: ApiRecord = {}) => buildPaylo
   assigned_to: 'assigned_to_name',
   entered_by: 'entered_by_name',
   date_entered: 'date_entered',
+  target_date: 'target_date',
 });
 
 export const mapChangeRequestFromApi = (record: ApiRecord = {}) => ({

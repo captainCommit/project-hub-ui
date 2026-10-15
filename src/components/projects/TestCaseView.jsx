@@ -15,10 +15,10 @@ import { useAccountHierarchy, useAccountRequirements, useAccountSprints, useAcco
 import { mapTestCaseFromApi, mapTestCaseInputToPayload, testCasesApi } from '@/api/projectLogs';
 
 const PRIORITY_COLORS = {
-  low: 'bg-slate-100 text-slate-600',
-  medium: 'bg-blue-100 text-blue-700',
-  high: 'bg-orange-100 text-orange-700',
-  critical: 'bg-red-100 text-red-700',
+  low: 'bg-slate-100 text-black',
+  medium: 'bg-blue-100 text-black',
+  high: 'bg-orange-100 text-black',
+  critical: 'bg-red-100 text-black',
 };
 
 const PASS_FAIL_COLORS = {
@@ -157,7 +157,7 @@ export default function TestCaseView() {
               <Download className="w-3.5 h-3.5" /> Export
             </Button>
             <Button size="sm" onClick={() => { setForm(emptyForm()); setEditingId(null); setPanelOpen(true); }} className="h-8 gap-1.5 bg-[#c87b14] hover:bg-[#c87b14]/90 text-white">
-              <Plus className="w-3.5 h-3.5" /> Add Test Case
+              <Plus className="w-3.5 h-3.5" /> New Test Case
             </Button>
           </div>
         </div>
@@ -197,7 +197,7 @@ export default function TestCaseView() {
               <tbody>
                 {isLoading && <tr><td colSpan={11} className="text-center py-10 text-slate-400 text-xs">Loading...</td></tr>}
                 {!isLoading && filtered.length === 0 && (
-                  <tr><td colSpan={11} className="text-center py-14 text-slate-400 text-sm">No test cases yet. Click "Add Test Case" to create one.</td></tr>
+                  <tr><td colSpan={11} className="text-center py-14 text-slate-400 text-sm">No test cases yet. Click "New Test Case" to create one.</td></tr>
                 )}
                 {filtered.map(tc => (
                   <tr key={tc.id} className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={() => handleRowClick(tc)}>
@@ -244,7 +244,7 @@ export default function TestCaseView() {
         <div className="fixed inset-0 z-50 flex justify-end bg-black/20" onClick={() => setPanelOpen(false)}>
           <div className="w-full max-w-md bg-white h-full flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-              <h2 className="text-sm font-semibold text-slate-800">{editingId ? 'Edit Test Case' : 'Add Test Case'}</h2>
+              <h2 className="text-sm font-semibold text-slate-800">{editingId ? 'Edit Test Case' : 'New Test Case'}</h2>
               <button onClick={() => { setPanelOpen(false); setEditingId(null); }} className="p-1 hover:bg-slate-100 rounded text-slate-400"><X className="w-4 h-4" /></button>
             </div>
             <ScrollArea className="flex-1">
@@ -339,7 +339,7 @@ export default function TestCaseView() {
             </ScrollArea>
             <div className="flex justify-end gap-2 px-5 py-3 border-t border-slate-200">
               <Button variant="outline" onClick={() => { setPanelOpen(false); setEditingId(null); }}>Cancel</Button>
-              <Button onClick={handleSubmit} disabled={!form.title || !form.project_id} className="bg-[#002046] hover:bg-[#002046]/90">{editingId ? 'Save Changes' : 'Add Test Case'}</Button>
+              <Button onClick={handleSubmit} disabled={!form.title || !form.project_id} className="bg-[#002046] hover:bg-[#002046]/90">{editingId ? 'Save Changes' : 'New Test Case'}</Button>
             </div>
           </div>
         </div>

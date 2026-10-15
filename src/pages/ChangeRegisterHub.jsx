@@ -8,7 +8,11 @@ import ChangeOverview from '@/components/projects/ChangeOverview';
 import { useAccountChangeRequests, useAccountDecisions, useAccountHierarchy } from '@/hooks/useAccountLookups';
 
 export default function ChangeRegisterHub() {
-  const [tab, setTab] = useState('overview');
+  // ?tab=decisions|changes opens that tab (links from the Home page use it).
+  const [tab, setTab] = useState(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab');
+    return ['decisions', 'changes'].includes(requested) ? requested : 'overview';
+  });
 
   const { projects, programs, portfolios } = useAccountHierarchy();
   const decisions = useAccountDecisions();

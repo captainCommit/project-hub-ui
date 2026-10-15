@@ -166,6 +166,8 @@ export const portfoliosApi = {
   get: async (portfolioId: string) => mapPortfolioResponse(await apiClient.get(`/api/v1/portfolios/${portfolioId}`)),
   update: async (portfolioId: string, data: Record<string, unknown>) =>
     mapPortfolioResponse(await apiClient.patch(`/api/v1/portfolios/${portfolioId}`, mapPortfolioUpdatePayload(data))),
+  /** Deletes the portfolio with every program and project under it. */
+  delete: (portfolioId: string) => apiClient.delete(`/api/v1/portfolios/${portfolioId}`),
   getOverview: async (portfolioId: string) =>
     mapPortfolioOverviewResponse(await apiClient.get(`/api/v1/portfolios/${portfolioId}/overview`)),
   listPrograms: async (portfolioId: string) =>

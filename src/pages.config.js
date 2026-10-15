@@ -47,9 +47,12 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
-import IssueLog from './pages/IssueLog';
-import Projects from './pages/Projects';
-import RiskLog from './pages/RiskLog';
+import { lazy } from 'react';
+
+// Loaded the first time each page is opened (App.jsx wraps pages in Suspense).
+const IssueLog = lazy(() => import('./pages/IssueLog'));
+const Projects = lazy(() => import('./pages/Projects'));
+const RiskLog = lazy(() => import('./pages/RiskLog'));
 
 
 export const PAGES = {

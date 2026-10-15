@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Toaster } from "@/components/ui/toaster"
 import { ConfirmDialogHost } from "@/components/ui/confirm-dialog"
 import GlobalLoader from '@/components/GlobalLoader';
@@ -11,31 +12,39 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import AuthStatusScreen from '@/components/AuthStatusScreen';
 import { isCognitoMode, resetLoginAttempts } from '@/lib/cognitoSession';
-import DecisionLog from './pages/DecisionLog';
-import ResourceTaskPulse from './pages/ResourceTaskPulse';
-import AssumptionLog from './pages/AssumptionLog';
-import ResourceCalendarPage from './pages/ResourceCalendarPage';
-import ProjectResources from './pages/ProjectResources';
-import AppSettings from './pages/AppSettings';
-import ChangeRegister from './pages/ChangeRegister';
-import ChangeRegisterHub from './pages/ChangeRegisterHub';
-import AIAssistant from './pages/AIAssistant';
-import LearnSupport from './pages/LearnSupport';
-import Financials from './pages/Financials';
-import SprintManagement from './pages/SprintManagement';
-import Testing from './pages/Testing';
-import Requirements from './pages/Requirements';
-import ResourceManagementHub from './pages/ResourceManagementHub';
-import Account from './pages/Account';
-import Favorites from './pages/Favorites';
-import MyWork from './pages/MyWork';
 import Home from './pages/Home';
-import PlatformAdmin from './pages/PlatformAdmin';
 import BillingBanner from '@/components/BillingBanner';
 import TimezoneSync from '@/components/TimezoneSync';
 
+// Home is the landing page and ships with the app; every other page downloads the first time it's opened.
+const DecisionLog = lazy(() => import('./pages/DecisionLog'));
+const ResourceTaskPulse = lazy(() => import('./pages/ResourceTaskPulse'));
+const AssumptionLog = lazy(() => import('./pages/AssumptionLog'));
+const ResourceCalendarPage = lazy(() => import('./pages/ResourceCalendarPage'));
+const ProjectResources = lazy(() => import('./pages/ProjectResources'));
+const AppSettings = lazy(() => import('./pages/AppSettings'));
+const ChangeRegister = lazy(() => import('./pages/ChangeRegister'));
+const ChangeRegisterHub = lazy(() => import('./pages/ChangeRegisterHub'));
+const AIAssistant = lazy(() => import('./pages/AIAssistant'));
+const LearnSupport = lazy(() => import('./pages/LearnSupport'));
+const Financials = lazy(() => import('./pages/Financials'));
+const SprintManagement = lazy(() => import('./pages/SprintManagement'));
+const Testing = lazy(() => import('./pages/Testing'));
+const Requirements = lazy(() => import('./pages/Requirements'));
+const ResourceManagementHub = lazy(() => import('./pages/ResourceManagementHub'));
+const Account = lazy(() => import('./pages/Account'));
+const Favorites = lazy(() => import('./pages/Favorites'));
+const MyWork = lazy(() => import('./pages/MyWork'));
+const PlatformAdmin = lazy(() => import('./pages/PlatformAdmin'));
+
 const { Pages, Layout } = pagesConfig;
 const ProjectsPage = Pages.Projects;
+
+const PageLoading = () => (
+  <div className="h-full min-h-[50vh] flex items-center justify-center">
+    <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+  </div>
+);
 
 // The billing bar sits above the page, which gets the rest of the screen. Pages built as full-screen
 // (h-screen / min-h-screen) are sized to that remaining space, so nothing hides under the bar.
@@ -44,7 +53,9 @@ const LayoutWrapper = ({ children, currentPageName }) => (
     <BillingBanner />
     <TimezoneSync />
     <div className="flex-1 min-h-0 overflow-auto [&>.h-screen]:h-full [&>.min-h-screen]:min-h-full">
-      {Layout ? <Layout currentPageName={currentPageName}>{children}</Layout> : children}
+      <Suspense fallback={<PageLoading />}>
+        {Layout ? <Layout currentPageName={currentPageName}>{children}</Layout> : children}
+      </Suspense>
     </div>
   </div>
 );
@@ -103,10 +114,12 @@ const AuthenticatedApp = () => {
   // Local mode is exempt: its single dev user is both platform admin and account owner.
   if (user?.is_platform_admin && isCognitoMode()) {
     return (
-      <Routes>
-        <Route path="/admin" element={<PlatformAdmin />} />
-        <Route path="*" element={<Navigate to="/admin" replace />} />
-      </Routes>
+      <Suspense fallback={<PageLoading />}>
+        <Routes>
+          <Route path="/admin" element={<PlatformAdmin />} />
+          <Route path="*" element={<Navigate to="/admin" replace />} />
+        </Routes>
+      </Suspense>
     );
   }
 
@@ -156,7 +169,7 @@ const AuthenticatedApp = () => {
       <Route path="/Favorites" element={<LayoutWrapper currentPageName="Favorites"><Favorites /></LayoutWrapper>} />
       <Route path="/ResourceManagementHub" element={<LayoutWrapper currentPageName="ResourceManagementHub"><ResourceManagementHub /></LayoutWrapper>} />
       <Route path="/Account" element={<LayoutWrapper currentPageName="Account"><Account /></LayoutWrapper>} />
-      <Route path="/admin" element={<PlatformAdmin />} />
+      <Route path="/admin" element={<Suspense fallback={<PageLoading />}><PlatformAdmin /></Suspense>} />
       <Route path="/auth/callback" element={<Navigate to={postLoginPath || '/'} replace />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>

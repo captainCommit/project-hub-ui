@@ -1,13 +1,19 @@
 import React from 'react';
-import { Bell, ClipboardList, UserPlus, MessageSquare } from 'lucide-react';
+import { Bell, ClipboardList, UserPlus, MessageSquare, LifeBuoy, AlertTriangle, CalendarClock, RefreshCw } from 'lucide-react';
 import { parseISO, isValid, formatDistanceToNow } from 'date-fns';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
-// Actionable items only: approvals waiting on you, work assigned to you, and comments that mention you.
+// Approvals waiting on you, work assigned to you and mentions, plus the app's other notifications.
 const KIND_META = {
   approval: { icon: ClipboardList, color: '#D97706' },
   assignment: { icon: UserPlus, color: '#0056D2' },
   mention: { icon: MessageSquare, color: '#475569' },
+  comment: { icon: MessageSquare, color: '#475569' },
+  support: { icon: LifeBuoy, color: '#0056D2' },
+  risk: { icon: AlertTriangle, color: '#C2410C' },
+  due: { icon: CalendarClock, color: '#C2410C' },
+  status: { icon: RefreshCw, color: '#475569' },
+  update: { icon: Bell, color: '#475569' },
 };
 
 const INK = '#1D1D1F';
@@ -20,7 +26,8 @@ const relative = (ts) => (ts && isValid(parseISO(ts)) ? formatDistanceToNow(pars
 
 export default function HomeNotifications({ items = [], readAt, onOpen, onMarkAllRead, markingRead = false }) {
   const readTime = readAt ? new Date(readAt).getTime() : null;
-  const isUnread = (item) => (readTime === null ? true : new Date(item.ts).getTime() > readTime);
+  // Feed notifications carry their own read flag; the rest are unread if newer than the last "Mark all as read".
+  const isUnread = (item) => (item.unread !== undefined ? item.unread : readTime === null || new Date(item.ts).getTime() > readTime);
   const count = items.filter(isUnread).length;
 
   return (

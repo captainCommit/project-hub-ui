@@ -22,6 +22,7 @@ import { tasksApi, mapTaskFormToPayload, mapAccountOptionsToTaskStatusOptions } 
 import { programsApi } from '@/api/programs';
 import { raidApi, mapRiskInputToPayload } from '@/api/raid';
 import { dependenciesApi } from '@/api/projectLogs';
+import { notificationsApi } from '@/api/notifications';
 
 const BADGE = {
   overdue: { tone: 'urgent', badge: 'Overdue' },
@@ -41,6 +42,19 @@ const RECORD_PAGES = {
   TEST_CASE: '/Testing',
 };
 
+// The app's other notifications also land in the Home bell. Mentions and assignments are left out
+// because the bell already lists those from the Home data.
+const FEED_SKIP_TYPES = ['MENTION', 'TASK_ASSIGNED'];
+const FEED_KIND = {
+  SUPPORT_REPLY: 'support',
+  RISK_CREATED: 'risk',
+  DUE_SOON: 'due',
+  STATUS_CHANGED: 'status',
+  DECISION_APPROVED: 'approval',
+  COMMENT_ADDED: 'comment',
+};
+const FEED_POLL_MS = 60_000;
+
 export default function Home() {
   const { user, selectedAccountId } = useAuth();
   const navigate = useNavigate();
@@ -59,6 +73,13 @@ export default function Home() {
     queryKey: homeKey,
     queryFn: () => homeApi.get(selectedAccountId),
     enabled: Boolean(selectedAccountId && userId),
+  });
+
+  const feedQuery = useQuery({
+    queryKey: ['notifications'],
+    queryFn: notificationsApi.list,
+    refetchInterval: FEED_POLL_MS,
+    refetchOnWindowFocus: true,
   });
 
   // Same query as the project sheet, so it is usually cached.
@@ -158,11 +179,43 @@ export default function Home() {
     else navigate(RECORD_PAGES[entityType] || (projectId ? `/projects/${projectId}/sheet` : '/Projects?view=all_projects'));
   };
   const openPriority = (item) => openRecord(item.kind.toUpperCase(), item.id, item.projectId);
-  const openNotification = (item) => openRecord(item.entityType, item.entityId, item.projectId);
+  // Approvals, assignments and mentions from the Home data, plus everything else in the notification feed.
+  const bellItems = useMemo(() => {
+    const feed = (feedQuery.data?.results || [])
+      .filter(n => !FEED_SKIP_TYPES.includes(n.notification_type))
+      .map(n => ({
+        id: `feed-${n.id}`,
+        feedId: n.id,
+        kind: FEED_KIND[n.notification_type] || 'update',
+        title: n.title,
+        subtitle: n.message || '',
+        entityType: n.entity_type,
+        entityId: n.entity_id,
+        projectId: null,
+        ts: n.created_at,
+        unread: !n.is_read,
+      }));
+    return [...(data?.notifications || []), ...feed].sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
+  }, [data, feedQuery.data]);
+
+  const markFeedRead = useMutation({
+    mutationFn: notificationsApi.markRead,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+  });
+  const openNotification = (item) => {
+    if (item.feedId === undefined) { openRecord(item.entityType, item.entityId, item.projectId); return; }
+    if (item.unread) markFeedRead.mutate(item.feedId);
+    // Feed items carry only the record, so they open the screen that lists that kind of record.
+    if (item.entityType === 'SUPPORT_TICKET') navigate(`/LearnSupport?ticket=${item.entityId}`);
+    else if (RECORD_PAGES[item.entityType]) navigate(RECORD_PAGES[item.entityType]);
+  };
 
   const markAllRead = useMutation({
-    mutationFn: () => homeApi.markNotificationsRead(selectedAccountId),
-    onSuccess: (result) => queryClient.setQueryData(homeKey, (old) => (old ? { ...old, notificationsReadAt: result.notifications_read_at } : old)),
+    mutationFn: () => Promise.all([homeApi.markNotificationsRead(selectedAccountId), notificationsApi.markAllRead()]),
+    onSuccess: ([result]) => {
+      queryClient.setQueryData(homeKey, (old) => (old ? { ...old, notificationsReadAt: result.notifications_read_at } : old));
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
     onError: (error) => toastError(error.message),
   });
 
@@ -200,7 +253,7 @@ export default function Home() {
               subtitle="Your workspace at a glance"
               search={search}
               onSearchChange={setSearch}
-              notifications={data?.notifications || []}
+              notifications={bellItems}
               notificationsReadAt={data?.notificationsReadAt || null}
               onOpenNotification={openNotification}
               onMarkAllRead={() => markAllRead.mutate()}

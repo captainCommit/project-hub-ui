@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import NotificationBell from '@/components/NotificationBell';
 import { useFavorites } from '@/lib/favorites';
 import { useRecentProjects } from '@/lib/userPrefs';
 
@@ -317,7 +316,6 @@ export default function ProjectSidebar(/** @type {any} */ {
           <button onClick={toggleCollapsed} className="p-1.5 hover:bg-slate-100 rounded-lg" title="Expand sidebar">
             <PanelLeftOpen className="w-4 h-4" style={{ color: MUTED }} />
           </button>
-          {pathname !== '/' && <NotificationBell />}
         </div>
         <div className="flex-1 flex flex-col items-center py-3 gap-1 overflow-y-auto">
           <Link to="/" title="Home" className={collapsedClass(pathname === '/')}><HomeIcon className="w-4 h-4" /></Link>
@@ -351,8 +349,6 @@ export default function ProjectSidebar(/** @type {any} */ {
           <p className="text-[10px] font-medium mt-0.5" style={{ color: MUTED }}>All-in-one Project Management</p>
         </div>
         <div className="flex items-center gap-0.5 flex-shrink-0">
-          {/* Home has its own bell in the page header. */}
-          {pathname !== '/' && <NotificationBell />}
           <button onClick={toggleCollapsed} className="p-1.5 hover:bg-slate-100 rounded-lg flex-shrink-0" title="Collapse sidebar">
             <PanelLeftClose className="w-4 h-4" style={{ color: MUTED }} />
           </button>

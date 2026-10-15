@@ -921,7 +921,7 @@ export default function Projects() {
     onMutate: ({ id, data }) => {
       const previousBoard = projectBoard;
       const payload = mapTaskBoardPositionToPayload(data);
-      setOptimisticProjectBoard(moveBoardCard(previousBoard, id, payload.status_id, payload.sort_order));
+      setOptimisticProjectBoard(moveBoardCard(previousBoard, id, data.status_id ?? data.status, payload.sort_order));
       return { previousBoard };
     },
     onError: (_error, _variables, context) => {

@@ -6,7 +6,8 @@ import { useQuery } from '@tanstack/react-query';
 import {
   FolderTree, Building2, ChevronRight, ChevronDown,
   FileText, Shield, Users, Package, AlertTriangle,
-  Star, Folder, Compass, PanelLeftClose, PanelLeftOpen, LifeBuoy, LogOut, Search, X, Clock, Home
+  ClipboardList, ClipboardCheck, RefreshCw, Scale,
+  Folder, Sparkles, PanelLeftClose, PanelLeftOpen, CircleHelp, LogOut, Search, X, Clock, Home as HomeIcon
 } from "lucide-react";
 import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -14,8 +15,8 @@ import NotificationBell from '@/components/NotificationBell';
 import { useFavorites } from '@/lib/favorites';
 import { useRecentProjects } from '@/lib/userPrefs';
 
-const NAVY = '#002046';
-const ORANGE = '#d97706';
+const TEXT = '#002046';
+const MUTED = '#64748B';
 const EMPTY_SIDEBAR_HIERARCHY = { portfolios: [], programs: [], projects: [] };
 
 /** @typedef {import('@/api/accounts').ProjectHubSidebarHierarchy} ProjectHubSidebarHierarchy */
@@ -23,12 +24,11 @@ const EMPTY_SIDEBAR_HIERARCHY = { portfolios: [], programs: [], projects: [] };
 /** @typedef {import('@/api/accounts').ProjectHubSidebarProgram} ProjectHubSidebarProgram */
 /** @typedef {import('@/api/accounts').ProjectHubSidebarProject} ProjectHubSidebarProject */
 
-const DEFAULT_EXPANDED_FOLDERS = ['favorites', 'raid', 'resource_mgmt', 'delivery', 'sprint_mgmt'];
+const DEFAULT_EXPANDED_FOLDERS = ['raid', 'resource_mgmt', 'delivery', 'sprint_mgmt'];
 const SCROLL_KEY = 'sidebar_scroll_top';
 // Portfolios and programs start collapsed; whatever the person opens is remembered across pages.
 const EXPANDED_KEY = 'sidebar_expanded_folders';
 const RECENT_LIMIT = 5;
-const HIERARCHY_TYPES = ['portfolio', 'program', 'project'];
 
 const readSavedExpandedFolders = () => {
   try {
@@ -60,6 +60,13 @@ const readSavedScrollTop = () => {
   } catch {
     return null;
   }
+};
+
+/** "Jane Doe" → "Jane D"; a single name is shown as is. */
+const shortName = (/** @type {string} */ fullName) => {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return parts[0] || 'User';
+  return `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}`;
 };
 
 export default function ProjectSidebar(/** @type {any} */ {
@@ -147,10 +154,18 @@ export default function ProjectSidebar(/** @type {any} */ {
     setExpandedFolders(prev => prev.includes(folder) ? prev.filter(f => f !== folder) : [...prev, folder]);
   };
 
-  const initials = (user?.full_name || 'U').split(' ').map((/** @type {string} */ s) => s[0]).slice(0, 2).join('').toUpperCase();
+  const fullName = user?.full_name || 'User';
+  const initials = fullName.split(' ').map((/** @type {string} */ s) => s[0]).slice(0, 2).join('').toUpperCase();
   const roleLabel = user?.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1)) : 'Member';
 
-  const activeBar = 'shadow-[inset_2px_0_0_0_#d97706]';
+  // Selected items get a grey highlight, bold text and icon stroke, and an orange left border.
+  const activeBar = 'bg-[#E2E8F0] font-bold nav-selected border-l-[3px] border-l-[#c87b14]';
+  const navEdge = 'border-l-[3px] border-l-transparent';
+  const itemClass = (/** @type {boolean} */ active) => cn(
+    'w-full flex items-center gap-2 px-2 py-1.5 text-[13px] rounded-md transition-colors text-[#002046]',
+    active ? activeBar : cn(navEdge, 'hover:bg-slate-100'),
+  );
+  const collapsedClass = (/** @type {boolean} */ active) => cn('p-2 rounded-lg', active ? 'bg-[#E2E8F0] nav-selected text-[#64748B]' : 'hover:bg-slate-100 text-[#64748B]');
 
   const isPortfolioRouteActive = (/** @type {string} */ portfolioId) => pathname === `/portfolios/${portfolioId}`.toLowerCase();
   const isProgramRouteActive = (/** @type {string} */ programId) => pathname === `/programs/${programId}`.toLowerCase();
@@ -168,46 +183,23 @@ export default function ProjectSidebar(/** @type {any} */ {
   const portfoliosActive = isAnyPortfolioRouteActive || ['all_portfolios', 'portfolio'].includes(directoryView);
   const programsActive = isAnyProgramRouteActive || ['all_programs', 'program'].includes(directoryView);
   const projectsActive = isAnyProjectRouteActive || ['all_projects', 'project'].includes(directoryView);
+  const isPageActive = (/** @type {string} */ href) => pathname.includes(href.replace('/', '').toLowerCase());
 
-  const IconNavLink = (/** @type {{ href: string, icon: any, label: string, sub?: string }} */ { href, icon, label, sub }) => {
+  const IconNavLink = (/** @type {{ href: string, icon: any, label: string }} */ { href, icon, label }) => {
     const NavIcon = icon;
-    const pathKey = href.replace('/', '').toLowerCase();
-    const isActive = pathname.includes(pathKey);
     return (
-      <Link to={href}>
-        <button className={cn('w-full flex items-center gap-2 px-2 py-1.5 text-xs tracking-[0.1em] rounded-md',
-          isActive ? cn('bg-white/10 text-white', activeBar) : 'text-white hover:bg-white/10')}>
-          <NavIcon className={cn('w-3.5 h-3.5 flex-shrink-0', isActive ? 'text-[#d97706]' : 'text-white/60')} />
-          {sub ? (
-            <span className="flex items-baseline gap-1">
-              <span>{label}</span>
-              <span className="text-[10px] italic text-white/50">{sub}</span>
-            </span>
-          ) : label}
-        </button>
-      </Link>
-    );
-  };
-
-  const DotNavLink = (/** @type {{ href: string, label: string }} */ { href, label }) => {
-    const pathKey = href.replace('/', '').toLowerCase();
-    const isActive = pathname.includes(pathKey);
-    return (
-      <Link to={href}>
-        <button className={cn('w-full flex items-center gap-2 px-2 py-1.5 text-xs tracking-[0.1em] rounded-md',
-          isActive ? cn('bg-white/10 text-white', activeBar) : 'text-white hover:bg-white/10')}>
-          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-white/60" />{label}
-        </button>
+      <Link to={href} className={itemClass(isPageActive(href))}>
+        <NavIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: MUTED }} />{label}
       </Link>
     );
   };
 
   const HierarchyLink = (/** @type {{ href: string, label: string, active: boolean, className?: string, icon?: any }} */ { href, label, active, className = '', icon: Icon = Folder }) => (
     <Link to={href} className="block min-w-0">
-      <div className={cn('w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors min-w-0',
-        active ? cn('bg-white/10 text-white', activeBar) : 'text-white/80 hover:bg-white/10',
+      <div className={cn('w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors min-w-0 text-[#002046]',
+        active ? activeBar : cn(navEdge, 'hover:bg-slate-100'),
         className)}>
-        <Icon className={cn('w-3.5 h-3.5 flex-shrink-0', active ? 'text-[#d97706]' : 'text-white/50')} />
+        <Icon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: MUTED }} />
         <span className="truncate">{label}</span>
       </div>
     </Link>
@@ -215,24 +207,24 @@ export default function ProjectSidebar(/** @type {any} */ {
 
   const HierarchyState = () => {
     if (!selectedAccountId) {
-      return <div className="px-2 py-2 text-[11px] leading-4 text-white/50">Select an account to load hierarchy.</div>;
+      return <div className="px-2 py-2 text-[11px] leading-4" style={{ color: MUTED }}>Select an account to load hierarchy.</div>;
     }
 
     if (sidebarLoading) {
-      return <div className="px-2 py-2 text-[11px] leading-4 text-white/50">Loading hierarchy…</div>;
+      return <div className="px-2 py-2 text-[11px] leading-4" style={{ color: MUTED }}>Loading hierarchy…</div>;
     }
 
     if (sidebarHasError) {
       return (
-        <div className="px-2 py-2 text-[11px] leading-4 text-white/60">
+        <div className="px-2 py-2 text-[11px] leading-4" style={{ color: MUTED }}>
           <p>We could not load your project hierarchy.</p>
-          <button onClick={() => refetchSidebarHierarchy()} className="mt-1 text-[#d97706] hover:text-amber-400">Retry</button>
+          <button onClick={() => refetchSidebarHierarchy()} className="mt-1 text-[#c87b14] hover:text-[#a86610]">Retry</button>
         </div>
       );
     }
 
     if (!sidebarHierarchy.portfolios.length && !sidebarHierarchy.programs.length && !sidebarHierarchy.projects.length) {
-      return <div className="px-2 py-2 text-[11px] leading-4 text-white/50">No portfolios, programs, or projects yet.</div>;
+      return <div className="px-2 py-2 text-[11px] leading-4" style={{ color: MUTED }}>No portfolios, programs, or projects yet.</div>;
     }
 
     return null;
@@ -245,40 +237,22 @@ export default function ProjectSidebar(/** @type {any} */ {
     [sidebarHierarchy, filterQuery, isFiltering],
   );
 
-  // Starred portfolios, programs and projects, then recently opened projects, with names and routes taken
-  // from the hierarchy so renames show up. Once the hierarchy has loaded, items no longer in it are left out.
-  const hierarchyItems = useMemo(() => {
-    const byKey = new Map();
-    sidebarHierarchy.portfolios.forEach(item => byKey.set(`portfolio:${item.id}`, item));
-    sidebarHierarchy.programs.forEach(item => byKey.set(`program:${item.id}`, item));
-    sidebarHierarchy.projects.forEach(item => byKey.set(`project:${item.id}`, item));
-    return byKey;
-  }, [sidebarHierarchy]);
+  // Recently opened projects (favorites live on the home page), with names and routes taken from the hierarchy
+  // so renames show up. Once the hierarchy has loaded, projects no longer in it are left out.
+  const hierarchyProjects = useMemo(
+    () => new Map(sidebarHierarchy.projects.map(item => [item.id, item])),
+    [sidebarHierarchy],
+  );
   const hierarchyLoaded = !sidebarLoading && !sidebarHasError;
-  const fallbackRoute = { portfolio: (id) => `/portfolios/${id}`, program: (id) => `/programs/${id}`, project: (id) => `/projects/${id}/sheet` };
-  const resolveQuickItem = (type, entry) => {
-    const live = hierarchyItems.get(`${type}:${entry.id}`);
-    if (!live && hierarchyLoaded) return null;
-    return { type, id: entry.id, name: live?.name || entry.name, route: live?.route || fallbackRoute[type](entry.id) };
-  };
-  const favoriteItems = favorites
-    .filter(f => HIERARCHY_TYPES.includes(f.type))
-    .map(f => resolveQuickItem(f.type, f))
-    .filter(Boolean);
   const recentItems = recentProjects
     .filter(p => !favorites.some(f => f.type === 'project' && f.id === p.id))
-    .map(p => resolveQuickItem('project', p))
+    .map(p => {
+      const live = hierarchyProjects.get(p.id);
+      if (!live && hierarchyLoaded) return null;
+      return { id: p.id, name: live?.name || p.name, route: live?.route || `/projects/${p.id}/sheet` };
+    })
     .filter(Boolean)
     .slice(0, RECENT_LIMIT);
-  const quickItemIcon = { portfolio: Building2, program: FolderTree, project: Folder };
-  const isQuickItemActive = (item) => (
-    item.type === 'portfolio' ? isPortfolioRouteActive(item.id)
-      : item.type === 'program' ? isProgramRouteActive(item.id)
-        : isProjectRouteActive(item.id)
-  );
-  const renderQuickItem = (item) => (
-    <HierarchyLink key={`${item.type}:${item.id}`} href={item.route} label={item.name} active={isQuickItemActive(item)} icon={quickItemIcon[item.type]} />
-  );
 
   const renderProject = (/** @type {ProjectHubSidebarProject} */ project) => (
     <HierarchyLink
@@ -300,12 +274,12 @@ export default function ProjectSidebar(/** @type {any} */ {
       <div key={program.id} className="mb-0.5">
         <div className="flex items-center rounded-md">
           <button onClick={() => toggleFolder(folderId)} disabled={isFiltering} className="p-1.5 flex-shrink-0" aria-label={`Toggle ${program.name}`}>
-            {isExpanded ? <ChevronDown className="w-3 h-3 text-white/40" /> : <ChevronRight className="w-3 h-3 text-white/40" />}
+            {isExpanded ? <ChevronDown className="w-3 h-3" style={{ color: MUTED }} /> : <ChevronRight className="w-3 h-3" style={{ color: MUTED }} />}
           </button>
           <HierarchyLink href={program.route} label={program.name} active={isActive} icon={FolderTree} className="flex-1" />
         </div>
         {isExpanded && program.projects.length > 0 && (
-          <div className="ml-5 pl-2 border-l border-white/10 space-y-0.5">
+          <div className="ml-5 pl-2 border-l border-slate-200 space-y-0.5">
             {program.projects.map(renderProject)}
           </div>
         )}
@@ -322,12 +296,12 @@ export default function ProjectSidebar(/** @type {any} */ {
       <div key={portfolio.id} className="mb-0.5">
         <div className="flex items-center rounded-md">
           <button onClick={() => toggleFolder(folderId)} disabled={isFiltering} className="p-1.5 flex-shrink-0" aria-label={`Toggle ${portfolio.name}`}>
-            {isExpanded ? <ChevronDown className="w-3 h-3 text-white/40" /> : <ChevronRight className="w-3 h-3 text-white/40" />}
+            {isExpanded ? <ChevronDown className="w-3 h-3" style={{ color: MUTED }} /> : <ChevronRight className="w-3 h-3" style={{ color: MUTED }} />}
           </button>
           <HierarchyLink href={portfolio.route} label={portfolio.name} active={isActive} icon={Building2} className="flex-1" />
         </div>
         {isExpanded && portfolio.programs.length > 0 && (
-          <div className="ml-5 pl-2 border-l border-white/10 space-y-0.5">
+          <div className="ml-5 pl-2 border-l border-slate-200 space-y-0.5">
             {portfolio.programs.map(renderProgram)}
           </div>
         )}
@@ -335,51 +309,51 @@ export default function ProjectSidebar(/** @type {any} */ {
     );
   };
 
+  const FolderHeader = (/** @type {{ id: string, icon: any, label: string }} */ { id, icon: Icon, label }) => (
+    <div className="flex items-center rounded-lg">
+      <button onClick={() => toggleFolder(id)} className="p-2 flex-shrink-0" aria-label={`Toggle ${label}`}>
+        {expandedFolders.includes(id) ? <ChevronDown className="w-3.5 h-3.5" style={{ color: MUTED }} /> : <ChevronRight className="w-3.5 h-3.5" style={{ color: MUTED }} />}
+      </button>
+      <button onClick={() => toggleFolder(id)} className="flex-1 flex items-center gap-2 py-1.5 pr-3 text-[13px] font-medium" style={{ color: TEXT }}>
+        <Icon className="w-3.5 h-3.5" style={{ color: MUTED }} />
+        <span className="flex-1 text-left">{label}</span>
+      </button>
+    </div>
+  );
+
+  const CompassBadge = () => (
+    <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #f59e0b, #c87b14)' }}>
+      <Sparkles className="w-3 h-3 text-white" />
+    </span>
+  );
+
   if (collapsed) {
     return (
-      <div className="w-12 border-r border-white/10 flex flex-col select-none transition-all" style={{ background: NAVY, fontFamily: 'Segoe UI, sans-serif' }}>
-        <div className="px-2 py-4 border-b border-white/10 flex flex-col items-center gap-2">
-          <button onClick={toggleCollapsed} className="p-1.5 hover:bg-white/10 rounded-lg" title="Expand sidebar">
-            <PanelLeftOpen className="w-4 h-4 text-white/80" />
+      <div className="w-12 bg-white border-r border-slate-200 flex flex-col select-none transition-all" style={{ fontFamily: 'Segoe UI, sans-serif' }}>
+        <div className="px-2 py-4 border-b border-slate-200 flex flex-col items-center gap-2">
+          <button onClick={toggleCollapsed} className="p-1.5 hover:bg-slate-100 rounded-lg" title="Expand sidebar">
+            <PanelLeftOpen className="w-4 h-4" style={{ color: MUTED }} />
           </button>
-          <NotificationBell compact />
+          {pathname !== '/' && <NotificationBell />}
         </div>
         <div className="flex-1 flex flex-col items-center py-3 gap-1 overflow-y-auto">
-          <Link to="/" title="My Work" className={cn('p-2 rounded-lg', pathname === '/' ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}><Home className="w-4 h-4" /></Link>
-          <Link to="/Favorites" title="Favorites" className={cn('p-2 rounded-lg', pathname === '/favorites' ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-[#d97706]')}><Star className="w-4 h-4" fill="currentColor" /></Link>
-          <Link to="/Projects?view=all_portfolios"
-            title="Portfolios" className={cn('p-2 rounded-lg', portfoliosActive ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}>
-            <Building2 className="w-4 h-4" />
-          </Link>
-          <Link to="/Projects?view=all_programs"
-            title="Programs" className={cn('p-2 rounded-lg', programsActive ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}>
-            <FolderTree className="w-4 h-4" />
-          </Link>
-          <Link to="/Projects?view=all_projects"
-            title="Projects" className={cn('p-2 rounded-lg', projectsActive ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}>
-            <Folder className="w-4 h-4" />
-          </Link>
-          <div className="w-6 border-t border-white/10 my-1" />
-          <Link to={createPageUrl('SprintManagement')} title="Delivery"><button className={cn('p-2 rounded-lg', typeof window !== 'undefined' && window.location.pathname.toLowerCase().includes('sprintmanagement') ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}><Package className="w-4 h-4" /></button></Link>
-          <Link to={createPageUrl('ResourceManagementHub')} title="Resource Management">
-            <button className={cn('p-2 rounded-lg', typeof window !== 'undefined' && window.location.pathname.toLowerCase().includes('resourcemanagementhub') ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}><Users className="w-4 h-4" /></button>
-          </Link>
-          <button
-            title="Project Controls" className={cn('p-2 rounded-lg', selectedType === 'all_raid' ? 'bg-white/10 text-[#d97706]' : 'text-white/60')}>
-            <Shield className="w-4 h-4" />
-          </button>
-          <Link to={createPageUrl('RiskLog')} title="RAID Log"><button className="p-2 rounded-lg hover:bg-white/10 text-white/60"><AlertTriangle className="w-4 h-4" /></button></Link>
-          <Link to="/Projects?view=templates"
-            title="Templates" className={cn('p-2 rounded-lg', directoryView === 'templates' ? 'bg-white/10 text-[#d97706]' : 'hover:bg-white/10 text-white/60')}>
-            <FileText className="w-4 h-4" />
-          </Link>
-          <Link to="/AIAssistant" title="Compass (powered by AI)"><button className="p-2 rounded-lg hover:bg-white/10 text-white/60"><Compass className="w-4 h-4" /></button></Link>
-          <div className="mt-auto space-y-1">
-            <Link to="/LearnSupport" title="Help Center"><button className="p-2 rounded-lg hover:bg-white/10 text-white/60"><LifeBuoy className="w-4 h-4" /></button></Link>
+          <Link to="/" title="Home" className={collapsedClass(pathname === '/')}><HomeIcon className="w-4 h-4" /></Link>
+          <Link to="/Projects?view=all_portfolios" title="Portfolios" className={collapsedClass(portfoliosActive)}><Building2 className="w-4 h-4" /></Link>
+          <Link to="/Projects?view=all_programs" title="Programs" className={collapsedClass(programsActive)}><FolderTree className="w-4 h-4" /></Link>
+          <Link to="/Projects?view=all_projects" title="Projects" className={collapsedClass(projectsActive)}><Folder className="w-4 h-4" /></Link>
+          <div className="w-6 border-t border-slate-200 my-1" />
+          <Link to={createPageUrl('SprintManagement')} title="Sprints" className={collapsedClass(isPageActive('/SprintManagement'))}><RefreshCw className="w-4 h-4" /></Link>
+          <Link to={createPageUrl('RiskLog')} title="RAID" className={collapsedClass(isPageActive('/RiskLog'))}><AlertTriangle className="w-4 h-4" /></Link>
+          <Link to={createPageUrl('ChangeRegisterHub')} title="Governance" className={collapsedClass(isPageActive('/ChangeRegisterHub'))}><Scale className="w-4 h-4" /></Link>
+          <Link to={createPageUrl('ResourceManagementHub')} title="Resources" className={collapsedClass(isPageActive('/ResourceManagementHub'))}><Users className="w-4 h-4" /></Link>
+          <Link to="/Projects?view=templates" title="Templates" className={collapsedClass(directoryView === 'templates')}><FileText className="w-4 h-4" /></Link>
+          <Link to="/AIAssistant" title="Ask Compass (powered by AI)" className="p-2 rounded-lg hover:bg-slate-100"><CompassBadge /></Link>
+          <div className="mt-auto flex flex-col items-center gap-1">
+            <Link to="/LearnSupport" title="Help Center" className={collapsedClass(isPageActive('/LearnSupport'))}><CircleHelp className="w-4 h-4" /></Link>
             {user?.is_platform_admin && (
-              <Link to="/admin" title="Platform Admin"><button className="p-2 rounded-lg hover:bg-white/10 text-white/60"><Shield className="w-4 h-4" /></button></Link>
+              <Link to="/admin" title="Platform Admin" className={collapsedClass(false)}><Shield className="w-4 h-4" /></Link>
             )}
-            <Link to="/Account" title={user?.full_name || 'User'}><div className="w-8 h-8 rounded-full bg-white text-[#d97706] flex items-center justify-center text-xs font-bold mx-auto mt-2">{initials}</div></Link>
+            <Link to="/Account" title={fullName}><div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mx-auto mt-2" style={{ background: TEXT, color: '#ffffff' }}>{initials}</div></Link>
           </div>
         </div>
       </div>
@@ -387,16 +361,17 @@ export default function ProjectSidebar(/** @type {any} */ {
   }
 
   return (
-    <div className="w-60 border-r border-white/10 flex flex-col select-none transition-all" style={{ background: NAVY, fontFamily: 'Segoe UI, sans-serif' }}>
-      <div className="px-4 py-4 border-b border-white/10 flex items-center justify-between">
+    <div className="w-60 bg-white border-r border-slate-200 flex flex-col select-none transition-all" style={{ fontFamily: 'Segoe UI, sans-serif' }}>
+      <div className="px-4 py-4 border-b border-slate-200 flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold text-white">Project Hub</h1>
-          <p className="text-[10px] text-white/40 font-medium tracking-wider uppercase mt-0.5">All-in-one Project Management</p>
+          <h1 className="text-lg font-bold" style={{ color: TEXT }}>Project Hub</h1>
+          <p className="text-[10px] font-medium mt-0.5" style={{ color: MUTED }}>All-in-one Project Management</p>
         </div>
         <div className="flex items-center gap-0.5 flex-shrink-0">
-          <NotificationBell />
-          <button onClick={toggleCollapsed} className="p-1.5 hover:bg-white/10 rounded-lg flex-shrink-0" title="Collapse sidebar">
-            <PanelLeftClose className="w-4 h-4 text-white/40" />
+          {/* Home has its own bell in the page header. */}
+          {pathname !== '/' && <NotificationBell />}
+          <button onClick={toggleCollapsed} className="p-1.5 hover:bg-slate-100 rounded-lg flex-shrink-0" title="Collapse sidebar">
+            <PanelLeftClose className="w-4 h-4" style={{ color: MUTED }} />
           </button>
         </div>
       </div>
@@ -405,17 +380,17 @@ export default function ProjectSidebar(/** @type {any} */ {
 
         {/* Find a portfolio, program or project */}
         <div className="relative mb-2">
-          <Search className="w-3.5 h-3.5 text-white/40 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: MUTED }} />
           <input
             value={filterText}
             onChange={e => setFilterText(e.target.value)}
             onKeyDown={e => { if (e.key === 'Escape') setFilterText(''); }}
             placeholder="Filter projects…"
             aria-label="Filter portfolios, programs and projects"
-            className="w-full h-8 pl-8 pr-7 rounded-md bg-white/10 border border-white/10 text-xs text-white placeholder:text-white/40 outline-none focus:border-white/30 focus:bg-white/15"
+            className="w-full h-8 pl-8 pr-7 rounded-md bg-slate-50 border border-slate-200 text-xs text-[#002046] placeholder:text-slate-400 outline-none focus:border-slate-400 focus:bg-white"
           />
           {isFiltering && (
-            <button onClick={() => setFilterText('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-white/50 hover:text-white" aria-label="Clear filter">
+            <button onClick={() => setFilterText('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-400 hover:text-slate-700" aria-label="Clear filter">
               <X className="w-3.5 h-3.5" />
             </button>
           )}
@@ -426,73 +401,51 @@ export default function ProjectSidebar(/** @type {any} */ {
             <HierarchyState />
             {hierarchyLoaded && sidebarHierarchy.portfolios.length > 0 && (visiblePortfolios.length
               ? visiblePortfolios.map(renderPortfolio)
-              : <div className="px-2 py-2 text-[11px] leading-4 text-white/50">No portfolios, programs or projects match “{filterText.trim()}”.</div>)}
+              : <div className="px-2 py-2 text-[11px] leading-4" style={{ color: MUTED }}>No portfolios, programs or projects match “{filterText.trim()}”.</div>)}
           </div>
         ) : (
         <>
-        {/* My work */}
-        <Link to="/" className="block mb-1">
-          <div className={cn('w-full flex items-center gap-2 px-2 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-lg transition-colors',
-            pathname === '/' ? cn('bg-white/10 text-white', activeBar) : 'text-white hover:bg-white/10')}>
-            <Home className="w-3.5 h-3.5 text-[#d97706]" /> My Work
-          </div>
+        {/* Home */}
+        <Link to="/" className={cn(itemClass(pathname === '/'), 'mb-1 font-medium')}>
+          <HomeIcon className="w-3.5 h-3.5" style={{ color: MUTED }} /> Home
         </Link>
-
-        {/* Favorites */}
-        <Link to="/Favorites" className="block mb-1">
-          <div className={cn('w-full flex items-center gap-2 px-2 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-lg transition-colors',
-            pathname === '/favorites' ? cn('bg-white/10 text-white', activeBar) : 'text-white hover:bg-white/10')}>
-            <Star className="w-3.5 h-3.5 text-[#d97706]" fill="currentColor" /> Favorites
-          </div>
-        </Link>
-        {favoriteItems.length > 0 ? (
-          <div className="ml-2 pl-3 border-l border-white/10 mb-2 space-y-0.5">{favoriteItems.map(renderQuickItem)}</div>
-        ) : (
-          <div className="ml-2 pl-3 border-l border-white/10 mb-2 px-2 py-1 text-[11px] leading-4 text-white/40">Star a project to pin it here.</div>
-        )}
-
-        {/* Recently opened projects */}
-        {recentItems.length > 0 && (
-          <>
-            <div className="w-full flex items-center gap-2 px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-white">
-              <Clock className="w-3.5 h-3.5 text-[#d97706]" /> Recent
-            </div>
-            <div className="ml-2 pl-3 border-l border-white/10 mb-2 space-y-0.5">{recentItems.map(renderQuickItem)}</div>
-          </>
-        )}
-
-        <div className="border-t border-white/10 my-3" />
 
         {/* Portfolios */}
-        <Link
-          to="/Projects?view=all_portfolios"
-          className={cn('w-full flex items-center gap-2 px-2 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-lg mb-1 transition-colors',
-            portfoliosActive ? cn('bg-white/10 text-white', activeBar) : 'text-white hover:bg-white/10')}>
-          <Building2 className="w-3.5 h-3.5 text-[#d97706] flex-shrink-0" />
+        <Link to="/Projects?view=all_portfolios" className={cn(itemClass(portfoliosActive), 'mb-1 font-medium')}>
+          <Building2 className="w-3.5 h-3.5 flex-shrink-0" style={{ color: MUTED }} />
           <span className="flex-1 text-left">Portfolios</span>
         </Link>
 
         {/* Programs */}
-        <Link
-          to="/Projects?view=all_programs"
-          className={cn('w-full flex items-center gap-2 px-2 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-lg mb-1 transition-colors',
-            programsActive ? cn('bg-white/10 text-white', activeBar) : 'text-white hover:bg-white/10')}>
-          <FolderTree className="w-3.5 h-3.5 text-[#d97706] flex-shrink-0" />
+        <Link to="/Projects?view=all_programs" className={cn(itemClass(programsActive), 'mb-1 font-medium')}>
+          <FolderTree className="w-3.5 h-3.5 flex-shrink-0" style={{ color: MUTED }} />
           <span className="flex-1 text-left">Programs</span>
         </Link>
 
         {/* Projects */}
-        <Link
-          to="/Projects?view=all_projects"
-          className={cn('w-full flex items-center gap-2 px-2 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-lg mb-1 transition-colors',
-            projectsActive ? cn('bg-white/10 text-white', activeBar) : 'text-white hover:bg-white/10')}>
-          <Folder className="w-3.5 h-3.5 text-[#d97706] flex-shrink-0" />
+        <Link to="/Projects?view=all_projects" className={cn(itemClass(projectsActive), 'mb-1 font-medium')}>
+          <Folder className="w-3.5 h-3.5 flex-shrink-0" style={{ color: MUTED }} />
           <span className="flex-1 text-left">Projects</span>
         </Link>
 
+        {/* Recently opened projects */}
+        {recentItems.length > 0 && (
+          <>
+            <div className="border-t border-slate-200 my-3" />
+            <p className="px-2 pb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: MUTED }}>
+              <Clock className="w-3 h-3" /> Recent
+            </p>
+            <div className="mb-2 space-y-0.5">
+              {recentItems.map(item => (
+                <HierarchyLink key={item.id} href={item.route} label={item.name} active={isProjectRouteActive(item.id)} icon={Folder} />
+              ))}
+            </div>
+          </>
+        )}
+
         {/* The full portfolio → program → project tree, as its own section rather than under any one directory link. */}
-        <div className="border-t border-white/10 my-3" />
-        <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">Browse</p>
+        <div className="border-t border-slate-200 my-3" />
+        <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: MUTED }}>Browse</p>
         <div className="mb-2 space-y-0.5">
           <HierarchyState />
           {hierarchyLoaded && sidebarHierarchy.portfolios.map(renderPortfolio)}
@@ -500,88 +453,73 @@ export default function ProjectSidebar(/** @type {any} */ {
         </>
         )}
 
-        <div className="border-t border-white/10 my-3" />
+        <div className="border-t border-slate-200 my-3" />
 
         {/* Delivery */}
         {localStorage.getItem('app_hide_delivery') !== 'true' && (
           <div className="mb-1">
-            <div className="flex items-center rounded-lg">
-              <button onClick={() => toggleFolder('delivery')} className="p-2 flex-shrink-0">
-                {expandedFolders.includes('delivery') ? <ChevronDown className="w-3.5 h-3.5 text-white/40" /> : <ChevronRight className="w-3.5 h-3.5 text-white/40" />}
-              </button>
-              <button className={cn('flex-1 flex items-center gap-2 py-1.5 pr-3 text-xs font-semibold uppercase tracking-wider text-white')}>
-                <Package className="w-3.5 h-3.5 text-[#d97706]" />
-                <span className="flex-1 text-left">Delivery</span>
-              </button>
-            </div>
+            <FolderHeader id="delivery" icon={Package} label="Delivery" />
             {expandedFolders.includes('delivery') && (
-              <div className="ml-2 pl-3 border-l border-white/10">
-                <DotNavLink href={createPageUrl('Requirements')} label="Requirements" />
-                <DotNavLink href={createPageUrl('Testing')} label="Testing" />
-                <DotNavLink href={createPageUrl('SprintManagement')} label="Sprint Management" />
+              <div className="ml-2 pl-3 border-l border-slate-200">
+                <IconNavLink href={createPageUrl('Requirements')} icon={ClipboardList} label="Requirements" />
+                <IconNavLink href={createPageUrl('Testing')} icon={ClipboardCheck} label="Testing" />
+                <IconNavLink href={createPageUrl('SprintManagement')} icon={RefreshCw} label="Sprints" />
               </div>
             )}
           </div>
         )}
 
-        {/* RAID */}
+        {/* Controls */}
         <div className="mb-1">
-          <div className="flex items-center rounded-lg">
-            <button onClick={() => toggleFolder('raid')} className="p-2 flex-shrink-0">
-              {expandedFolders.includes('raid') ? <ChevronDown className="w-3.5 h-3.5 text-white/40" /> : <ChevronRight className="w-3.5 h-3.5 text-white/40" />}
-            </button>
-            <button
-              className={cn('flex-1 flex items-center gap-2 py-1.5 pr-3 text-xs font-semibold uppercase tracking-wider',
-                selectedType === 'all_raid' ? 'text-white' : 'text-white')}>
-              <Shield className="w-3.5 h-3.5 text-[#d97706]" />
-              <span className="flex-1 text-left">Project Controls</span>
-            </button>
-          </div>
+          <FolderHeader id="raid" icon={Shield} label="Controls" />
           {expandedFolders.includes('raid') && (
-            <div className="ml-2 pl-3 border-l border-white/10">
-              <DotNavLink href={createPageUrl('RiskLog')}            label="RAID Log" />
-              <DotNavLink href={createPageUrl('ChangeRegisterHub')} label="Change Management" />
-              <DotNavLink href={createPageUrl('ResourceManagementHub')} label="Resource Management" />
+            <div className="ml-2 pl-3 border-l border-slate-200">
+              <IconNavLink href={createPageUrl('RiskLog')} icon={AlertTriangle} label="RAID" />
+              <IconNavLink href={createPageUrl('ChangeRegisterHub')} icon={Scale} label="Governance" />
+              <IconNavLink href={createPageUrl('ResourceManagementHub')} icon={Users} label="Resources" />
             </div>
           )}
         </div>
 
         {/* Templates */}
         <div className="mb-1">
-          <div className="flex items-center rounded-lg hover:bg-white/10">
-            <div className="p-2"><FileText className="w-3.5 h-3.5 text-[#d97706]" /></div>
-            <Link to="/Projects?view=templates"
-              className={cn('flex-1 flex items-center gap-2 py-1.5 pr-3 text-xs font-semibold uppercase tracking-wider',
-                selectedType === 'templates' ? 'text-white' : 'text-white')}>
-              <span className="flex-1 text-left">Templates</span>
-            </Link>
-          </div>
+          <Link to="/Projects?view=templates" className={cn(itemClass(directoryView === 'templates'), 'font-medium')}>
+            <FileText className="w-3.5 h-3.5 flex-shrink-0" style={{ color: MUTED }} />
+            <span className="flex-1 text-left">Templates</span>
+          </Link>
         </div>
 
         {/* AI Assistant */}
         <div className="mb-1">
-          <IconNavLink href="/AIAssistant" icon={Compass} label="Compass" sub="powered by AI" />
+          <Link to="/AIAssistant" className={itemClass(isPageActive('/AIAssistant'))}>
+            <CompassBadge />
+            <span className="flex flex-col leading-tight">
+              <span>Ask Compass</span>
+              <span className="text-[10px] italic font-normal" style={{ color: MUTED }}>powered by AI</span>
+            </span>
+          </Link>
         </div>
 
         {/* Help */}
         <div className="mb-1 space-y-0.5">
-          <IconNavLink href="/LearnSupport" icon={LifeBuoy} label="Help Center" />
+          <IconNavLink href="/LearnSupport" icon={CircleHelp} label="Help Center" />
           {user?.is_platform_admin && <IconNavLink href="/admin" icon={Shield} label="Platform Admin" />}
         </div>
 
       </div>
 
       {/* User profile */}
-      <div className="border-t border-white/10 px-3 py-3 flex items-center gap-1">
-        <Link to="/Account" className="flex flex-1 min-w-0 items-center gap-2.5 rounded-lg hover:bg-white/10 px-1 py-1 -mx-1 transition-colors">
-          <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ color: ORANGE }}>{initials}</div>
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-white truncate">{user?.full_name || 'User'}</p>
-            <p className="text-[10px] text-white/80 truncate">{roleLabel}</p>
+      <div className="border-t border-slate-200 px-3 py-3 flex items-center gap-1">
+        <Link to="/Account" className="flex flex-1 min-w-0 items-center gap-2.5 rounded-lg hover:bg-slate-100 px-1 py-1 -mx-1 transition-colors">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: TEXT, color: '#ffffff' }}>{initials}</div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium truncate" style={{ color: TEXT }} title={fullName}>{shortName(fullName)}</p>
+            <p className="text-[10px] truncate" style={{ color: MUTED }}>{roleLabel}</p>
           </div>
+          <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" style={{ color: MUTED }} />
         </Link>
         <button type="button" onClick={() => logout()} title="Sign out" aria-label="Sign out"
-          className="p-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0">
+          className="p-1.5 rounded-md hover:bg-slate-100 transition-colors flex-shrink-0" style={{ color: MUTED }}>
           <LogOut className="w-4 h-4" />
         </button>
       </div>

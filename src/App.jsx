@@ -29,6 +29,7 @@ import ResourceManagementHub from './pages/ResourceManagementHub';
 import Account from './pages/Account';
 import Favorites from './pages/Favorites';
 import MyWork from './pages/MyWork';
+import Home from './pages/Home';
 import PlatformAdmin from './pages/PlatformAdmin';
 import BillingBanner from '@/components/BillingBanner';
 import TimezoneSync from '@/components/TimezoneSync';
@@ -112,8 +113,9 @@ const AuthenticatedApp = () => {
   // Render the main app
   return (
     <Routes>
-      {/* Home is the person's own work; the portfolio/program/project directory stays at /Projects. */}
-      <Route path="/" element={<LayoutWrapper currentPageName="MyWork"><MyWork /></LayoutWrapper>} />
+      {/* Home is the person's own workspace; the portfolio/program/project directory stays at /Projects. */}
+      <Route path="/" element={<LayoutWrapper currentPageName="Home"><Home /></LayoutWrapper>} />
+      <Route path="/MyWork" element={<LayoutWrapper currentPageName="MyWork"><MyWork /></LayoutWrapper>} />
       {Object.entries(Pages).map(([path, Page]) => (
         <Route
           key={path}

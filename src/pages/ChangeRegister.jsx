@@ -30,10 +30,10 @@ const CR_STATUSES = [
 
 const getStatus = (val) => CR_STATUSES.find(s => s.value === val) || CR_STATUSES[0];
 const priorityColors = {
-  low: 'bg-blue-100 text-blue-700',
-  medium: 'bg-yellow-100 text-yellow-700',
-  high: 'bg-orange-100 text-orange-700',
-  critical: 'bg-red-100 text-red-700',
+  low: 'bg-blue-100 text-black',
+  medium: 'bg-yellow-100 text-black',
+  high: 'bg-orange-100 text-black',
+  critical: 'bg-red-100 text-black',
 };
 const today = () => new Date().toISOString().split('T')[0];
 const parseRelated = (val) => { if (!val) return []; try { const p = JSON.parse(val); if (Array.isArray(p)) return p; } catch {} return val ? [val] : []; };
@@ -176,7 +176,7 @@ export default function ChangeRegister({ embedded = false }) {
                 <Download className="w-3.5 h-3.5" /> Export
               </button>
               <button onClick={() => setAddDialogOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#c87b14] hover:bg-[#a86610] text-white text-sm font-medium rounded-lg transition-colors">
-                + Add Change Request
+                + New Change Request
               </button>
             </div>
           </div>
@@ -223,7 +223,7 @@ export default function ChangeRegister({ embedded = false }) {
                     </tr>
                   ))}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={9} className="py-10 text-center text-slate-400 text-sm">No change requests yet. Click "Add Change Request" to create one.</td></tr>
+                    <tr><td colSpan={9} className="py-10 text-center text-slate-400 text-sm">No change requests yet. Click "New Change Request" to create one.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -430,7 +430,7 @@ function AddCRDialog({ open, onOpenChange, projects, programs, resources, decisi
   return (
     <Dialog open={open} onOpenChange={v => { onOpenChange(v); if (!v) { setForm(emptyForm()); setProposedByQ(''); } }}>
       <DialogContent className="sm:max-w-lg">
-        <DialogHeader><DialogTitle>Add Change Request</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>New Change Request</DialogTitle></DialogHeader>
         <div className="space-y-3 py-1">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -532,7 +532,7 @@ function AddCRDialog({ open, onOpenChange, projects, programs, resources, decisi
         </div>
         <div className="flex justify-end gap-2 pt-3 border-t mt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={!form.title} className="bg-[#c87b14] hover:bg-[#a86610]">Add Change Request</Button>
+          <Button onClick={handleSubmit} disabled={!form.title} className="bg-[#c87b14] hover:bg-[#a86610]">New Change Request</Button>
         </div>
       </DialogContent>
     </Dialog>

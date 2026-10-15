@@ -59,7 +59,7 @@ export default function RAIDSummary({ risks = [], issues = [], assumptions = [],
   return (
     <div className="flex-1 overflow-auto p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">RAID Log</h1>
+        <h1 className="text-2xl font-bold text-slate-800">RAID</h1>
         <p className="text-sm text-slate-500 mt-1">Risks, Assumptions, Issues, Decisions</p>
       </div>
 

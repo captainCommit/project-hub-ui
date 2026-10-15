@@ -25,7 +25,7 @@ export default function ChangeRegisterHub() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center">
           <div>
-            <h1 className="text-lg font-semibold text-slate-800">Change Management</h1>
+            <h1 className="text-lg font-semibold text-slate-800">Governance</h1>
           </div>
         </div>
         <div className="flex items-center gap-1 border-b-2 border-slate-200 bg-white px-0">

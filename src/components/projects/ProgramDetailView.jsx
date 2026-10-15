@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { Settings, Download, ExternalLink, Edit2, X, Star, ArrowLeft, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { formatDate, parseDate } from '@/lib/dateUtils';
@@ -9,6 +10,9 @@ import StarButton from '@/components/projects/StarButton';
 import { useFavorites } from '@/lib/favorites';
 import ResourceUtilizationTable from '@/components/projects/ResourceUtilizationTable';
 import BudgetForecast from '@/components/projects/BudgetForecast';
+import { projectsApi } from '@/api/projects';
+import { toastError } from '@/components/ui/use-toast';
+import { useAccountResources, invalidateHierarchy } from '@/hooks/useAccountLookups';
 
 const STATUS_MAP = {
   planning:  { label: 'Not Started', cls: 'bg-slate-100 text-slate-600' },
@@ -298,7 +302,13 @@ export default function ProgramDetailView({ program, projects, portfolios = [], 
   const [editingPM, setEditingPM] = useState(null);
   const { isFav, toggle: toggleFavItem } = useFavorites();
 
-  const resources = [];
+  const queryClient = useQueryClient();
+  const resources = useAccountResources();
+  const updateProjectManager = useMutation({
+    mutationFn: ({ id, name }) => projectsApi.update(id, { project_manager: name.trim() || null }),
+    onSuccess: () => { invalidateHierarchy(queryClient); onUpdateProject?.(); },
+    onError: (error) => toastError(error.message),
+  });
 
   const isFavorite = id => isFav('project', id);
   const toggleFavorite = project => toggleFavItem({ id: project.id, name: project.name, type: 'project', color: project.color });
@@ -353,7 +363,7 @@ export default function ProgramDetailView({ program, projects, portfolios = [], 
                   <td className="px-4 py-3 text-slate-600 text-xs" onClick={e=>e.stopPropagation()}>
                     {editingPM===project.id ? (
                       <ResourcePicker value={project.owner} resources={resources}
-                        onSelect={()=>{setEditingPM(null);}}
+                        onSelect={name=>{ if ((name||'').trim() !== (project.owner||'')) updateProjectManager.mutate({ id: project.id, name: name||'' }); setEditingPM(null); }}
                         onClose={()=>setEditingPM(null)}/>
                     ) : (
                       <span className="cursor-pointer hover:text-indigo-600 hover:underline" onClick={()=>setEditingPM(project.id)}>

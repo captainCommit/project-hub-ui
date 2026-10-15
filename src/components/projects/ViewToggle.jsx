@@ -1,13 +1,12 @@
 import React from 'react';
 import { Button } from "@/components/ui/button";
-import { LayoutGrid, GanttChart, List, ClipboardCheck, Trello } from "lucide-react";
+import { GanttChart, List, ClipboardCheck, Trello } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const VIEWS = [
   { key: 'sheet', label: 'Sheet', icon: List },
   { key: 'gantt', label: 'Gantt', icon: GanttChart },
   { key: 'mondayboard', label: 'Board', icon: Trello },
-  { key: 'board', label: 'Cards', icon: LayoutGrid },
   { key: 'audit', label: 'Audit', icon: ClipboardCheck },
 ];
 

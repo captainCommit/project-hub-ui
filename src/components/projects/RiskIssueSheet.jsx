@@ -53,7 +53,7 @@ const getStatuses = (t) => {
 };
 
 // ─── Add Dialog ───────────────────────────────────────────────────────────────
-function AddDialog({ open, onOpenChange, type, projects, programs, resources, onAdd, existingCount }) {
+export function AddDialog({ open, onOpenChange, type, projects, programs, resources, onAdd, existingCount }) {
   const emptyForm = () => ({
     program_id: '', project_id: '', priority: 'medium', status: 'open',
     cause: '', effect: '', what_happening: '', impact: '',

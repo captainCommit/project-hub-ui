@@ -5,7 +5,7 @@
 @layer base {
   :root {
     /* Brand palette: Navy #002046 / Orange #c87b14 / White #ffffff */
-    --background: 0 0% 100%;
+    --background: 216 33% 97%;
     --foreground: 213 40% 16%;
     --card: 0 0% 100%;
     --card-foreground: 213 40% 16%;
@@ -16,7 +16,7 @@
     --secondary: 213 24% 96%;
     --secondary-foreground: 213 40% 20%;
     --muted: 213 16% 96%;
-    --muted-foreground: 213 12% 44%;
+    --muted-foreground: 215 25% 47%;
     --accent: 34 86% 95%;
     --accent-foreground: 34 82% 30%;
     --destructive: 0 72% 51%;
@@ -250,5 +250,10 @@
     background-color: transparent !important;
     color: hsl(var(--muted-foreground)) !important;
     border: 1px solid hsl(var(--border)) !important;
+  }
+
+  /* Sidebar: the selected item shows a bold icon stroke */
+  .nav-selected svg {
+    stroke-width: 2.5;
   }
 }

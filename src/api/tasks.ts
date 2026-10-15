@@ -225,7 +225,7 @@ export type KanbanBoardData = {
 };
 
 export type TaskBoardPositionPayload = {
-  status_id: string;
+  status_id: string | null;
   sort_order: number;
   sprint_id?: string | null;
 };
@@ -456,12 +456,15 @@ export const mapTaskSheetInputToPredecessorCreatePayload = (input: unknown): Pro
   return { predecessor_task_id: predecessorTaskId };
 };
 
+// The API sends the Uncategorized column with a null id; the board needs a stable one.
+export const UNCATEGORIZED_BOARD_COLUMN_ID = 'uncategorized';
+
 export const mapTaskBoardPositionToPayload = (input: unknown): TaskBoardPositionPayload => {
   const data = typeof input === 'object' && input ? input as Record<string, unknown> : {};
   const statusId = data.status_id ?? data.status;
   const sortOrder = toNumber(data.sort_order) ?? 0;
   const payload: TaskBoardPositionPayload = {
-    status_id: String(statusId || ''),
+    status_id: statusId && statusId !== UNCATEGORIZED_BOARD_COLUMN_ID ? String(statusId) : null,
     sort_order: sortOrder,
   };
 
@@ -1131,7 +1134,9 @@ export const mapProjectBoardToKanban = (boardResponse: unknown): KanbanBoardData
 
   columns.forEach((columnInput, index) => {
     const column = getObject(columnInput);
-    const id = String(column.id ?? column.status ?? column.key ?? column.value ?? `column-${index}`);
+    const id = column.is_uncategorized
+      ? UNCATEGORIZED_BOARD_COLUMN_ID
+      : String(column.id ?? column.status ?? column.key ?? column.value ?? `column-${index}`);
     const title = String(column.title ?? column.name ?? column.label ?? titleize(id));
     const color = typeof column.color === 'string' && column.color.startsWith('bg-')
       ? column.color

@@ -23,12 +23,20 @@ const ITEM_PAGES = {
   SUPPORT_TICKET: ['LearnSupport', 'ticket'],
 };
 
+/** Where a notification leads, or null when there is no screen for it. */
+export const notificationTarget = (notification) => {
+  const item = ITEM_PAGES[notification.entity_type];
+  if (item) return `${createPageUrl(item[0])}?${item[1]}=${notification.entity_id}`;
+  const page = ENTITY_PAGES[notification.entity_type];
+  return page ? createPageUrl(page) : null;
+};
+
 const timeAgo = (value) => {
   const date = typeof value === 'string' ? parseISO(value) : null;
   return date && isValid(date) ? formatDistanceToNow(date, { addSuffix: true }) : '';
 };
 
-export default function NotificationBell({ compact = false }) {
+export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -47,22 +55,18 @@ export default function NotificationBell({ compact = false }) {
 
   const handleOpenNotification = (notification) => {
     if (!notification.is_read) markRead.mutate(notification.id);
-    const item = ITEM_PAGES[notification.entity_type];
-    const page = ENTITY_PAGES[notification.entity_type];
-    if (item) {
+    const target = notificationTarget(notification);
+    if (target) {
       setOpen(false);
-      navigate(`${createPageUrl(item[0])}?${item[1]}=${notification.entity_id}`);
-    } else if (page) {
-      setOpen(false);
-      navigate(createPageUrl(page));
+      navigate(target);
     }
   };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className="relative p-1.5 hover:bg-white/10 rounded-lg flex-shrink-0" title="Notifications">
-          <Bell className={cn('w-4 h-4', compact ? 'text-white/80' : 'text-white/60')} />
+        <button className="relative p-1.5 hover:bg-slate-100 rounded-lg flex-shrink-0" title="Notifications">
+          <Bell className="w-4 h-4 text-[#64748B]" />
           {unread > 0 && (
             <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[#d97706] text-white text-[10px] font-bold leading-4 text-center">
               {unread > 9 ? '9+' : unread}

@@ -138,6 +138,8 @@ export const mapProjectUpdatePayload = (formValues: Record<string, unknown>) => 
     : {}),
   ...(optionalString(formValues.status_id) ? { status_id: optionalString(formValues.status_id) } : {}),
   ...(optionalString(formValues.delivery_type) ? { delivery_type: optionalString(formValues.delivery_type) } : {}),
+  // Sent as null to clear it.
+  ...(formValues.project_manager !== undefined ? { project_manager: nullableString(formValues.project_manager) } : {}),
 });
 
 export const projectsApi = {

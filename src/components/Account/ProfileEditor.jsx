@@ -4,8 +4,10 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Camera, Save, Loader2 } from 'lucide-react';
 import { authApi } from '@/api/auth';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function ProfileEditor({ user }) {
+  const { refreshUser } = useAuth();
   const [form, setForm] = useState({
     first_name: user?.first_name || '',
     last_name: user?.last_name || '',
@@ -63,6 +65,8 @@ export default function ProfileEditor({ user }) {
         phone: form.phone,
         photo_url: form.photo_url,
       });
+      // The sidebar and other screens show the signed-in user's name, so reload it.
+      await refreshUser();
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {

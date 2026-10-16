@@ -64,7 +64,7 @@ export default function ProjectSidebar(/** @type {any} */ {
     try { return localStorage.getItem('sidebar_collapsed') === 'true'; } catch { return false; }
   });
   const scrollRef = useRef(/** @type {HTMLDivElement | null} */ (null));
-  const { user, selectedAccountId, logout } = useAuth();
+  const { user, selectedAccount, selectedAccountId, logout } = useAuth();
   const location = useLocation();
   const pathname = location.pathname.toLowerCase();
 
@@ -121,9 +121,11 @@ export default function ProjectSidebar(/** @type {any} */ {
     setExpandedFolders(prev => prev.includes(folder) ? prev.filter(f => f !== folder) : [...prev, folder]);
   };
 
-  const fullName = user?.full_name || 'User';
+  // The name from the person's profile; full_name is the fallback for profiles without one.
+  const fullName = [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim() || user?.full_name || 'User';
   const initials = fullName.split(' ').map((/** @type {string} */ s) => s[0]).slice(0, 2).join('').toUpperCase();
-  const roleLabel = user?.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1)) : 'Member';
+  const accountRole = String(selectedAccount?.role || 'MEMBER').toLowerCase();
+  const roleLabel = accountRole.charAt(0).toUpperCase() + accountRole.slice(1);
 
   // Selected items get a grey highlight, bold text and icon stroke, and an orange left border.
   const activeBar = 'bg-[#E2E8F0] font-bold nav-selected border-l-[3px] border-l-[#c87b14]';

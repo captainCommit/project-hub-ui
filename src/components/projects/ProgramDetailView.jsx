@@ -152,7 +152,7 @@ function QuarterlyRoadmap({ projects }) {
 // ── Top 5 RAID ─────────────────────────────────────────────────────────────────
 function TopRisks({ risks, projects = [], onNavigateToRiskLog }) {
   const top = risks
-    .filter(r => r.status !== 'resolved')
+    .filter(r => !['resolved', 'closed'].includes(r.status))
     .sort((a,b) => (PRIORITY_ORDER[a.priority]||9) - (PRIORITY_ORDER[b.priority]||9))
     .slice(0, 5);
   if (!top.length) return <p className="text-xs text-slate-400 text-center py-6">No open risks.</p>;
@@ -182,7 +182,7 @@ function TopRisks({ risks, projects = [], onNavigateToRiskLog }) {
 
 function TopIssues({ issues, projects = [], onNavigateToIssueLog }) {
   const top = issues
-    .filter(i => i.status !== 'resolved')
+    .filter(i => !['resolved', 'closed'].includes(i.status))
     .sort((a,b) => (PRIORITY_ORDER[a.priority]||9) - (PRIORITY_ORDER[b.priority]||9))
     .slice(0, 5);
   if (!top.length) return <p className="text-xs text-slate-400 text-center py-6">No open issues.</p>;
@@ -275,10 +275,10 @@ export default function ProgramDetailView({ program, projects, portfolios = [], 
   const statusLabel = isCompleted ? 'Complete' : hasStarted ? 'In Progress' : 'Not Started';
 
   const programRisks = risks.filter(r => programProjects.some(p => p.id === r.project_id));
-  const openRisks  = programRisks.filter(r  => r.status !== 'resolved');
+  const openRisks  = programRisks.filter(r  => !['resolved', 'closed'].includes(r.status));
   const resolvedRisks = programRisks.filter(r => r.status === 'resolved');
   const programIssues = issues.filter(i => programProjects.some(p => p.id === i.project_id));
-  const openIssues = programIssues.filter(i => i.status !== 'resolved');
+  const openIssues = programIssues.filter(i => !['resolved', 'closed'].includes(i.status));
   const resolvedIssues = programIssues.filter(i => i.status === 'resolved');
   const onTrackCount = programProjects.filter(p => p.status === 'active').length;
   const atRiskCount  = programProjects.filter(p => p.status === 'on_hold').length;

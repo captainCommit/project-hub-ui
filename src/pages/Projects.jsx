@@ -340,7 +340,7 @@ export default function Projects() {
   } = useQuery({
     queryKey: ['account-programs-projects', selectedAccountId],
     queryFn: () => programsApi.getAccountProgramsProjects(selectedAccountId),
-    enabled: !!selectedAccountId && !hasPortfolioRoute,
+    enabled: !!selectedAccountId,
   });
 
   const {
@@ -1785,9 +1785,9 @@ export default function Projects() {
             <PortfolioDetailView
               portfolio={portfolioDetail}
               programs={routePortfolioPrograms}
-              projects={[]}
-              risks={[]}
-              issues={[]}
+              projects={accountProgramsProjects.projects}
+              risks={risks}
+              issues={issues}
               onSelectProgram={() => {}}
               onSelectProject={() => {}}
               onEditItem={(item, type) => { setEditingProject(item); setDialogType(type); setProjectDialogOpen(true); }}
@@ -1809,8 +1809,8 @@ export default function Projects() {
               program={programDetail}
               projects={routeProgramProjects}
               portfolios={portfolios}
-              risks={[]}
-              issues={[]}
+              risks={risks}
+              issues={issues}
               onSelectProject={p => navigate(`/projects/${p.id}/sheet`)}
               onEditItem={(item, type) => { setEditingProject(item); setDialogType(type); setProjectDialogOpen(true); }}
               onNewProject={(nextProgramId) => { setEditingProject({ program_id: nextProgramId, portfolio_id: programDetail.portfolio_id }); setDialogType('project'); setProjectDialogOpen(true); }}

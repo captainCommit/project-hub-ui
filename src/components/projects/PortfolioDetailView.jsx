@@ -183,7 +183,7 @@ function BudgetSection({ programs, projects }) {
 // ── Top 5 RAID ─────────────────────────────────────────────────────────────────
 function TopRisks({ risks, projects = [], onNavigateToRiskLog }) {
   const top = risks
-    .filter(r => r.status !== 'resolved')
+    .filter(r => !['resolved', 'closed'].includes(r.status))
     .sort((a,b) => (PRIORITY_ORDER[a.priority]||9) - (PRIORITY_ORDER[b.priority]||9))
     .slice(0, 5);
   if (!top.length) return <p className="text-xs text-slate-400 text-center py-6">No open risks.</p>;
@@ -213,7 +213,7 @@ function TopRisks({ risks, projects = [], onNavigateToRiskLog }) {
 
 function TopIssues({ issues, projects = [], onNavigateToIssueLog }) {
   const top = issues
-    .filter(i => i.status !== 'resolved')
+    .filter(i => !['resolved', 'closed'].includes(i.status))
     .sort((a,b) => (PRIORITY_ORDER[a.priority]||9) - (PRIORITY_ORDER[b.priority]||9))
     .slice(0, 5);
   if (!top.length) return <p className="text-xs text-slate-400 text-center py-6">No open issues.</p>;
@@ -316,16 +316,16 @@ export default function PortfolioDetailView({
 
   const openRisks = risks.filter(r =>
     (allPortfolioProjects.some(p => p.id === r.project_id) || portfolioPrograms.some(pg => pg.id === r.program_id)) &&
-    r.status !== 'resolved'
+    !['resolved', 'closed'].includes(r.status)
   );
   const openPortfolioIssues = issues.filter(i =>
     (allPortfolioProjects.some(p => p.id === i.project_id) || portfolioPrograms.some(pg => pg.id === i.program_id)) &&
-    i.status !== 'resolved'
+    !['resolved', 'closed'].includes(i.status)
   );
 
   const openIssues = issues.filter(i =>
     (allPortfolioProjects.some(p => p.id === i.project_id) || portfolioPrograms.some(pg => pg.id === i.program_id)) &&
-    i.status !== 'resolved'
+    !['resolved', 'closed'].includes(i.status)
   );
   const hasCriticalIssue = openIssues.some(i => i.priority === 'critical');
   const hasHighIssue = openIssues.some(i => i.priority === 'high');

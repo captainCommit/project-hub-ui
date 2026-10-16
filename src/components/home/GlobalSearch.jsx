@@ -2,8 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  AlertCircle, AlertTriangle, BookOpen, Briefcase, CheckSquare, FolderKanban, Layers, Loader2, Scale, Search,
-  Timer, User, Wrench,
+  AlertCircle, AlertTriangle, BookOpen, Briefcase, CheckSquare, ClipboardList, FileDiff, FlaskConical, FolderKanban,
+  Layers, Link2, Loader2, Scale, Search, Timer, User, Wrench,
 } from 'lucide-react';
 import { searchApi } from '@/api/search';
 import { cn } from '@/lib/utils';
@@ -20,6 +20,10 @@ const TYPES = {
   ISSUE: { label: 'Issue', icon: AlertCircle },
   ASSUMPTION: { label: 'Assumption', icon: BookOpen },
   DECISION: { label: 'Decision', icon: Scale },
+  DEPENDENCY: { label: 'Dependency', icon: Link2 },
+  CHANGE_REQUEST: { label: 'Change request', icon: FileDiff },
+  REQUIREMENT: { label: 'Requirement', icon: ClipboardList },
+  TEST_CASE: { label: 'Test case', icon: FlaskConical },
   SPRINT: { label: 'Sprint', icon: Timer },
   RESOURCE: { label: 'Resource', icon: User },
   SKILL: { label: 'Skill', icon: Wrench },
@@ -37,6 +41,10 @@ function resultPath(result) {
     case 'ISSUE': return `/RiskLog?tab=issues&id=${id}`;
     case 'ASSUMPTION': return '/RiskLog?tab=assumptions';
     case 'DECISION': return `/ChangeRegisterHub?tab=decisions&id=${id}`;
+    case 'DEPENDENCY': return '/RiskLog?tab=dependencies';
+    case 'CHANGE_REQUEST': return '/ChangeRegisterHub?tab=changes';
+    case 'REQUIREMENT': return '/Requirements';
+    case 'TEST_CASE': return '/Testing';
     case 'SPRINT': return `/SprintManagement?focusSprint=${id}`;
     default: return '/ResourceManagementHub';
   }

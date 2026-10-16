@@ -4,7 +4,8 @@ import { apiClient } from './client';
 
 export type SearchEntityType =
   | 'PORTFOLIO' | 'PROGRAM' | 'PROJECT' | 'TASK' | 'RISK' | 'ISSUE'
-  | 'ASSUMPTION' | 'DECISION' | 'SPRINT' | 'RESOURCE' | 'SKILL';
+  | 'ASSUMPTION' | 'DECISION' | 'DEPENDENCY' | 'CHANGE_REQUEST' | 'REQUIREMENT' | 'TEST_CASE'
+  | 'SPRINT' | 'RESOURCE' | 'SKILL';
 
 export type SearchResult = {
   entity_type: SearchEntityType;

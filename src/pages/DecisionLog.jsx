@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { raidApi, mapDecisionFromApi, mapDecisionInputToPayload, mapDecisionListFromApi, mapDecisionOptionFromApi, mapDecisionOptionInputToPayload, mapDecisionOptionListFromApi } from '@/api/raid';
@@ -47,6 +47,15 @@ export default function DecisionLog({ embedded = false }) {
   });
   const { projects, programs, portfolios } = useAccountHierarchy();
   const resources = useAccountResources();
+
+  // ?id= opens that decision once the list has loaded (links from the Home search use it).
+  const requestedId = useRef(new URLSearchParams(window.location.search).get('id'));
+  useEffect(() => {
+    const item = requestedId.current && decisions.find(d => d.id === requestedId.current);
+    if (!item) return;
+    requestedId.current = null;
+    setSelectedDecision(item);
+  }, [decisions]);
 
   const decisionDetailId = selectedDecision?.id || null;
   const { data: selectedDecisionDetail } = useQuery({
@@ -520,7 +529,7 @@ function TmplField({ label, children }) {
   );
 }
 
-function AddDecisionDialog({ open, onOpenChange, projects, programs, resources, statusOptions, onCreate }) {
+export function AddDecisionDialog({ open, onOpenChange, projects, programs, resources, statusOptions, onCreate }) {
   const today = new Date().toISOString().split('T')[0];
   const emptyForm = () => ({ decision: '', description: '', priority: 'medium', project_id: '', program_id: '', proposed_by: '', proposed_date: today, status: 'draft' });
   const [form, setForm] = useState(emptyForm());

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Folder, Calendar, Info } from 'lucide-react';
+import { Folder, Calendar } from 'lucide-react';
 import { parseISO, isValid, format } from 'date-fns';
 import DashboardCard, { TEXT, MUTED, BORDER, BLUE } from '@/components/home/DashboardCard';
 
@@ -21,15 +21,15 @@ export default function MyProjects({ projects, onOpen }) {
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto mt-3">
           <table className="w-full table-fixed text-[11px]">
-            <thead className="outlined-header">
+            <thead>
               <tr className="border-b" style={{ borderColor: BORDER }}>
-                <th className="text-left font-normal pb-2 pr-2" style={{ color: MUTED }}>Project</th>
-                <th className="text-left font-normal pb-2 pr-2 w-[88px]" style={{ color: MUTED }}>
-                  <span className="inline-flex items-center gap-1">Progress <Info className="w-2.5 h-2.5" /></span>
+                <th className="text-left align-middle font-normal py-2 px-2" style={{ color: MUTED }}>Project</th>
+                <th className="text-left align-middle font-normal py-2 pr-2 w-[88px]" style={{ color: MUTED }}>
+                  Progress
                 </th>
-                <th className="text-left font-normal pb-2 pr-2 w-[70px]" style={{ color: MUTED }}>Status</th>
-                <th className="text-left font-normal pb-2 pr-2 w-[132px]" style={{ color: MUTED }}>Next milestone</th>
-                <th className="text-left font-normal pb-2 w-[92px]" style={{ color: MUTED }}>Due date</th>
+                <th className="text-left align-middle font-normal py-2 pr-2 w-[70px]" style={{ color: MUTED }}>Status</th>
+                <th className="text-left align-middle font-normal py-2 pr-2 w-[132px]" style={{ color: MUTED }}>Next milestone</th>
+                <th className="text-left align-middle font-normal py-2 pr-2 w-[92px]" style={{ color: MUTED }}>Due date</th>
               </tr>
             </thead>
             <tbody>
@@ -43,7 +43,7 @@ export default function MyProjects({ projects, onOpen }) {
                     style={{ borderColor: BORDER }}
                     onClick={() => onOpen(p.id)}
                   >
-                    <td className="py-2.5 pr-2">
+                    <td className="py-2.5 px-2">
                       <span className="flex items-start gap-1.5 min-w-0">
                         <Folder className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: BLUE }} />
                         <span className="font-semibold" style={{ ...clamp2, color: TEXT }}>{p.name}</span>

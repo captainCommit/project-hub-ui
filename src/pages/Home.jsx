@@ -10,17 +10,18 @@ import MyPriorities from '@/components/home/MyPriorities';
 import MyProjects from '@/components/home/MyProjects';
 import HomeFavorites from '@/components/home/HomeFavorites';
 import RecentActivity from '@/components/home/RecentActivity';
-import NewTaskDialog from '@/components/home/NewTaskDialog';
 import ProjectDialog from '@/components/projects/ProjectDialog';
-import { AddDialog as RiskDialog } from '@/components/projects/RiskIssueSheet';
+import { AddDialog as RiskIssueDialog } from '@/components/projects/RiskIssueSheet';
+import { AddDecisionDialog } from '@/pages/DecisionLog';
 import { Button } from '@/components/ui/button';
 import { toastError } from '@/components/ui/use-toast';
 import { useAuth } from '@/lib/AuthContext';
 import { useAccountHierarchy, useAccountResources, invalidateHierarchy } from '@/hooks/useAccountLookups';
 import { homeApi } from '@/api/home';
-import { tasksApi, mapTaskFormToPayload, mapAccountOptionsToTaskStatusOptions } from '@/api/tasks';
+import { tasksApi } from '@/api/tasks';
 import { programsApi } from '@/api/programs';
-import { raidApi, mapRiskInputToPayload } from '@/api/raid';
+import { raidApi, mapRiskInputToPayload, mapIssueInputToPayload, mapDecisionInputToPayload } from '@/api/raid';
+import { getRaidStatuses } from '@/lib/raidStatuses';
 import { dependenciesApi } from '@/api/projectLogs';
 import { notificationsApi } from '@/api/notifications';
 
@@ -61,11 +62,11 @@ export default function Home() {
   const queryClient = useQueryClient();
   const { projects, programs, portfolios } = useAccountHierarchy();
   const resources = useAccountResources();
-  const [taskOpen, setTaskOpen] = useState(false);
   const [projectOpen, setProjectOpen] = useState(false);
-  const [riskOpen, setRiskOpen] = useState(false);
+  // 'risk' or 'issue' while that dialog is open.
+  const [raidDialog, setRaidDialog] = useState(null);
+  const [decisionOpen, setDecisionOpen] = useState(false);
   const [priorityTab, setPriorityTab] = useState('all');
-  const [search, setSearch] = useState('');
   const userId = /** @type {any} */ (user)?.id;
 
   const homeKey = ['my-home', selectedAccountId, userId];
@@ -82,33 +83,7 @@ export default function Home() {
     refetchOnWindowFocus: true,
   });
 
-  // Same query as the project sheet, so it is usually cached.
-  const optionsQuery = useQuery({
-    queryKey: ['account-options', selectedAccountId],
-    queryFn: () => tasksApi.getAccountOptions(selectedAccountId),
-    enabled: Boolean(selectedAccountId) && taskOpen,
-  });
-  const statusOptions = useMemo(
-    () => (optionsQuery.data ? mapAccountOptionsToTaskStatusOptions(optionsQuery.data).activeOptions : []),
-    [optionsQuery.data],
-  );
-  const myResourceId = resources.find(r => r.user_id && r.user_id === userId)?.id || '';
-
   const refreshHome = () => queryClient.invalidateQueries({ queryKey: ['my-home'] });
-
-  const createTask = useMutation({
-    mutationFn: async (form) => {
-      const task = /** @type {any} */ (await tasksApi.create(form.project_id, mapTaskFormToPayload(form)));
-      const resource = resources.find(r => r.id === form.resource_id);
-      if (resource && task?.id) await tasksApi.createAssignment(task.id, resource, resources);
-      return task;
-    },
-    onSuccess: () => {
-      refreshHome();
-      queryClient.invalidateQueries({ queryKey: ['account-tasks'] });
-    },
-    onError: (error) => toastError(error.message),
-  });
 
   const createProject = useMutation({
     mutationFn: (data) => {
@@ -135,6 +110,27 @@ export default function Home() {
     onError: (error) => toastError(error.message),
   });
 
+  const createIssue = useMutation({
+    mutationFn: (data) => {
+      if (!data?.project_id) throw new Error('Select a project before creating an issue.');
+      return raidApi.createIssue(data.project_id, mapIssueInputToPayload(data));
+    },
+    onSuccess: () => {
+      refreshHome();
+      queryClient.invalidateQueries({ queryKey: ['account-issues'] });
+    },
+    onError: (error) => toastError(error.message),
+  });
+
+  const createDecision = useMutation({
+    mutationFn: (data) => {
+      if (!data?.project_id) throw new Error('Select a project before creating a decision.');
+      return raidApi.createDecision(data.project_id, mapDecisionInputToPayload(data));
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['account-decisions'] }),
+    onError: (error) => toastError(error.message),
+  });
+
   const completeItem = useMutation({
     mutationFn: (item) => {
       const status_id = item.completeStatusId;
@@ -153,20 +149,14 @@ export default function Home() {
   });
 
   const data = homeQuery.data;
-  const q = search.trim().toLowerCase();
-  const matches = (text) => !q || (text || '').toLowerCase().includes(q);
-
   const priorities = useMemo(() => (data?.priorities || [])
     .filter(i => priorityTab === 'all' || i.bucket === priorityTab)
-    .filter(i => matches(i.title) || matches(i.projectName))
     .map(i => ({
       ...i,
       ...BADGE[i.bucket],
       dateLabel: isValid(parseISO(i.date)) ? format(parseISO(i.date), 'MMM d, yyyy') : '',
     })),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  [data, priorityTab, q]);
-  const visibleProjects = (data?.myProjects || []).filter(p => matches(p.name));
+  [data, priorityTab]);
 
   const hour = new Date().getHours();
   const part = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
@@ -225,9 +215,9 @@ export default function Home() {
   };
 
   const handleCreate = (kind) => {
-    if (kind === 'task') setTaskOpen(true);
-    else if (kind === 'project') setProjectOpen(true);
-    else if (kind === 'risk') setRiskOpen(true);
+    if (kind === 'project') setProjectOpen(true);
+    else if (kind === 'risk' || kind === 'issue') setRaidDialog(kind);
+    else if (kind === 'decision') setDecisionOpen(true);
   };
 
   const stats = {
@@ -251,8 +241,6 @@ export default function Home() {
             <HomeHeader
               greeting={greeting}
               subtitle="Your workspace at a glance"
-              search={search}
-              onSearchChange={setSearch}
               notifications={bellItems}
               notificationsReadAt={data?.notificationsReadAt || null}
               onOpenNotification={openNotification}
@@ -281,10 +269,10 @@ export default function Home() {
                     onOpen={openPriority}
                     onComplete={(item) => completeItem.mutate(item)}
                   />
-                  <MyProjects projects={visibleProjects} onOpen={openProject} />
+                  <MyProjects projects={data?.myProjects || []} onOpen={openProject} />
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-[68fr_32fr] gap-4 items-stretch flex-shrink-0 mt-auto">
-                  <HomeFavorites query={search} />
+                  <HomeFavorites />
                   <RecentActivity items={data?.activity || []} onOpen={openProject} />
                 </div>
               </>
@@ -293,15 +281,6 @@ export default function Home() {
         </div>
       </div>
 
-      <NewTaskDialog
-        open={taskOpen}
-        onOpenChange={setTaskOpen}
-        projects={projects}
-        statusOptions={statusOptions}
-        resources={resources}
-        defaultResourceId={myResourceId}
-        onSave={(form) => createTask.mutate(form)}
-      />
       <ProjectDialog
         open={projectOpen}
         onOpenChange={setProjectOpen}
@@ -311,15 +290,25 @@ export default function Home() {
         programs={programs}
         portfolios={portfolios}
       />
-      <RiskDialog
-        open={riskOpen}
-        onOpenChange={setRiskOpen}
-        type="risk"
+      <RiskIssueDialog
+        key={raidDialog || 'closed'}
+        open={Boolean(raidDialog)}
+        onOpenChange={(open) => { if (!open) setRaidDialog(null); }}
+        type={raidDialog || 'risk'}
         projects={projects}
         programs={programs}
         resources={resources}
         existingCount={0}
-        onAdd={(form) => createRisk.mutate(form)}
+        onAdd={(form) => (raidDialog === 'issue' ? createIssue : createRisk).mutate(form)}
+      />
+      <AddDecisionDialog
+        open={decisionOpen}
+        onOpenChange={setDecisionOpen}
+        projects={projects}
+        programs={programs}
+        resources={resources}
+        statusOptions={getRaidStatuses('decision')}
+        onCreate={(form) => createDecision.mutate(form)}
       />
     </div>
   );

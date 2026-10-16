@@ -8,7 +8,7 @@ import {
   FolderTree, Building2, ChevronRight, ChevronDown,
   FileText, Shield, Users, Package, AlertTriangle,
   ClipboardList, ClipboardCheck, RefreshCw, Scale,
-  Folder, Sparkles, PanelLeftClose, PanelLeftOpen, CircleHelp, LogOut, Search, X, Clock, Home as HomeIcon
+  Folder, Sparkles, PanelLeftClose, PanelLeftOpen, CircleHelp, LogOut, Clock, Home as HomeIcon
 } from "lucide-react";
 import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -39,20 +39,6 @@ const readSavedExpandedFolders = () => {
   }
 };
 
-/** Keep items whose name matches, plus the parents needed to reach them. A matching parent keeps all its children. */
-const filterHierarchy = (portfolios, query) => {
-  const matches = (/** @type {string} */ name) => (name || '').toLowerCase().includes(query);
-  return portfolios
-    .map(portfolio => {
-      if (matches(portfolio.name)) return portfolio;
-      const programs = portfolio.programs
-        .map(program => (matches(program.name) ? program : { ...program, projects: program.projects.filter(project => matches(project.name)) }))
-        .filter(program => matches(program.name) || program.projects.length > 0);
-      return programs.length ? { ...portfolio, programs } : null;
-    })
-    .filter(Boolean);
-};
-
 const readSavedScrollTop = () => {
   try {
     const saved = parseInt(localStorage.getItem(SCROLL_KEY) || '', 10);
@@ -74,7 +60,6 @@ export default function ProjectSidebar(/** @type {any} */ {
   onSelectItem, onNewProject, onNewProgram, onNewPortfolio, onRenameItem, onDeleteItem, onEditItem,
 }) {
   const [expandedFolders, setExpandedFolders] = useState(readSavedExpandedFolders);
-  const [filterText, setFilterText] = useState('');
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('sidebar_collapsed') === 'true'; } catch { return false; }
   });
@@ -87,7 +72,6 @@ export default function ProjectSidebar(/** @type {any} */ {
     data: sidebarHierarchy = EMPTY_SIDEBAR_HIERARCHY,
     isLoading: sidebarLoading,
     isError: sidebarHasError,
-    refetch: refetchSidebarHierarchy,
   } = useQuery({
     queryKey: ['account-sidebar', selectedAccountId],
     queryFn: () => accountsApi.getSidebar(selectedAccountId),
@@ -150,8 +134,6 @@ export default function ProjectSidebar(/** @type {any} */ {
   );
   const collapsedClass = (/** @type {boolean} */ active) => cn('p-2 rounded-lg', active ? 'bg-[#E2E8F0] nav-selected text-[#64748B]' : 'hover:bg-slate-100 text-[#64748B]');
 
-  const isPortfolioRouteActive = (/** @type {string} */ portfolioId) => pathname === `/portfolios/${portfolioId}`.toLowerCase();
-  const isProgramRouteActive = (/** @type {string} */ programId) => pathname === `/programs/${programId}`.toLowerCase();
   const isProjectRouteActive = (/** @type {string} */ projectId) => {
     const projectPath = `/projects/${projectId}`.toLowerCase();
     return ['sheet', 'board', 'gantt', 'audit'].some(view => pathname === `${projectPath}/${view}`);
@@ -188,38 +170,6 @@ export default function ProjectSidebar(/** @type {any} */ {
     </Link>
   );
 
-  const HierarchyState = () => {
-    if (!selectedAccountId) {
-      return <div className="px-2 py-2 text-[11px] leading-4" style={{ color: MUTED }}>Select an account to load hierarchy.</div>;
-    }
-
-    if (sidebarLoading) {
-      return <div className="px-2 py-2 text-[11px] leading-4" style={{ color: MUTED }}>Loading hierarchy…</div>;
-    }
-
-    if (sidebarHasError) {
-      return (
-        <div className="px-2 py-2 text-[11px] leading-4" style={{ color: MUTED }}>
-          <p>We could not load your project hierarchy.</p>
-          <button onClick={() => refetchSidebarHierarchy()} className="mt-1 text-[#c87b14] hover:text-[#a86610]">Retry</button>
-        </div>
-      );
-    }
-
-    if (!sidebarHierarchy.portfolios.length && !sidebarHierarchy.programs.length && !sidebarHierarchy.projects.length) {
-      return <div className="px-2 py-2 text-[11px] leading-4" style={{ color: MUTED }}>No portfolios, programs, or projects yet.</div>;
-    }
-
-    return null;
-  };
-
-  const filterQuery = filterText.trim().toLowerCase();
-  const isFiltering = filterQuery.length > 0;
-  const visiblePortfolios = useMemo(
-    () => (isFiltering ? filterHierarchy(sidebarHierarchy.portfolios, filterQuery) : sidebarHierarchy.portfolios),
-    [sidebarHierarchy, filterQuery, isFiltering],
-  );
-
   // Recently opened projects (favorites live on the home page), with names and routes taken from the hierarchy
   // so renames show up. Once the hierarchy has loaded, projects no longer in it are left out.
   const hierarchyProjects = useMemo(
@@ -236,61 +186,6 @@ export default function ProjectSidebar(/** @type {any} */ {
     })
     .filter(Boolean)
     .slice(0, RECENT_LIMIT);
-
-  const renderProject = (/** @type {ProjectHubSidebarProject} */ project) => (
-    <HierarchyLink
-      key={project.id}
-      href={project.route}
-      label={project.name}
-      active={isProjectRouteActive(project.id)}
-      icon={Folder}
-      className="pl-2"
-    />
-  );
-
-  const renderProgram = (/** @type {ProjectHubSidebarProgram} */ program) => {
-    const folderId = `program:${program.id}`;
-    const isExpanded = isFiltering || expandedFolders.includes(folderId);
-    const isActive = isProgramRouteActive(program.id);
-
-    return (
-      <div key={program.id} className="mb-0.5">
-        <div className="flex items-center rounded-md">
-          <button onClick={() => toggleFolder(folderId)} disabled={isFiltering} className="p-1.5 flex-shrink-0" aria-label={`Toggle ${program.name}`}>
-            {isExpanded ? <ChevronDown className="w-3 h-3" style={{ color: MUTED }} /> : <ChevronRight className="w-3 h-3" style={{ color: MUTED }} />}
-          </button>
-          <HierarchyLink href={program.route} label={program.name} active={isActive} icon={FolderTree} className="flex-1" />
-        </div>
-        {isExpanded && program.projects.length > 0 && (
-          <div className="ml-5 pl-2 border-l border-slate-200 space-y-0.5">
-            {program.projects.map(renderProject)}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderPortfolio = (/** @type {ProjectHubSidebarPortfolio} */ portfolio) => {
-    const folderId = `portfolio:${portfolio.id}`;
-    const isExpanded = isFiltering || expandedFolders.includes(folderId);
-    const isActive = isPortfolioRouteActive(portfolio.id);
-
-    return (
-      <div key={portfolio.id} className="mb-0.5">
-        <div className="flex items-center rounded-md">
-          <button onClick={() => toggleFolder(folderId)} disabled={isFiltering} className="p-1.5 flex-shrink-0" aria-label={`Toggle ${portfolio.name}`}>
-            {isExpanded ? <ChevronDown className="w-3 h-3" style={{ color: MUTED }} /> : <ChevronRight className="w-3 h-3" style={{ color: MUTED }} />}
-          </button>
-          <HierarchyLink href={portfolio.route} label={portfolio.name} active={isActive} icon={Building2} className="flex-1" />
-        </div>
-        {isExpanded && portfolio.programs.length > 0 && (
-          <div className="ml-5 pl-2 border-l border-slate-200 space-y-0.5">
-            {portfolio.programs.map(renderProgram)}
-          </div>
-        )}
-      </div>
-    );
-  };
 
   const FolderHeader = (/** @type {{ id: string, icon: any, label: string }} */ { id, icon: Icon, label }) => (
     <div className="flex items-center rounded-lg">
@@ -362,33 +257,6 @@ export default function ProjectSidebar(/** @type {any} */ {
 
       <div ref={scrollRef} className="flex-1 px-2 py-3 overflow-y-auto">
 
-        {/* Find a portfolio, program or project */}
-        <div className="relative mb-2">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: MUTED }} />
-          <input
-            value={filterText}
-            onChange={e => setFilterText(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Escape') setFilterText(''); }}
-            placeholder="Filter projects…"
-            aria-label="Filter portfolios, programs and projects"
-            className="w-full h-8 pl-8 pr-7 rounded-md bg-slate-50 border border-slate-200 text-xs text-[#002046] placeholder:text-slate-400 outline-none focus:border-slate-400 focus:bg-white"
-          />
-          {isFiltering && (
-            <button onClick={() => setFilterText('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-400 hover:text-slate-700" aria-label="Clear filter">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-
-        {isFiltering ? (
-          <div className="mb-2 space-y-0.5">
-            <HierarchyState />
-            {hierarchyLoaded && sidebarHierarchy.portfolios.length > 0 && (visiblePortfolios.length
-              ? visiblePortfolios.map(renderPortfolio)
-              : <div className="px-2 py-2 text-[11px] leading-4" style={{ color: MUTED }}>No portfolios, programs or projects match “{filterText.trim()}”.</div>)}
-          </div>
-        ) : (
-        <>
         {/* Home */}
         <Link to="/" className={cn(itemClass(pathname === '/'), 'mb-1 font-medium')}>
           <HomeIcon className="w-3.5 h-3.5" style={{ color: MUTED }} /> Home
@@ -425,8 +293,6 @@ export default function ProjectSidebar(/** @type {any} */ {
               ))}
             </div>
           </>
-        )}
-        </>
         )}
 
         <div className="border-t border-slate-200 my-3" />

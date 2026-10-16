@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/AuthContext';
@@ -124,6 +124,16 @@ export default function RiskLog() {
   });
 
   const handleItemClick = (item) => { setSelectedItem(item); setDetailOpen(true); };
+
+  // ?id= opens that risk or issue once the list has loaded (links from the Home search use it).
+  const requestedId = useRef(new URLSearchParams(window.location.search).get('id'));
+  useEffect(() => {
+    if (!requestedId.current || (activeTab !== 'risks' && activeTab !== 'issues')) return;
+    const item = (activeTab === 'risks' ? risks : issues).find(i => i.id === requestedId.current);
+    if (!item) return;
+    requestedId.current = null;
+    handleItemClick(item);
+  }, [activeTab, risks, issues]);
 
   const isRaidSheet = activeTab === 'risks' || activeTab === 'issues';
   const tabType = activeTab === 'risks' ? 'risk' : 'issue';

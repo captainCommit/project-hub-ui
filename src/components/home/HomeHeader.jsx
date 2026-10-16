@@ -1,10 +1,11 @@
 import React from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import HomeNotifications from '@/components/home/HomeNotifications';
+import GlobalSearch from '@/components/home/GlobalSearch';
 
 export default function HomeHeader({
-  greeting, subtitle, search, onSearchChange,
+  greeting, subtitle,
   notifications = [], notificationsReadAt, onOpenNotification, onMarkAllRead, markingRead, onCreate,
 }) {
   return (
@@ -15,16 +16,7 @@ export default function HomeHeader({
       </div>
 
       <div className="flex items-center gap-3 flex-shrink-0">
-        <div className="relative w-full sm:w-64">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#64748B' }} />
-          <input
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search"
-            className="w-full h-9 pl-9 pr-3 rounded-full border border-slate-200 bg-white text-sm focus:outline-none focus:border-slate-400"
-            style={{ color: '#1E293B' }}
-          />
-        </div>
+        <GlobalSearch className="w-full sm:w-72" />
 
         <HomeNotifications
           items={notifications}
@@ -41,9 +33,10 @@ export default function HomeHeader({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onCreate('task')}>New Task</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onCreate('project')}>New Project</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onCreate('risk')}>New Risk</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onCreate('project')}>Project</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onCreate('risk')}>Risk</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onCreate('issue')}>Issue</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onCreate('decision')}>Decision</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

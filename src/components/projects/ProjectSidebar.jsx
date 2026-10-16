@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { cn } from "@/lib/utils";
+import BrandLogo from '@/components/BrandLogo';
 import { useAuth } from '@/lib/AuthContext';
 import { accountsApi } from '@/api/accounts';
 import { useQuery } from '@tanstack/react-query';
@@ -313,6 +314,7 @@ export default function ProjectSidebar(/** @type {any} */ {
     return (
       <div className="w-12 bg-white border-r border-slate-200 flex flex-col select-none transition-all" style={{ fontFamily: 'Segoe UI, sans-serif' }}>
         <div className="px-2 py-4 border-b border-slate-200 flex flex-col items-center gap-2">
+          <Link to="/" title="Row"><BrandLogo className="w-8 h-8" /></Link>
           <button onClick={toggleCollapsed} className="p-1.5 hover:bg-slate-100 rounded-lg" title="Expand sidebar">
             <PanelLeftOpen className="w-4 h-4" style={{ color: MUTED }} />
           </button>
@@ -342,12 +344,15 @@ export default function ProjectSidebar(/** @type {any} */ {
   }
 
   return (
-    <div className="w-60 bg-white border-r border-slate-200 flex flex-col select-none transition-all" style={{ fontFamily: 'Segoe UI, sans-serif' }}>
+    <div className="w-72 bg-white border-r border-slate-200 flex flex-col select-none transition-all" style={{ fontFamily: 'Segoe UI, sans-serif' }}>
       <div className="px-4 py-4 border-b border-slate-200 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-bold" style={{ color: TEXT }}>Project Hub</h1>
-          <p className="text-[10px] font-medium mt-0.5" style={{ color: MUTED }}>All-in-one Project Management</p>
-        </div>
+        <Link to="/" className="flex items-center gap-2.5 min-w-0">
+          <BrandLogo className="w-11 h-11 flex-shrink-0" />
+          <div className="min-w-0">
+            <h1 className="text-2xl font-extrabold leading-none tracking-tight" style={{ color: TEXT }}>Row</h1>
+            <p className="text-[11px] font-medium mt-1 truncate" style={{ color: MUTED }}>All-in-One Project Management</p>
+          </div>
+        </Link>
         <div className="flex items-center gap-0.5 flex-shrink-0">
           <button onClick={toggleCollapsed} className="p-1.5 hover:bg-slate-100 rounded-lg flex-shrink-0" title="Collapse sidebar">
             <PanelLeftClose className="w-4 h-4" style={{ color: MUTED }} />

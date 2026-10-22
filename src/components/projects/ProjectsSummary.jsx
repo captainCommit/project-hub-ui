@@ -7,7 +7,7 @@ import { RAG } from './HealthIndicator';
 import {
   PageHeader, PageBody, PrimaryButton, ExportButton, StatGrid, StatCard, FilterBar, SearchInput, FilterSelect, optionsFrom,
   DataTable, TitleCell, HealthPill, WorkStatusPill, CompletionBar, CountCell, DetailsChevron,
-  WORK_STATUS_OPTIONS, workStatusInfo, isCompleteStatus, isOpenRaid, isHighOrCritical, riskIssueLine, SOFT,
+  WORK_STATUS_OPTIONS, workStatusInfo, isCompleteStatus, isOpenRaid, isHighOrCritical, riskIssueLine, SOFT, PersonCell,
 } from './DirectoryKit';
 
 const NOT_STARTED = new Set(['planning', 'not_started']);
@@ -95,7 +95,7 @@ export default function ProjectsSummary({ projects = [], programs = [], portfoli
     { key: 'tasks', label: 'Tasks', sortValue: r => r.total, render: r => <span className="text-sm" style={{ color: SOFT }}>{r.done}/{r.total}</span> },
     { key: 'risks', label: 'Open Risks', sortValue: r => r.openRisks, className: 'text-center', headerClassName: 'text-center', render: r => <CountCell value={r.openRisks} /> },
     { key: 'issues', label: 'Open Issues', sortValue: r => r.openIssues, className: 'text-center', headerClassName: 'text-center', render: r => <CountCell value={r.openIssues} /> },
-    { key: 'owner', label: 'Project Owner(s)', sortValue: r => r.manager, render: r => <span className="text-sm" style={{ color: SOFT }}>{r.manager || '—'}</span> },
+    { key: 'owner', label: 'Project Owner(s)', sortValue: r => r.manager, render: r => <PersonCell name={r.manager} /> },
     { key: 'open', label: '', className: 'w-8', render: () => <DetailsChevron /> },
   ];
 

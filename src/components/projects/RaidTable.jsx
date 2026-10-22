@@ -5,7 +5,7 @@ import { Plus, X } from 'lucide-react';
 import MultiSelectFilter from '@/components/projects/MultiSelectFilter';
 import { parseDate } from '@/lib/dateUtils';
 import {
-  FilterBar, SearchInput, FilterSelect, optionsFrom, Pill, PriorityPill, TitleCell, DetailsChevron, ExportButton, PrimaryButton, SOFT,
+  FilterBar, SearchInput, FilterSelect, optionsFrom, Pill, PriorityPill, TitleCell, DetailsChevron, ExportButton, PrimaryButton, SOFT, PersonCell,
 } from './DirectoryKit';
 
 // What the RAID tabs share. The filters live on the RAID page, so picking Project A on Risks still shows Project A on
@@ -128,7 +128,7 @@ export function raidColumns({ noun, idField, getProjectName, showPriority = true
     },
     ...(showPriority ? [{ key: 'priority', label: 'Priority', sortValue: r => PRIORITY_RANK[r.priority || 'medium'], render: r => <PriorityPill priority={r.priority} className={RAID_PILL} /> }] : []),
     { key: 'status', label: 'Status', sortValue: r => raidStatusLabel(r.status), render: r => <RaidStatusPill status={r.status} openTone={noun === 'Dependency' ? 'blue' : 'grey'} /> },
-    ...(person ? [{ key: 'person', label: person, sortValue: r => r.assigned_to, render: r => <span className="text-sm" style={{ color: SOFT }}>{r.assigned_to || '—'}</span> }] : []),
+    ...(person ? [{ key: 'person', label: person, sortValue: r => r.assigned_to, render: r => <PersonCell name={r.assigned_to} /> }] : []),
     { key: 'date', label: dateLabel, sortValue: r => r[dateField], render: r => <span className="text-sm whitespace-nowrap" style={{ color: SOFT }}>{formatDay(r[dateField])}</span> },
     { key: 'open', label: 'Details', className: 'w-16', render: () => <DetailsChevron /> },
   ];

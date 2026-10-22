@@ -8,7 +8,7 @@ import { RAG } from './HealthIndicator';
 import {
   PageHeader, PageBody, PrimaryButton, ExportButton, StatGrid, StatCard, FilterBar, SearchInput, FilterSelect, optionsFrom,
   DataTable, TitleCell, HealthPill, WorkStatusPill, CompletionBar, CountCell, DetailsChevron,
-  WORK_STATUS_OPTIONS, workStatusInfo, isCompleteStatus, isOpenRaid, isHighOrCritical, riskIssueLine, NAVY, SOFT,
+  WORK_STATUS_OPTIONS, workStatusInfo, isCompleteStatus, isOpenRaid, isHighOrCritical, riskIssueLine, NAVY, SOFT, PersonCell,
 } from './DirectoryKit';
 
 function getRag(critHighRisks, critHighIssues, projCount) {
@@ -91,7 +91,7 @@ export default function ProgramsLanding({ programs = [], projects = [], portfoli
     { key: 'projects', label: 'Projects', sortValue: r => r.projectCount, className: 'text-center', headerClassName: 'text-center', render: r => <span style={{ color: SOFT }}>{r.projectCount}</span> },
     { key: 'risks', label: 'Open Risks', sortValue: r => r.openRisks, className: 'text-center', headerClassName: 'text-center', render: r => <CountCell value={r.openRisks} /> },
     { key: 'issues', label: 'Open Issues', sortValue: r => r.openIssues, className: 'text-center', headerClassName: 'text-center', render: r => <CountCell value={r.openIssues} /> },
-    { key: 'owner', label: 'Program Owner(s)', sortValue: r => r.prog.owner, render: r => <span className="text-sm" style={{ color: SOFT }}>{r.prog.owner || '—'}</span> },
+    { key: 'owner', label: 'Program Owner(s)', sortValue: r => r.prog.owner, render: r => <PersonCell name={r.prog.owner} /> },
     { key: 'open', label: '', className: 'w-8', render: () => <DetailsChevron /> },
   ];
 

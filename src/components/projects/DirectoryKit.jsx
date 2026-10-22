@@ -249,6 +249,13 @@ export function TitleCell({ code = undefined, title, sub = undefined, leading = 
   );
 }
 
+/** A person's name, or a muted "Not assigned" when nobody is recorded yet. */
+export function PersonCell({ name }) {
+  return name
+    ? <span className="text-sm" style={{ color: SOFT }}>{name}</span>
+    : <span className="text-sm italic" style={{ color: MUTED }}>Not assigned</span>;
+}
+
 /** Red when there is something open, a muted dash-free zero otherwise. */
 export function CountCell({ value }) {
   return <span className="text-sm font-medium" style={{ color: value > 0 ? '#F21818' : SOFT }}>{value}</span>;

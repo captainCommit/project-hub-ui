@@ -165,7 +165,7 @@ function SprintSettingsDialog({ open, onOpenChange, sprint, previousSprint, proj
 }
 
 // --- Sprint board ---
-const SPRINT_PRIORITY_TONES = { critical: 'red', high: 'red', medium: 'amber', low: 'green' };
+const SPRINT_PRIORITY_TONES = { critical: 'red', high: 'coral', medium: 'sand', low: 'mint' };
 const raidLabel = (value) => value.charAt(0).toUpperCase() + value.slice(1);
 const PRIORITY_OPTIONS = ['critical', 'high', 'medium', 'low'].map(v => ({ value: v, label: v.charAt(0).toUpperCase() + v.slice(1) }));
 const SPRINT_STATUS = {
@@ -199,7 +199,7 @@ function SprintStep({ sprint, index, selected, onSelect }) {
     <button type="button" onClick={() => onSelect(sprint)}
       className={cn('flex items-start gap-3 px-3 py-2 rounded-lg text-left flex-shrink-0 min-w-[210px] transition-colors', selected ? 'bg-slate-50' : 'hover:bg-slate-50')}>
       <span className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
-        style={selected ? { backgroundColor: '#2563EB', color: '#fff' } : { backgroundColor: '#E2E8F0', color: NAVY }}>
+        style={selected ? { backgroundColor: '#2C80F4', color: '#fff' } : { backgroundColor: '#E6EBF2', color: NAVY }}>
         {sprintNumber(sprint) || index + 1}
       </span>
       <span className="min-w-0">
@@ -658,7 +658,7 @@ export default function SprintView({ projects, programs = [], portfolios = [], r
                       ))}
                       <div className="flex items-center gap-2 w-48">
                         <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${progressPct}%`, backgroundColor: '#16A34A' }} />
+                          <div className="h-full rounded-full" style={{ width: `${progressPct}%`, backgroundColor: '#0BAA7A' }} />
                         </div>
                         <span className="text-sm font-medium" style={{ color: NAVY }}>{progressPct}%</span>
                       </div>
@@ -703,9 +703,9 @@ export default function SprintView({ projects, programs = [], portfolios = [], r
                     />
                   )}
 
-                  <div className={cn('rounded-lg border-2 border-dashed py-5 text-center transition-colors',
-                    dropTarget === 'sprint' ? 'border-blue-400 bg-blue-50/40' : 'border-slate-300')}>
-                    <FilePlus2 className="w-5 h-5 mx-auto mb-1" style={{ color: '#2563EB' }} />
+                  <div className="rounded-lg border-2 border-dashed py-5 text-center transition-colors"
+                    style={{ borderColor: dropTarget === 'sprint' ? '#2C80F4' : '#7DB2FE', backgroundColor: dropTarget === 'sprint' ? '#EAF3FF' : '#F5F9FF' }}>
+                    <FilePlus2 className="w-5 h-5 mx-auto mb-1" style={{ color: '#2C80F4' }} />
                     <p className="text-sm font-semibold" style={{ color: NAVY }}>Drag and drop user stories here</p>
                     <p className="text-xs text-slate-500">From the Product Backlog below</p>
                   </div>

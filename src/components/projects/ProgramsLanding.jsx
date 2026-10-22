@@ -8,7 +8,7 @@ import { RAG } from './HealthIndicator';
 import {
   PageHeader, PageBody, PrimaryButton, ExportButton, StatGrid, StatCard, FilterBar, SearchInput, FilterSelect, optionsFrom,
   DataTable, TitleCell, HealthPill, WorkStatusPill, CompletionBar, CountCell, DetailsChevron,
-  WORK_STATUS_OPTIONS, workStatusInfo, isCompleteStatus, isOpenRaid, isHighOrCritical, riskIssueLine, NAVY,
+  WORK_STATUS_OPTIONS, workStatusInfo, isCompleteStatus, isOpenRaid, isHighOrCritical, riskIssueLine, NAVY, SOFT,
 } from './DirectoryKit';
 
 function getRag(critHighRisks, critHighIssues, projCount) {
@@ -88,10 +88,10 @@ export default function ProgramsLanding({ programs = [], projects = [], portfoli
     { key: 'health', label: 'Health', info: HEALTH_INFO, render: r => <HealthPill rag={r.rag} /> },
     { key: 'status', label: 'Status', sortValue: r => workStatusInfo(r.prog.status).label, render: r => <WorkStatusPill status={r.prog.status} /> },
     { key: 'completion', label: 'Completion', sortValue: r => r.pct, render: r => <CompletionBar pct={r.pct} /> },
-    { key: 'projects', label: 'Projects', sortValue: r => r.projectCount, className: 'text-center', headerClassName: 'text-center', render: r => <span style={{ color: NAVY }}>{r.projectCount}</span> },
+    { key: 'projects', label: 'Projects', sortValue: r => r.projectCount, className: 'text-center', headerClassName: 'text-center', render: r => <span style={{ color: SOFT }}>{r.projectCount}</span> },
     { key: 'risks', label: 'Open Risks', sortValue: r => r.openRisks, className: 'text-center', headerClassName: 'text-center', render: r => <CountCell value={r.openRisks} /> },
     { key: 'issues', label: 'Open Issues', sortValue: r => r.openIssues, className: 'text-center', headerClassName: 'text-center', render: r => <CountCell value={r.openIssues} /> },
-    { key: 'owner', label: 'Program Owner(s)', sortValue: r => r.prog.owner, render: r => <span className="text-sm" style={{ color: NAVY }}>{r.prog.owner || '—'}</span> },
+    { key: 'owner', label: 'Program Owner(s)', sortValue: r => r.prog.owner, render: r => <span className="text-sm" style={{ color: SOFT }}>{r.prog.owner || '—'}</span> },
     { key: 'open', label: '', className: 'w-8', render: () => <DetailsChevron /> },
   ];
 

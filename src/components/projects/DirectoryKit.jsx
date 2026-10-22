@@ -12,17 +12,25 @@ import { cn } from '@/lib/utils';
 
 export const NAVY = '#002046';
 export const ORANGE = '#c87b14';
-export const MUTED = '#64748B';
+export const MUTED = '#6B7C99';
+// Secondary cell text (owners, counts, dates): a softer navy than titles.
+export const SOFT = '#2F4B7E';
 const CARD_BORDER = '#E6ECF4';
 
+// Sampled from the designer's mockups.
 export const TONES = {
-  red: { bg: '#FEE2E2', fg: '#DC2626', dot: '#DC2626' },
-  amber: { bg: '#FEF3C7', fg: '#B45309', dot: '#F59E0B' },
-  orange: { bg: '#FFEDD5', fg: '#C2410C', dot: '#EA580C' },
-  green: { bg: '#DCFCE7', fg: '#15803D', dot: '#16A34A' },
-  blue: { bg: '#DBEAFE', fg: '#1D4ED8', dot: '#2563EB' },
-  purple: { bg: '#EDE9FE', fg: '#6D28D9', dot: '#7C3AED' },
-  grey: { bg: '#F1F5F9', fg: '#475569', dot: '#94A3B8' },
+  red: { bg: '#FDE8E8', fg: '#E5242A', dot: '#EE1111' },
+  amber: { bg: '#FEF1DC', fg: '#E09A00', dot: '#F9B305' },
+  yellow: { bg: '#FDF0C6', fg: '#B86A05', dot: '#E9A10B' },
+  orange: { bg: '#FDE6D9', fg: '#E35B10', dot: '#EA580C' },
+  green: { bg: '#DDF5E7', fg: '#0E9254', dot: '#0A9D63' },
+  blue: { bg: '#E1EDFE', fg: '#1A73F0', dot: '#1677FF' },
+  purple: { bg: '#E4E0FD', fg: '#3A1FC0', dot: '#5B3FE0' },
+  grey: { bg: '#EEF1F5', fg: '#3B4B68', dot: '#94A3B8' },
+  // The sprint board and Testing draw priorities in their own softer set.
+  coral: { bg: '#FDE2D3', fg: '#DC250C', dot: '#DC250C' },
+  sand: { bg: '#FCF0D8', fg: '#94470F', dot: '#D98A06' },
+  mint: { bg: '#E0F4EC', fg: '#0C7754', dot: '#0C7754' },
 };
 
 /** Page title row: icon, title and subtitle on the left, the main actions on the right. */
@@ -49,7 +57,7 @@ export function PageHeader({ icon: Icon = undefined, iconBox = true, title, subt
 export function PrimaryButton({ icon: Icon = undefined, children, className = undefined, ...props }) {
   return (
     <Button {...props} className={cn('h-11 px-5 rounded-lg text-[15px] font-semibold text-white border-0 shadow-sm hover:opacity-90', className)}
-      style={{ background: 'linear-gradient(180deg, #D98A1F 0%, #C2700F 100%)' }}>
+      style={{ background: 'linear-gradient(180deg, #D27D14 0%, #C66E0C 100%)' }}>
       {Icon && <Icon className="w-5 h-5 mr-2" />}{children}
     </Button>
   );
@@ -155,9 +163,9 @@ export function Pill({ tone = 'grey', dot = false, icon = undefined, children, c
 
 const PRIORITY_TONES = { critical: 'red', high: 'orange', medium: 'grey', low: 'grey' };
 
-export function PriorityPill({ priority, className = undefined }) {
+export function PriorityPill({ priority, className = undefined, tones = PRIORITY_TONES }) {
   const key = String(priority || 'medium').toLowerCase();
-  return <Pill tone={PRIORITY_TONES[key] || 'grey'} className={className}>{key.charAt(0).toUpperCase() + key.slice(1)}</Pill>;
+  return <Pill tone={tones[key] || 'grey'} className={className}>{key.charAt(0).toUpperCase() + key.slice(1)}</Pill>;
 }
 
 // Portfolio, program and project statuses. The API's option values are Active / On Hold / Complete / Cancelled;
@@ -219,8 +227,8 @@ export function CompletionBar({ pct }) {
   const value = Math.max(0, Math.min(100, Math.round(pct || 0)));
   return (
     <div className="flex items-center gap-2.5 min-w-[140px]">
-      <div className="w-[92px] h-2 rounded-full overflow-hidden flex-shrink-0" style={{ backgroundColor: '#E8EEF6' }}>
-        <div className="h-full rounded-full" style={{ width: `${value}%`, backgroundColor: value >= 100 ? NAVY : '#3B82F6' }} />
+      <div className="w-[92px] h-2 rounded-full overflow-hidden flex-shrink-0" style={{ backgroundColor: '#EAF0F6' }}>
+        <div className="h-full rounded-full" style={{ width: `${value}%`, backgroundColor: value >= 100 ? '#00306E' : '#3392FD' }} />
       </div>
       <span className="text-[13px]" style={{ color: MUTED }}>{value}%</span>
     </div>
@@ -233,9 +241,9 @@ export function TitleCell({ code = undefined, title, sub = undefined, leading = 
     <div className="flex items-center gap-2 min-w-0">
       {leading}
       <div className="min-w-0">
-        {code && <p className={cn('text-slate-500 leading-tight', dense ? 'text-[11px]' : 'text-xs')}>{code}</p>}
+        {code && <p className={cn('leading-tight', dense ? 'text-[11px]' : 'text-xs')} style={{ color: MUTED }}>{code}</p>}
         <p className={cn('font-bold leading-snug', dense ? 'text-[13px] leading-tight' : 'text-sm')} style={{ color: NAVY }}>{title}</p>
-        {sub && <p className={cn('text-slate-500 leading-tight', dense ? 'text-[11px]' : 'text-xs mt-0.5')}>{sub}</p>}
+        {sub && <p className={cn('leading-tight', dense ? 'text-[11px]' : 'text-xs mt-0.5')} style={{ color: MUTED }}>{sub}</p>}
       </div>
     </div>
   );
@@ -243,7 +251,7 @@ export function TitleCell({ code = undefined, title, sub = undefined, leading = 
 
 /** Red when there is something open, a muted dash-free zero otherwise. */
 export function CountCell({ value }) {
-  return <span className="text-sm font-medium" style={{ color: value > 0 ? '#EF1C1C' : MUTED }}>{value}</span>;
+  return <span className="text-sm font-medium" style={{ color: value > 0 ? '#F21818' : SOFT }}>{value}</span>;
 }
 
 const compare = (a, b) => {

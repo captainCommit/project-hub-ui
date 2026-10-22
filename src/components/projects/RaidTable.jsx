@@ -5,7 +5,7 @@ import { Plus, X } from 'lucide-react';
 import MultiSelectFilter from '@/components/projects/MultiSelectFilter';
 import { parseDate } from '@/lib/dateUtils';
 import {
-  FilterBar, SearchInput, FilterSelect, optionsFrom, Pill, PriorityPill, TitleCell, DetailsChevron, ExportButton, PrimaryButton, NAVY,
+  FilterBar, SearchInput, FilterSelect, optionsFrom, Pill, PriorityPill, TitleCell, DetailsChevron, ExportButton, PrimaryButton, SOFT,
 } from './DirectoryKit';
 
 // What the RAID tabs share. The filters live on the RAID page, so picking Project A on Risks still shows Project A on
@@ -16,7 +16,7 @@ export const EMPTY_RAID_FILTERS = { portfolios: [], programs: [], projects: [], 
 const STATUS_TONES = {
   open: 'grey', draft: 'grey', closed: 'grey', cancelled: 'grey',
   mitigating: 'blue', in_progress: 'blue',
-  in_review: 'amber', pending: 'amber',
+  in_review: 'yellow', pending: 'yellow',
   resolved: 'green', validated: 'green', approved: 'green',
   blocked: 'orange',
   escalated: 'red', invalidated: 'red',
@@ -128,8 +128,8 @@ export function raidColumns({ noun, idField, getProjectName, showPriority = true
     },
     ...(showPriority ? [{ key: 'priority', label: 'Priority', sortValue: r => PRIORITY_RANK[r.priority || 'medium'], render: r => <PriorityPill priority={r.priority} className={RAID_PILL} /> }] : []),
     { key: 'status', label: 'Status', sortValue: r => raidStatusLabel(r.status), render: r => <RaidStatusPill status={r.status} openTone={noun === 'Dependency' ? 'blue' : 'grey'} /> },
-    ...(person ? [{ key: 'person', label: person, sortValue: r => r.assigned_to, render: r => <span className="text-sm" style={{ color: NAVY }}>{r.assigned_to || '—'}</span> }] : []),
-    { key: 'date', label: dateLabel, sortValue: r => r[dateField], render: r => <span className="text-sm whitespace-nowrap" style={{ color: NAVY }}>{formatDay(r[dateField])}</span> },
+    ...(person ? [{ key: 'person', label: person, sortValue: r => r.assigned_to, render: r => <span className="text-sm" style={{ color: SOFT }}>{r.assigned_to || '—'}</span> }] : []),
+    { key: 'date', label: dateLabel, sortValue: r => r[dateField], render: r => <span className="text-sm whitespace-nowrap" style={{ color: SOFT }}>{formatDay(r[dateField])}</span> },
     { key: 'open', label: 'Details', className: 'w-16', render: () => <DetailsChevron /> },
   ];
 }

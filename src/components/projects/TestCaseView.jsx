@@ -11,7 +11,7 @@ import { exportRecords } from '@/lib/exportUtils';
 import StarButton from '@/components/projects/StarButton';
 import {
   PageHeader, PageBody, PrimaryButton, ExportButton, StatGrid, StatCard, FilterBar, SearchInput, FilterSelect, optionsFrom,
-  DataTable, TitleCell, Pill, PriorityPill, DetailsChevron, NAVY,
+  DataTable, TitleCell, Pill, PriorityPill, DetailsChevron, SOFT,
 } from '@/components/projects/DirectoryKit';
 import { useAccountHierarchy, useAccountRequirements, useAccountSprints, useAccountTestCases } from '@/hooks/useAccountLookups';
 import { mapTestCaseFromApi, mapTestCaseInputToPayload, testCasesApi } from '@/api/projectLogs';
@@ -21,6 +21,8 @@ const PASS_FAIL_LABELS = { not_executed: 'Not Implemented', pass: 'Pass', fail: 
 const RESULT_OPTIONS = Object.entries(PASS_FAIL_LABELS).map(([value, label]) => ({ value, label }));
 const PRIORITY_OPTIONS = ['critical', 'high', 'medium', 'low'].map(v => ({ value: v, label: v.charAt(0).toUpperCase() + v.slice(1) }));
 const PRIORITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
+// Testing draws High in sand rather than orange.
+const TESTING_PRIORITY_TONES = { critical: 'red', high: 'sand', medium: 'grey', low: 'grey' };
 
 const emptyForm = () => ({
   title: '', description: '', priority: 'medium', designed_by: '', executed_by: '',
@@ -127,16 +129,16 @@ export default function TestCaseView() {
       key: 'requirements', label: 'Requirements', sortValue: tc => requirementCodesFor(tc).length, className: 'text-center', headerClassName: 'text-center',
       render: tc => {
         const codes = requirementCodesFor(tc);
-        return <span className="text-sm" style={{ color: NAVY }} title={codes.join(', ')}>{codes.length}</span>;
+        return <span className="text-sm" style={{ color: SOFT }} title={codes.join(', ')}>{codes.length}</span>;
       },
     },
-    { key: 'priority', label: 'Priority', sortValue: tc => PRIORITY_RANK[tc.priority] ?? 9, render: tc => <PriorityPill priority={tc.priority} /> },
+    { key: 'priority', label: 'Priority', sortValue: tc => PRIORITY_RANK[tc.priority] ?? 9, render: tc => <PriorityPill priority={tc.priority} tones={TESTING_PRIORITY_TONES} /> },
     {
       key: 'result', label: 'Result', sortValue: tc => PASS_FAIL_LABELS[tc.pass_fail] || '',
       render: tc => <Pill tone={RESULT_TONES[tc.pass_fail] || 'grey'}>{PASS_FAIL_LABELS[tc.pass_fail] || PASS_FAIL_LABELS.not_executed}</Pill>,
     },
-    { key: 'implementer', label: 'Implemented By', sortValue: tc => tc.executed_by, render: tc => <span className="text-sm" style={{ color: NAVY }}>{tc.executed_by || '—'}</span> },
-    { key: 'date', label: 'Implementation Date', sortValue: tc => tc.execution_date, render: tc => <span className="text-sm" style={{ color: NAVY }}>{tc.execution_date || '—'}</span> },
+    { key: 'implementer', label: 'Implemented By', sortValue: tc => tc.executed_by, render: tc => <span className="text-sm" style={{ color: SOFT }}>{tc.executed_by || '—'}</span> },
+    { key: 'date', label: 'Implementation Date', sortValue: tc => tc.execution_date, render: tc => <span className="text-sm" style={{ color: SOFT }}>{tc.execution_date || '—'}</span> },
     { key: 'open', label: 'Details', className: 'w-16', render: () => <DetailsChevron /> },
   ];
 

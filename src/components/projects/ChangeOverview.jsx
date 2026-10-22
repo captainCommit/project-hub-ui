@@ -5,16 +5,17 @@ import { StatCard, NAVY, MUTED } from '@/components/projects/DirectoryKit';
 import { inRaidScope, raidStatusLabel } from '@/components/projects/RaidTable';
 
 // Colours are hex values: index.css remaps Tailwind's green/blue/amber classes to the brand navy/orange.
+// Sampled from the Governance mockup.
 const STATUS_COLORS = {
-  draft: '#A8B0BD',
+  draft: '#A0A8B4',
   open: '#38BDF8',
-  pending: '#E0A526',
-  in_review: '#E0A526',
-  approved: '#1E8E3E',
-  implemented: '#2F7BF6',
-  cancelled: '#D93025',
+  pending: '#D89420',
+  in_review: '#D89420',
+  approved: '#1C8448',
+  implemented: '#2874F4',
+  cancelled: '#C81014',
   rejected: '#B91C1C',
-  deferred: '#6B7A90',
+  deferred: '#748498',
   superseded: '#475569',
 };
 
@@ -139,7 +140,7 @@ export default function ChangeOverview({ decisions = [], changeRequests = [], pr
           ) : (
             <>
               {inReview > 0 && (
-                <AttentionRow icon={Clock} iconColor="#E0A526"
+                <AttentionRow icon={Clock} iconColor="#D68211"
                   title={`${plural(inReview, 'item', 'items')} in review`}
                   sub={`${plural(decisionsInReview, 'decision', 'decisions')} and ${plural(changesInReview, 'change request', 'change requests')} awaiting an outcome`}
                   onClick={() => onOpenTab(decisionsInReview > 0 ? 'decisions' : 'changes')} />

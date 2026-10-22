@@ -6,7 +6,7 @@ import { RAG } from './HealthIndicator';
 import {
   PageHeader, PageBody, PrimaryButton, ExportButton, StatGrid, StatCard, FilterBar, SearchInput, FilterSelect, optionsFrom,
   DataTable, TitleCell, HealthPill, WorkStatusPill, CompletionBar, CountCell, DetailsChevron,
-  WORK_STATUS_OPTIONS, workStatusInfo, isCompleteStatus, isOpenRaid, isHighOrCritical, riskIssueLine, NAVY,
+  WORK_STATUS_OPTIONS, workStatusInfo, isCompleteStatus, isOpenRaid, isHighOrCritical, riskIssueLine, NAVY, SOFT,
 } from './DirectoryKit';
 
 function getRag(critHighRisks, critHighIssues, pct) {
@@ -75,11 +75,11 @@ export default function PortfolioLanding({ portfolios = [], programs = [], proje
     { key: 'health', label: 'Health', info: HEALTH_INFO, render: r => <HealthPill rag={r.rag} /> },
     { key: 'status', label: 'Status', sortValue: r => workStatusInfo(r.port.status).label, render: r => <WorkStatusPill status={r.port.status} /> },
     { key: 'completion', label: 'Completion', sortValue: r => r.pct, render: r => <CompletionBar pct={r.pct} /> },
-    { key: 'programs', label: 'Programs', sortValue: r => r.programCount, className: 'text-center', headerClassName: 'text-center', render: r => <span style={{ color: NAVY }}>{r.programCount}</span> },
-    { key: 'projects', label: 'Projects', sortValue: r => r.projectCount, className: 'text-center', headerClassName: 'text-center', render: r => <span style={{ color: NAVY }}>{r.projectCount}</span> },
+    { key: 'programs', label: 'Programs', sortValue: r => r.programCount, className: 'text-center', headerClassName: 'text-center', render: r => <span style={{ color: SOFT }}>{r.programCount}</span> },
+    { key: 'projects', label: 'Projects', sortValue: r => r.projectCount, className: 'text-center', headerClassName: 'text-center', render: r => <span style={{ color: SOFT }}>{r.projectCount}</span> },
     { key: 'risks', label: 'Open Risks', sortValue: r => r.openRisks, className: 'text-center', headerClassName: 'text-center', render: r => <CountCell value={r.openRisks} /> },
     { key: 'issues', label: 'Open Issues', sortValue: r => r.openIssues, className: 'text-center', headerClassName: 'text-center', render: r => <CountCell value={r.openIssues} /> },
-    { key: 'owner', label: 'Portfolio Owner(s)', sortValue: r => r.port.owner, render: r => <span className="text-sm" style={{ color: NAVY }}>{r.port.owner || '—'}</span> },
+    { key: 'owner', label: 'Portfolio Owner(s)', sortValue: r => r.port.owner, render: r => <span className="text-sm" style={{ color: SOFT }}>{r.port.owner || '—'}</span> },
     { key: 'open', label: '', className: 'w-8', render: () => <DetailsChevron /> },
   ];
 

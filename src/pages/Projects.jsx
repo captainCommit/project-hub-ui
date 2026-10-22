@@ -618,7 +618,11 @@ export default function Projects() {
   const loadingProjects = legacyDataEnabled && accountHierarchy.isLoading;
   const loadingPrograms = loadingProjects;
 
-  const portfolios = accountPortfolios;
+  // The portfolio list only carries a status id; the programs-projects tree has the status itself.
+  const portfolios = useMemo(() => {
+    const statusById = new Map(accountProgramsProjects.portfolios.map(p => [p.id, p.status?.value?.toLowerCase() || null]));
+    return accountPortfolios.map(p => (p.status || !statusById.get(p.id) ? p : { ...p, status: statusById.get(p.id) }));
+  }, [accountPortfolios, accountProgramsProjects.portfolios]);
   const loadingPortfolios = loadingAccountPortfolios;
   const useProgramHierarchyData = hasProgramRoute || hasProjectRoute || ['all_portfolios', 'all_programs', 'portfolio', 'program'].includes(viewMode);
   const programs = useProgramHierarchyData ? accountProgramsProjects.programs : legacyPrograms;
@@ -1005,7 +1009,7 @@ export default function Projects() {
     }
     const nextView = requestedView || _defaultLanding;
     if (nextView === 'favorites') {
-      navigate('/Favorites', { replace: true });
+      navigate('/', { replace: true });
       return;
     }
     if (!DIRECTORY_VIEWS.includes(nextView)) return;
@@ -1536,7 +1540,7 @@ export default function Projects() {
       />}
       
       {/* Directory views pad themselves; a project page always needs padding, even when opened from a program. */}
-      <div className={`flex-1 flex flex-col overflow-hidden ${!hasProjectRoute && ['all_portfolios','all_programs','portfolio','program'].includes(viewMode) ? '' : sheetFocusMode ? 'p-3' : 'p-8'}`}>
+      <div className={`flex-1 flex flex-col overflow-hidden ${!hasProjectRoute && ['all_portfolios','all_programs','all_projects','portfolio','program'].includes(viewMode) ? '' : sheetFocusMode ? 'p-3' : 'p-8'}`}>
         {hasProjectRoute ? (
           !hasValidProjectRoute ? (
             <PortfolioState title="Invalid project link" message="This project URL is not a valid Project Hub UUID." />
@@ -1622,7 +1626,10 @@ export default function Projects() {
                     <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-slate-500">
                       {projectDetail.status && <span>Status: <span className="font-medium text-slate-700">{projectDetail.status}</span></span>}
                       {projectDetail.progress !== undefined && projectDetail.progress !== null && <span>Progress: <span className="font-medium text-slate-700">{projectDetail.progress}%</span></span>}
-                      <span>PM: <span className="font-medium text-slate-700">{projectDetail.owner || projectDetail.project_manager || 'Not assigned'}</span></span>
+                      <span>Project Manager: <button type="button" title="Change project manager"
+                        onClick={() => { setEditingProject(projectDetail); setDialogType('project'); setProjectDialogOpen(true); }}
+                        className="font-medium text-slate-700 hover:text-indigo-600 hover:underline"
+                      >{projectDetail.project_manager || projectDetail.owner || 'Not assigned'}</button></span>
                       {projectDetail.open_risks !== undefined && <span>Open risks: <span className="font-medium text-slate-700">{projectDetail.open_risks}</span></span>}
                       {projectDetail.open_issues !== undefined && <span>Open issues: <span className="font-medium text-slate-700">{projectDetail.open_issues}</span></span>}
                     </div>
@@ -1859,6 +1866,8 @@ export default function Projects() {
             programs={programs}
             portfolios={portfolios}
             tasks={accountTasks}
+            risks={risks}
+            issues={issues}
             onSelectProject={(p) => handleSelectItem(p, 'project')}
             onNewProject={() => { setEditingProject({}); setDialogType('project'); setProjectDialogOpen(true); }}
           />

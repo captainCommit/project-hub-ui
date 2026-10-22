@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { templatesApi } from '@/api/collaboration';
 import { useAuth } from '@/lib/AuthContext';
+import { useAccountResources } from '@/hooks/useAccountLookups';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 
 const colorOptions = [
@@ -41,6 +42,7 @@ export default function ProjectDialog({
     queryFn: () => templatesApi.list(selectedAccountId),
     enabled: type === 'project' && !!selectedAccountId,
   });
+  const resources = useAccountResources();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -53,7 +55,8 @@ export default function ProjectDialog({
     portfolio_id: '',
     template_id: '',
     default_view: 'sheet',
-    budget: ''
+    budget: '',
+    person: ''
   });
 
   useEffect(() => {
@@ -69,7 +72,8 @@ export default function ProjectDialog({
         portfolio_id: project.portfolio_id || '',
         template_id: project.template_id || '',
         default_view: 'sheet',
-        budget: project.budget ?? ''
+        budget: project.budget ?? '',
+        person: (type === 'project' ? project.project_manager || project.owner : project.owner) || ''
       });
     } else {
       setFormData({
@@ -83,16 +87,19 @@ export default function ProjectDialog({
         portfolio_id: '',
         template_id: '',
         default_view: 'sheet',
-        budget: ''
+        budget: '',
+        person: ''
       });
     }
-  }, [project]);
+  }, [project, type]);
 
   const handleSave = () => {
     // Send the budget only when it was changed, so saving other fields never clears one the person can't see.
-    const { budget, ...rest } = formData;
+    // The person is a project's manager, or a portfolio's or program's owner.
+    const { budget, person, ...rest } = formData;
     const budgetChanged = String(budget ?? '') !== String(project?.budget ?? '');
-    onSave(type === 'project' && budgetChanged ? { ...rest, budget } : rest);
+    if (type === 'project') onSave({ ...rest, project_manager: person.trim(), ...(budgetChanged ? { budget } : {}) });
+    else onSave({ ...rest, owner: person.trim() });
     onOpenChange(false);
   };
 
@@ -214,6 +221,18 @@ export default function ProjectDialog({
               </Select>
             </div>
           )}
+          <div className="space-y-2">
+            <Label>{type === 'project' ? 'Project Manager' : `${typeLabel} Owner`}</Label>
+            <Input
+              list="work-item-person-options"
+              value={formData.person}
+              onChange={(e) => setFormData({ ...formData, person: e.target.value })}
+              placeholder="Search or type a name"
+            />
+            <datalist id="work-item-person-options">
+              {resources.map(r => <option key={r.id} value={r.full_name} />)}
+            </datalist>
+          </div>
           {type === 'project' && (
             <div className="space-y-2">
               <Label>Budget (optional)</Label>

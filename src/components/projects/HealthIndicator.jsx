@@ -6,10 +6,10 @@ import { cn } from '@/lib/utils';
 // Colours are fixed hex values: index.css remaps Tailwind's green and amber classes to the brand navy/orange,
 // which would make "on track" look navy.
 export const RAG = {
-  red:   { label: 'Off track',   color: '#dc2626', description: 'Open critical/high issue, or more than 3 open critical/high risks' },
-  amber: { label: 'At risk',     color: '#f59e0b', description: '1–3 open critical/high risks' },
-  green: { label: 'On track',    color: '#16a34a', description: 'No open critical/high risks or issues' },
-  grey:  { label: 'Not started', color: '#cbd5e1', description: 'Nothing to measure yet' },
+  red:   { key: 'red',   label: 'Off track',   color: '#dc2626', description: 'Open critical/high issue, or more than 3 open critical/high risks' },
+  amber: { key: 'amber', label: 'At risk',     color: '#f59e0b', description: '1–3 open critical/high risks' },
+  green: { key: 'green', label: 'On track',    color: '#16a34a', description: 'No open critical/high risks or issues' },
+  grey:  { key: 'grey',  label: 'Not started', color: '#cbd5e1', description: 'Nothing to measure yet' },
 };
 
 export function HealthDot({ rag }) {

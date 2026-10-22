@@ -10,6 +10,7 @@ import RiskIssueDetail from '@/components/projects/RiskIssueDetail';
 import SimpleRaidSheet from '@/components/projects/SimpleRaidSheet';
 import { AlertTriangle, AlertCircle, Loader2, BookOpen, Link2, LayoutDashboard } from 'lucide-react';
 import RaidOverview from '@/components/projects/RaidOverview';
+import { EMPTY_RAID_FILTERS } from '@/components/projects/RaidTable';
 import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
 import { useMyAccess } from '@/hooks/useMyAccess';
 
@@ -30,6 +31,10 @@ export default function RiskLog() {
   });
   // Tabs for modules this person can't see in any project are left out.
   const { canViewAnywhere } = useMyAccess();
+  // One set of filters for every tab, so choosing a project on one tab carries over to the others.
+  const [raidFilters, setRaidFilters] = useState(EMPTY_RAID_FILTERS);
+  // Each tab puts its Export and New buttons on the tab row, in this element.
+  const [actionsSlot, setActionsSlot] = useState(/** @type {HTMLDivElement | null} */ (null));
   const queryClient = useQueryClient();
   const { selectedAccountId } = useAuth();
 
@@ -143,6 +148,8 @@ export default function RiskLog() {
     setActiveTab(tab);
     setSelectedItem(null);
     setDetailOpen(false);
+    // Statuses differ between the logs; the rest of the filters carry over.
+    setRaidFilters(f => ({ ...f, status: '' }));
   };
 
   const riskDetailItem = activeTab === 'risks' ? (selectedRiskDetail || selectedItem) : selectedItem;
@@ -197,19 +204,23 @@ export default function RiskLog() {
         onNewPortfolio={() => {}} onRenameItem={() => {}} onShowVacationCalendar={() => {}}
       />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center">
-          <h1 className="text-lg font-semibold text-slate-800">RAID</h1>
-        </div>
-        {/* Tabs */}
-        <div className="flex items-center gap-1 border-b-2 border-slate-200 bg-white px-0">
-          <button onClick={() => switchTab('overview')} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', activeTab === 'overview' ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
-            <LayoutDashboard className="w-4 h-4" /> Overview
-          </button>
-          {RAID_TABS.filter((t) => canViewAnywhere(t.module)).map(({ key, label, icon: Icon }) => (
-            <button key={key} onClick={() => switchTab(key)} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', activeTab === key ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
-              <Icon className="w-4 h-4" /> {label}
-            </button>
-          ))}
+        <div className="bg-white px-6 pt-5">
+          <h1 className="text-2xl font-bold text-[#002046]">RAID</h1>
+          <p className="text-sm text-slate-500 mt-1">Manage risks, assumptions, issues, and dependencies across delivery.</p>
+          {/* Tabs, with the open tab's Export and New buttons on the right */}
+          <div className="flex flex-wrap items-end justify-between gap-2 border-b border-slate-200 mt-3">
+            <div className="flex items-center gap-1">
+              <button onClick={() => switchTab('overview')} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', activeTab === 'overview' ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
+                <LayoutDashboard className="w-4 h-4" /> Overview
+              </button>
+              {RAID_TABS.filter((t) => canViewAnywhere(t.module)).map(({ key, label, icon: Icon }) => (
+                <button key={key} onClick={() => switchTab(key)} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', activeTab === key ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
+                  <Icon className="w-4 h-4" /> {label}
+                </button>
+              ))}
+            </div>
+            <div ref={setActionsSlot} className="flex items-center gap-2 pb-2" />
+          </div>
         </div>
         {renderRiskState() || (activeTab === 'overview' ? (
           risks.length === 0 ? (
@@ -223,6 +234,8 @@ export default function RiskLog() {
               projects={projects}
               programs={programs}
               portfolios={portfolios}
+              filters={raidFilters}
+              onFiltersChange={setRaidFilters}
             />
           )
         ) : isRaidSheet ? (
@@ -230,13 +243,13 @@ export default function RiskLog() {
             items={raidItems}
             projects={projects}
             programs={programs}
-            portfolios={portfolios}
             type={tabType}
+            filters={raidFilters}
+            onFiltersChange={setRaidFilters}
+            actionsSlot={actionsSlot}
             onItemClick={handleItemClick}
             resources={resources}
             onAddItem={(data) => (activeTab === 'risks' ? createRisk : createIssue).mutate(data)}
-            onUpdateItem={(id, data) => (activeTab === 'risks' ? updateRisk : updateIssue).mutate({ id, data })}
-            onDeleteItem={(id) => (activeTab === 'risks' ? deleteRisk : deleteIssue).mutate(id)}
           />
         ) : activeTab === 'assumptions' ? (
           <SimpleRaidSheet
@@ -247,11 +260,15 @@ export default function RiskLog() {
             idStart={1}
             noun="Assumption"
             descriptionLabel="Assumption Description"
-            storageKey="assumption_log_views"
             projects={projects}
             programs={programs}
-            portfolios={portfolios}
             resources={resources}
+            showPriority={false}
+            personLabel="Owner"
+            dateLabel="Review Date"
+            filters={raidFilters}
+            onFiltersChange={setRaidFilters}
+            actionsSlot={actionsSlot}
           />
         ) : (
           <SimpleRaidSheet
@@ -262,11 +279,12 @@ export default function RiskLog() {
             idStart={101}
             noun="Dependency"
             descriptionLabel="Description"
-            storageKey="dependency_log_views"
             projects={projects}
             programs={programs}
-            portfolios={portfolios}
             resources={resources}
+            filters={raidFilters}
+            onFiltersChange={setRaidFilters}
+            actionsSlot={actionsSlot}
             statuses={[
               { value: 'closed', label: 'Closed', className: 'bg-slate-100 text-slate-600' },
               { value: 'open', label: 'Open', className: 'bg-blue-100 text-blue-700' },

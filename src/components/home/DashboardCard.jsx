@@ -8,7 +8,7 @@ export const ORANGE = '#FF6900';
 export const BLUE = '#087BCB';
 export const BORDER = '#E6EDF5';
 
-export default function DashboardCard({ title, subtitle, viewAllTo, heightClass, children }) {
+export default function DashboardCard({ title, subtitle = undefined, viewAllTo = undefined, heightClass, children }) {
   return (
     <section
       className={`bg-white rounded-[10px] border p-4 flex flex-col min-w-0 ${heightClass}`}

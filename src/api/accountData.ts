@@ -35,6 +35,8 @@ export const mapAccountTaskToUi = (task: ApiRecord) => {
     sprint_id: task.sprint_id || null,
     parent_task_id: task.parent_task_id || null,
     status: (statusKey && TASK_STATUS[statusKey]) || statusKey || 'todo',
+    status_id: task.status_id || null,
+    sort_order: task.sort_order == null ? 0 : toNumber(task.sort_order),
     task_type: optionKey(task.task_type),
     priority: optionKey(task.priority),
     start_date: dateOnly(task.start_date),

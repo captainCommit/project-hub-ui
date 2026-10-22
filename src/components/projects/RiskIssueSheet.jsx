@@ -1,41 +1,13 @@
 import React, { useState } from 'react';
-import { format, isPast, parseISO } from 'date-fns';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Download } from "lucide-react";
-import SavedFilterView from './SavedFilterView';
-import MultiSelectFilter from './MultiSelectFilter';
-import { cn } from "@/lib/utils";
 import { exportRecords } from '@/lib/exportUtils';
-
-import { parseDate } from '@/lib/dateUtils';
-const priorityColors = {
-  low: 'bg-blue-100 text-black',
-  medium: 'bg-yellow-100 text-black',
-  high: 'bg-orange-100 text-black',
-  critical: 'bg-red-100 text-black'
-};
-
-const statusColors = {
-  open: 'bg-blue-100 text-blue-700',
-  resolved: 'bg-emerald-100 text-emerald-700',
-  blocked: 'bg-orange-100 text-orange-700',
-  cancelled: 'bg-slate-100 text-slate-500',
-  escalated: 'bg-red-200 text-red-800'
-};
-
-const statusLabels = {
-  open: 'Open',
-  resolved: 'Resolved',
-  blocked: 'Blocked',
-  cancelled: 'Cancelled',
-  escalated: 'Escalated'
-};
+import { DataTable, PageBody } from './DirectoryKit';
+import { RaidActions, RaidToolbar, filterRaidItems, raidColumns } from './RaidTable';
 
 const today = () => new Date().toISOString().split('T')[0];
 
@@ -229,69 +201,22 @@ export default function RiskIssueSheet({
   items,
   projects,
   programs = [],
-  portfolios = [],
   resources = [],
   type = 'risk',
+  filters,
+  onFiltersChange,
+  actionsSlot = null,
   onItemClick,
   onAddItem,
-  onUpdateItem,
-  onDeleteItem,
 }) {
-  const [filterPortfolios, setFilterPortfolios] = useState([]);
-  const [filterPrograms, setFilterPrograms] = useState([]);
-  const [filterProjects, setFilterProjects] = useState([]);
-  const [sortField, setSortField] = useState('');
-  const [sortDir, setSortDir] = useState('asc');
   const [addOpen, setAddOpen] = useState(false);
-
-  const handleSort = (field) => {
-    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    else { setSortField(field); setSortDir('asc'); }
-  };
-
-  const SortTh = ({ field, label, className = '' }) => (
-    <th className={`py-2 px-3 text-xs font-semibold text-slate-700 cursor-pointer select-none hover:bg-slate-200 transition-colors ${className}`}
-      onClick={() => handleSort(field)}>
-      <span className="flex items-center gap-1 justify-inherit">
-        {label}
-        <span className="text-slate-400 text-[10px]">{sortField === field ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
-      </span>
-    </th>
-  );
   const idField = type === 'risk' ? 'risk_id' : 'issue_id';
   const label = type === 'risk' ? 'Risk' : 'Issue';
-  const btnClass = 'h-7 text-xs gap-1 text-white bg-[#c87b14] hover:bg-[#a86610]';
 
-  const portfolioProgramIds = filterPortfolios.length ? programs.filter(p => filterPortfolios.includes(p.portfolio_id)).map(p => p.id) : null;
-  const scopedProgramIds = portfolioProgramIds || programs.map(p => p.id);
-  const programOptions = programs.filter(p => scopedProgramIds.includes(p.id));
-  const activeProgramIds = filterPrograms.length ? filterPrograms.filter(id => scopedProgramIds.includes(id)) : scopedProgramIds;
-  const filteredProjectsForDropdown = projects.filter(p => activeProgramIds.includes(p.program_id));
-
-  const filteredItems = (() => {
-    let result = items.filter(item => {
-      if (filterPortfolios.length && (!item.program_id || !portfolioProgramIds.includes(item.program_id))) return false;
-      if (filterPrograms.length && !filterPrograms.includes(item.program_id)) return false;
-      if (filterProjects.length && !filterProjects.includes(item.project_id)) return false;
-      return true;
-    });
-    if (sortField) {
-      result = [...result].sort((a, b) => {
-        let av = a[sortField] || ''; let bv = b[sortField] || '';
-        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-        return sortDir === 'asc' ? cmp : -cmp;
-      });
-    }
-    return result;
-  })();
+  const filteredItems = filterRaidItems(items, filters, programs, idField);
 
   const getProjectName = (id) => projects.find(p => p.id === id)?.name || '—';
   const getProgramName = (id) => programs.find(p => p.id === id)?.name || '—';
-
-  const isDatePast = (dateStr) => {
-    if (!dateStr) return false;
-    try { return isPast(parseISO(dateStr)); } catch (e) { return false; }
-  };
 
   const exportColumns = [
     { label: `${label} ID`, value: (i) => i[idField] },
@@ -310,99 +235,24 @@ export default function RiskIssueSheet({
   const handleExportAll = () => exportRecords(filteredItems, exportColumns, `${type}_log_export_${new Date().toISOString().slice(0, 10)}.csv`);
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-white border border-slate-200 rounded-lg" style={{ fontFamily: 'Segoe UI, sans-serif' }}>
-      {/* Filter + Add Bar */}
-      <div className="px-3 py-2 bg-slate-50 border-b flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">Portfolio:</span>
-          <MultiSelectFilter
-            options={portfolios.map(p => ({ value: p.id, label: p.name }))}
-            selected={filterPortfolios}
-            onChange={(v) => { setFilterPortfolios(v); setFilterPrograms([]); setFilterProjects([]); }}
-            allLabel="All Portfolios"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">Program:</span>
-          <MultiSelectFilter
-            options={programOptions.map(p => ({ value: p.id, label: p.name }))}
-            selected={filterPrograms}
-            onChange={(v) => { setFilterPrograms(v); setFilterProjects([]); }}
-            allLabel="All Programs"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">Project:</span>
-          <MultiSelectFilter
-            options={filteredProjectsForDropdown.map(p => ({ value: p.id, label: p.name }))}
-            selected={filterProjects}
-            onChange={setFilterProjects}
-            allLabel="All Projects"
-          />
-        </div>
-        <SavedFilterView
-          storageKey={`${type}_log_views`}
-          currentFilters={{ portfolios: filterPortfolios, programs: filterPrograms, projects: filterProjects }}
-          onLoadFilters={f => { setFilterPortfolios(f.portfolios || []); setFilterPrograms(f.programs || []); setFilterProjects(f.projects || []); }}
-        />
-        <div className="flex-1" />
-        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={handleExportAll}>
-          <Download className="w-3.5 h-3.5" /> Export
-        </Button>
-        <Button size="sm" className={btnClass} onClick={() => setAddOpen(true)}>
-          <Plus className="w-3.5 h-3.5" /> New {label}
-        </Button>
-      </div>
-
-      <ScrollArea className="flex-1">
-        <table className="w-full border-collapse" style={{ minWidth: '1100px' }}>
-          <thead className="sticky top-0 z-10">
-            <tr className="bg-gradient-to-b from-slate-100 to-slate-200 border-b-2 border-slate-300">
-              <SortTh field={idField} label={`${label} ID`} className="text-center w-24" />
-              <SortTh field="status" label="Status" className="text-center w-24" />
-              <th className="py-2 px-3 text-xs font-semibold text-slate-700 text-left w-28">Program</th>
-              <th className="py-2 px-3 text-xs font-semibold text-slate-700 text-left w-32">Project</th>
-              <SortTh field="priority" label="Priority" className="text-center w-24" />
-              <th className="py-2 px-3 text-xs font-semibold text-slate-700 text-left min-w-[240px]">Title</th>
-              <SortTh field="assigned_to" label="Assigned To" className="text-left w-28" />
-              <SortTh field="target_date" label="Target Date" className="text-center w-28" />
-            </tr>
-          </thead>
-          <tbody>
-            {filteredItems.length === 0 && (
-              <tr>
-                <td colSpan={8} className="py-12 text-center text-slate-400 text-sm">
-                  No {label.toLowerCase()}s found. Click "New {label}" to create one.
-                </td>
-              </tr>
-            )}
-            {filteredItems.map(item => (
-              <tr key={item.id} className="border-b border-slate-200 hover:bg-blue-50/50 cursor-pointer" onClick={() => onItemClick(item)}>
-                <td className="py-2 px-3 text-sm text-center font-mono text-slate-600">{item[idField]}</td>
-                <td className="py-2 px-3 text-center">
-                  <span className={cn("px-2 py-0.5 rounded text-xs font-medium", statusColors[item.status] || statusColors.open)}>
-                    {statusLabels[item.status] || item.status || 'Open'}
-                  </span>
-                </td>
-                <td className="py-2 px-3 text-xs text-slate-500">{getProgramName(item.program_id)}</td>
-                <td className="py-2 px-3 text-sm">{getProjectName(item.project_id)}</td>
-                <td className="py-2 px-3 text-center">
-                  <span className={cn("px-2 py-0.5 rounded text-xs font-medium", priorityColors[item.priority] || priorityColors.medium)}>
-                    {item.priority || 'medium'}
-                  </span>
-                </td>
-                <td className="py-2 px-3 text-sm font-medium">{item.title}</td>
-                <td className="py-2 px-3 text-sm">{item.assigned_to || '—'}</td>
-                <td className={cn("py-2 px-3 text-xs text-center",
-                  item.target_date && isDatePast(item.target_date) && item.status !== 'closed' && item.status !== 'resolved' && item.status !== 'cancelled' ? "text-red-600 font-medium" : "text-slate-500"
-                )}>
-                  {item.target_date ? format(parseDate(item.target_date), 'MMM d, yyyy') : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </ScrollArea>
+    <PageBody>
+      <RaidActions slot={actionsSlot} noun={label} onExport={handleExportAll} exportDisabled={filteredItems.length === 0} onNew={() => setAddOpen(true)} />
+      <RaidToolbar
+        filters={filters}
+        onFiltersChange={onFiltersChange}
+        items={items}
+        projects={projects}
+        programs={programs}
+        searchPlaceholder={`Search ${label.toLowerCase()}s...`}
+      />
+      <DataTable
+        columns={raidColumns({ noun: label, idField, getProjectName })}
+        rows={filteredItems}
+        onRowClick={onItemClick}
+        noun={`${label.toLowerCase()}s`}
+        minWidth={760}
+        empty={items.length ? `No ${label.toLowerCase()}s match your filters.` : `No ${label.toLowerCase()}s yet. Click "New ${label}" to create one.`}
+      />
 
       <AddDialog
         open={addOpen}
@@ -414,6 +264,6 @@ export default function RiskIssueSheet({
         existingCount={items.length}
         onAdd={onAddItem}
       />
-    </div>
+    </PageBody>
   );
 }

@@ -7,6 +7,7 @@ import { Zap, ChevronRight, ChevronDown, AlertCircle, Loader2 } from 'lucide-rea
 import { differenceInDays } from 'date-fns';
 import { formatDate, parseDate } from '@/lib/dateUtils';
 import { Button } from '@/components/ui/button';
+import { FilterSelect, NAVY } from '@/components/projects/DirectoryKit';
 
 const STATUS_CONFIG = {
   active:    { label: 'Active',    color: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
@@ -135,48 +136,36 @@ export default function DeliverySummary({ portfolios = [], onNavigateToSprints, 
     .filter(() => !filterProgramId);
 
   return (
-    <div className="flex-1 overflow-auto bg-slate-50">
-      {/* Header */}
-      <div style={{ background: '#002046' }} className="px-6 py-4 text-white">
-        <div className="flex gap-6">
+    <div className="flex-1 overflow-auto" style={{ backgroundColor: '#F7F9FC' }}>
+      <div className="px-6 pt-5 space-y-4">
+        {/* Totals */}
+        <div className="rounded-xl px-6 py-5 grid grid-cols-2 md:grid-cols-4 gap-y-4" style={{ backgroundColor: NAVY }}>
           {[
             { label: 'Total Sprints',  value: totalSprints },
             { label: 'Active Sprints', value: activeSprints },
             { label: 'Stories',        value: totalStories },
             { label: 'Done',           value: doneStories },
-          ].map(({ label, value }, i, arr) => (
-            <React.Fragment key={label}>
-              <div>
-                <p className="text-xl font-bold text-white">{value}</p>
-                <p className="text-xs text-white/50 mt-0.5">{label}</p>
-              </div>
-              {i < arr.length - 1 && <div className="w-px bg-white/10 self-stretch" />}
-            </React.Fragment>
+          ].map(({ label, value }, i) => (
+            <div key={label} className={cn('px-4', i > 0 && 'md:border-l md:border-white/15')}>
+              <p className="text-2xl font-bold text-white">{value ?? 0}</p>
+              <p className="text-sm text-white/70 mt-0.5">{label}</p>
+            </div>
           ))}
         </div>
-      </div>
-      <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex items-center gap-3">
-        <select value={filterPortfolioId} onChange={e => { setFilterPortfolioId(e.target.value); setFilterProgramId(''); setFilterProjectId(''); }}
-          className="h-8 text-sm border border-slate-200 rounded-md px-2 text-slate-700 bg-white">
-          <option value="">All Portfolios</option>
-          {portfolios.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <select value={filterProgramId} onChange={e => { setFilterProgramId(e.target.value); setFilterProjectId(''); }}
-          className="h-8 text-sm border border-slate-200 rounded-md px-2 text-slate-700 bg-white">
-          <option value="">All Programs</option>
-          {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <select value={filterProjectId} onChange={e => setFilterProjectId(e.target.value)}
-          className="h-8 text-sm border border-slate-200 rounded-md px-2 text-slate-700 bg-white">
-          <option value="">All Projects</option>
-          {projectsForFilter.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        {(filterPortfolioId || filterProgramId || filterProjectId) && (
-          <button onClick={() => { setFilterPortfolioId(''); setFilterProgramId(''); setFilterProjectId(''); }} className="text-xs text-slate-400 hover:text-slate-600">Clear</button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <FilterSelect value={filterPortfolioId} onChange={v => { setFilterPortfolioId(v); setFilterProgramId(''); setFilterProjectId(''); }}
+            allLabel="All Portfolios" options={portfolios.map(p => ({ value: p.id, label: p.name }))} />
+          <FilterSelect value={filterProgramId} onChange={v => { setFilterProgramId(v); setFilterProjectId(''); }}
+            allLabel="All Programs" options={programs.map(p => ({ value: p.id, label: p.name }))} />
+          <FilterSelect value={filterProjectId} onChange={setFilterProjectId}
+            allLabel="All Projects" options={projectsForFilter.map(p => ({ value: p.id, label: p.name }))} />
+          {(filterPortfolioId || filterProgramId || filterProjectId) && (
+            <button onClick={() => { setFilterPortfolioId(''); setFilterProgramId(''); setFilterProjectId(''); }} className="text-xs text-slate-400 hover:text-slate-600">Clear</button>
+          )}
+        </div>
       </div>
 
-      <div className="p-5 space-y-4">
+      <div className="px-6 py-4 space-y-3">
         {!selectedAccountId && (
           <div className="text-center py-20 text-slate-400">
             <Zap className="w-12 h-12 mx-auto mb-3 opacity-30" />
@@ -214,12 +203,12 @@ export default function DeliverySummary({ portfolios = [], onNavigateToSprints, 
           const isOpen = expandedPrograms[program.id] === true;
           return (
             <div key={program.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-100"
+              <button className={cn('w-full flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 transition-colors', isOpen && 'border-b border-slate-100')}
                 onClick={() => toggleProgram(program.id)}>
                 {isOpen ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
-                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: program.color || '#8b5cf6' }} />
-                <span className="font-semibold text-slate-800 text-sm flex-1 text-left">{program.name}</span>
-                <span className="text-xs text-slate-400">{program.projects.length} project{program.projects.length !== 1 ? 's' : ''}</span>
+                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: program.color || '#64748B' }} />
+                <span className="font-semibold text-sm flex-1 text-left" style={{ color: NAVY }}>{program.name}</span>
+                <span className="text-sm text-slate-500">{program.projects.length} project{program.projects.length !== 1 ? 's' : ''}</span>
               </button>
               {isOpen && (
                 <div className="divide-y divide-slate-50">

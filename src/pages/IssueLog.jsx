@@ -5,12 +5,14 @@ import { raidApi, mapIssueFromApi, mapIssueInputToPayload, mapIssueListFromApi }
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import RiskIssueSheet from '@/components/projects/RiskIssueSheet';
 import RiskIssueDetail from '@/components/projects/RiskIssueDetail';
+import { EMPTY_RAID_FILTERS } from '@/components/projects/RaidTable';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
 
 export default function IssueLog() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [filters, setFilters] = useState(EMPTY_RAID_FILTERS);
   const queryClient = useQueryClient();
   const { selectedAccountId } = useAuth();
 
@@ -132,13 +134,12 @@ export default function IssueLog() {
             items={issues}
             projects={projects}
             programs={programs}
-            portfolios={portfolios}
             type="issue"
+            filters={filters}
+            onFiltersChange={setFilters}
             onItemClick={handleItemClick}
             resources={resources}
             onAddItem={(data) => createIssue.mutate(data)}
-            onUpdateItem={(id, data) => updateIssue.mutate({ id, data })}
-            onDeleteItem={(id) => deleteIssue.mutate(id)}
           />
         )}
       </div>

@@ -10,6 +10,7 @@ export interface UiPortfolio {
   name: string;
   description: string;
   color: string | null;
+  owner: string | null;
   status: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -25,6 +26,7 @@ export interface UiProject extends UiPortfolio {
   program_id: string;
   delivery_type: string | null;
   budget: number | null;
+  project_manager: string | null;
 }
 
 export interface UiHierarchy {
@@ -55,6 +57,7 @@ const mapNode = (node: ApiRecord): UiPortfolio => ({
   name: text(node.name),
   description: text(node.description),
   color: nullable(node.color),
+  owner: nullable(node.owner),
   status: optionKey(node.status),
   start_date: nullable(node.start_date),
   end_date: nullable(node.target_end_date),
@@ -78,6 +81,8 @@ export const mapHierarchyToUi = (payload: unknown): UiHierarchy => {
           program_id: String(project.program_id ?? program.id),
           delivery_type: nullable(project.delivery_type),
           budget: numberOrNull(project.budget),
+          project_manager: nullable(project.project_manager),
+          owner: nullable(project.project_manager),
         });
       });
     });

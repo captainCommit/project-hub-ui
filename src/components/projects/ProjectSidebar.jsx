@@ -1,34 +1,23 @@
-import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { cn } from "@/lib/utils";
 import BrandLogo from '@/components/BrandLogo';
 import { useAuth } from '@/lib/AuthContext';
-import { accountsApi } from '@/api/accounts';
-import { useQuery } from '@tanstack/react-query';
 import {
   FolderTree, Building2, ChevronRight, ChevronDown,
   FileText, Shield, Users, Package, AlertTriangle,
   ClipboardList, ClipboardCheck, RefreshCw, Scale,
-  Folder, Sparkles, PanelLeftClose, PanelLeftOpen, CircleHelp, LogOut, Clock, Home as HomeIcon
+  Folder, Sparkles, PanelLeftClose, PanelLeftOpen, CircleHelp, LogOut, Home as HomeIcon
 } from "lucide-react";
 import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { useFavorites } from '@/lib/favorites';
-import { useRecentProjects } from '@/lib/userPrefs';
 
 const TEXT = '#002046';
 const MUTED = '#64748B';
-const EMPTY_SIDEBAR_HIERARCHY = { portfolios: [], programs: [], projects: [] };
-
-/** @typedef {import('@/api/accounts').ProjectHubSidebarHierarchy} ProjectHubSidebarHierarchy */
-/** @typedef {import('@/api/accounts').ProjectHubSidebarPortfolio} ProjectHubSidebarPortfolio */
-/** @typedef {import('@/api/accounts').ProjectHubSidebarProgram} ProjectHubSidebarProgram */
-/** @typedef {import('@/api/accounts').ProjectHubSidebarProject} ProjectHubSidebarProject */
 
 const DEFAULT_EXPANDED_FOLDERS = ['raid', 'resource_mgmt', 'delivery', 'sprint_mgmt'];
 const SCROLL_KEY = 'sidebar_scroll_top';
 // Portfolios and programs start collapsed; whatever the person opens is remembered across pages.
 const EXPANDED_KEY = 'sidebar_expanded_folders';
-const RECENT_LIMIT = 5;
 
 const readSavedExpandedFolders = () => {
   try {
@@ -64,19 +53,9 @@ export default function ProjectSidebar(/** @type {any} */ {
     try { return localStorage.getItem('sidebar_collapsed') === 'true'; } catch { return false; }
   });
   const scrollRef = useRef(/** @type {HTMLDivElement | null} */ (null));
-  const { user, selectedAccount, selectedAccountId, logout } = useAuth();
+  const { user, selectedAccount, logout } = useAuth();
   const location = useLocation();
   const pathname = location.pathname.toLowerCase();
-
-  const {
-    data: sidebarHierarchy = EMPTY_SIDEBAR_HIERARCHY,
-    isLoading: sidebarLoading,
-    isError: sidebarHasError,
-  } = useQuery({
-    queryKey: ['account-sidebar', selectedAccountId],
-    queryFn: () => accountsApi.getSidebar(selectedAccountId),
-    enabled: !!selectedAccountId,
-  });
 
   useEffect(() => {
     try { localStorage.setItem(EXPANDED_KEY, JSON.stringify(expandedFolders)); } catch {}
@@ -90,21 +69,15 @@ export default function ProjectSidebar(/** @type {any} */ {
     });
   };
 
-  const { favorites } = useFavorites();
-  const recentProjects = useRecentProjects();
-
-  // Keep the sidebar's scroll position across page changes. The saved position is only restored once the
-  // hierarchy has loaded (and the active item's folders opened); until then the list is shorter, the browser would clamp the position,
-  // and saving that clamped value would lose the real one.
+  // Keep the sidebar's scroll position across page changes.
   const pendingScrollTop = useRef(/** @type {number | null} */ (readSavedScrollTop()));
-  const hierarchyReady = !sidebarLoading;
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el || pendingScrollTop.current === null) return;
     el.scrollTop = pendingScrollTop.current;
-    if (hierarchyReady || el.scrollTop === pendingScrollTop.current) pendingScrollTop.current = null;
-  }, [hierarchyReady, collapsed]);
+    pendingScrollTop.current = null;
+  }, [collapsed]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -136,11 +109,6 @@ export default function ProjectSidebar(/** @type {any} */ {
   );
   const collapsedClass = (/** @type {boolean} */ active) => cn('p-2 rounded-lg', active ? 'bg-[#E2E8F0] nav-selected text-[#64748B]' : 'hover:bg-slate-100 text-[#64748B]');
 
-  const isProjectRouteActive = (/** @type {string} */ projectId) => {
-    const projectPath = `/projects/${projectId}`.toLowerCase();
-    return ['sheet', 'board', 'gantt', 'audit'].some(view => pathname === `${projectPath}/${view}`);
-  };
-
   const isAnyPortfolioRouteActive = pathname.startsWith('/portfolios/');
   const isAnyProgramRouteActive = pathname.startsWith('/programs/');
   const isAnyProjectRouteActive = pathname.startsWith('/projects/');
@@ -160,34 +128,6 @@ export default function ProjectSidebar(/** @type {any} */ {
       </Link>
     );
   };
-
-  const HierarchyLink = (/** @type {{ href: string, label: string, active: boolean, className?: string, icon?: any }} */ { href, label, active, className = '', icon: Icon = Folder }) => (
-    <Link to={href} className="block min-w-0">
-      <div className={cn('w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors min-w-0 text-[#002046]',
-        active ? activeBar : cn(navEdge, 'hover:bg-slate-100'),
-        className)}>
-        <Icon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: MUTED }} />
-        <span className="truncate">{label}</span>
-      </div>
-    </Link>
-  );
-
-  // Recently opened projects (favorites live on the home page), with names and routes taken from the hierarchy
-  // so renames show up. Once the hierarchy has loaded, projects no longer in it are left out.
-  const hierarchyProjects = useMemo(
-    () => new Map(sidebarHierarchy.projects.map(item => [item.id, item])),
-    [sidebarHierarchy],
-  );
-  const hierarchyLoaded = !sidebarLoading && !sidebarHasError;
-  const recentItems = recentProjects
-    .filter(p => !favorites.some(f => f.type === 'project' && f.id === p.id))
-    .map(p => {
-      const live = hierarchyProjects.get(p.id);
-      if (!live && hierarchyLoaded) return null;
-      return { id: p.id, name: live?.name || p.name, route: live?.route || `/projects/${p.id}/sheet` };
-    })
-    .filter(Boolean)
-    .slice(0, RECENT_LIMIT);
 
   const FolderHeader = (/** @type {{ id: string, icon: any, label: string }} */ { id, icon: Icon, label }) => (
     <div className="flex items-center rounded-lg">
@@ -281,21 +221,6 @@ export default function ProjectSidebar(/** @type {any} */ {
           <Folder className="w-3.5 h-3.5 flex-shrink-0" style={{ color: MUTED }} />
           <span className="flex-1 text-left">Projects</span>
         </Link>
-
-        {/* Recently opened projects */}
-        {recentItems.length > 0 && (
-          <>
-            <div className="border-t border-slate-200 my-3" />
-            <p className="px-2 pb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: MUTED }}>
-              <Clock className="w-3 h-3" /> Recent
-            </p>
-            <div className="mb-2 space-y-0.5">
-              {recentItems.map(item => (
-                <HierarchyLink key={item.id} href={item.route} label={item.name} active={isProjectRouteActive(item.id)} icon={Folder} />
-              ))}
-            </div>
-          </>
-        )}
 
         <div className="border-t border-slate-200 my-3" />
 

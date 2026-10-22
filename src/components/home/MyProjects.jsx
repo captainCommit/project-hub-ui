@@ -1,4 +1,6 @@
 import React from 'react';
+import { useScrollGutter } from '@/hooks/useScrollGutter';
+import { cn } from '@/lib/utils';
 import { Folder, Calendar } from 'lucide-react';
 import { parseISO, isValid, format } from 'date-fns';
 import DashboardCard, { TEXT, MUTED, BORDER, BLUE } from '@/components/home/DashboardCard';
@@ -14,12 +16,13 @@ const STATUS_TONE = {
 const barColorFor = (pct) => (pct <= 30 ? '#FF8A00' : pct <= 60 ? BLUE : '#00B66A');
 
 export default function MyProjects({ projects, onOpen }) {
+  const [scrollRef, scrolls] = useScrollGutter(projects);
   return (
     <DashboardCard title="My Projects" heightClass="lg:h-full min-h-0">
       {projects.length === 0 ? (
         <p className="text-xs py-8 text-center" style={{ color: MUTED }}>No projects assigned to you yet.</p>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto mt-3">
+        <div ref={scrollRef} className={cn('flex-1 min-h-0 overflow-y-auto mt-3', scrolls && 'pr-3')}>
           <table className="w-full table-fixed text-[11px]">
             <thead>
               <tr className="border-b" style={{ borderColor: BORDER }}>

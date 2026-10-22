@@ -1,4 +1,6 @@
 import React from 'react';
+import { useScrollGutter } from '@/hooks/useScrollGutter';
+import { cn } from '@/lib/utils';
 import { Link, useNavigate } from 'react-router-dom';
 import { Star, Building2, FolderTree, Folder, ClipboardList, ClipboardCheck, Package, MoreVertical } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -39,12 +41,12 @@ export default function HomeFavorites({ query = '' }) {
 
   const q = query.trim().toLowerCase();
   const shown = q ? favorites.filter(f => (f.name || '').toLowerCase().includes(q)) : favorites;
+  const [scrollRef, scrolls] = useScrollGutter(shown);
 
   return (
     <DashboardCard
       title="Favorites"
       subtitle="Quick access to your starred projects and work items"
-      viewAllTo="/Favorites"
       heightClass="lg:h-[218px]"
     >
       {shown.length === 0 ? (
@@ -54,7 +56,7 @@ export default function HomeFavorites({ query = '' }) {
             : 'No starred items match your search.'}
         </p>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-x-4 content-start mt-2">
+        <div ref={scrollRef} className={cn('flex-1 min-h-0 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-x-4 content-start mt-2', scrolls && 'pr-3')}>
           {shown.map(fav => {
             const meta = TYPE_META[fav.type];
             const Icon = meta?.icon || Star;

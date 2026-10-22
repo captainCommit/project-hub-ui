@@ -6,28 +6,21 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ClipboardCheck, Plus, X, Download } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Link } from 'react-router-dom';
+import { SquareCheckBig, Plus, X, FileText, CircleCheck, CircleX, CirclePlay } from 'lucide-react';
 import { exportRecords } from '@/lib/exportUtils';
 import StarButton from '@/components/projects/StarButton';
+import {
+  PageHeader, PageBody, PrimaryButton, ExportButton, StatGrid, StatCard, FilterBar, SearchInput, FilterSelect, optionsFrom,
+  DataTable, TitleCell, Pill, PriorityPill, DetailsChevron, NAVY,
+} from '@/components/projects/DirectoryKit';
 import { useAccountHierarchy, useAccountRequirements, useAccountSprints, useAccountTestCases } from '@/hooks/useAccountLookups';
 import { mapTestCaseFromApi, mapTestCaseInputToPayload, testCasesApi } from '@/api/projectLogs';
 
-const PRIORITY_COLORS = {
-  low: 'bg-slate-100 text-black',
-  medium: 'bg-blue-100 text-black',
-  high: 'bg-orange-100 text-black',
-  critical: 'bg-red-100 text-black',
-};
-
-const PASS_FAIL_COLORS = {
-  not_executed: 'bg-slate-100 text-slate-500',
-  pass: 'bg-emerald-100 text-emerald-700',
-  fail: 'bg-red-100 text-red-700',
-};
-
-const PASS_FAIL_LABELS = { not_executed: 'Not Executed', pass: 'Pass', fail: 'Fail' };
+const RESULT_TONES = { pass: 'green', fail: 'red', not_executed: 'grey' };
+const PASS_FAIL_LABELS = { not_executed: 'Not Implemented', pass: 'Pass', fail: 'Fail' };
+const RESULT_OPTIONS = Object.entries(PASS_FAIL_LABELS).map(([value, label]) => ({ value, label }));
+const PRIORITY_OPTIONS = ['critical', 'high', 'medium', 'low'].map(v => ({ value: v, label: v.charAt(0).toUpperCase() + v.slice(1) }));
+const PRIORITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
 
 const emptyForm = () => ({
   title: '', description: '', priority: 'medium', designed_by: '', executed_by: '',
@@ -44,9 +37,9 @@ const EXPORT_COLUMNS = [
   { label: 'Description', key: 'description' },
   { label: 'Priority', key: 'priority' },
   { label: 'Designed By', key: 'designed_by' },
-  { label: 'Executed By', key: 'executed_by' },
-  { label: 'Execution Date', key: 'execution_date' },
-  { label: 'Pass/Fail', key: 'pass_fail' },
+  { label: 'Implemented By', key: 'executed_by' },
+  { label: 'Implementation Date', key: 'execution_date' },
+  { label: 'Result', value: (tc) => PASS_FAIL_LABELS[tc.pass_fail] || PASS_FAIL_LABELS.not_executed },
   { label: 'Dependencies', key: 'dependencies' },
   { label: 'Test Steps', key: 'test_steps' },
   { label: 'Conditions', key: 'conditions' },
@@ -58,9 +51,11 @@ const EXPORT_COLUMNS = [
 
 export default function TestCaseView() {
   const queryClient = useQueryClient();
-  const [filterPortfolioId, setFilterPortfolioId] = useState('all');
-  const [filterProgramId, setFilterProgramId] = useState('all');
-  const [filterProjectId, setFilterProjectId] = useState('all');
+  const [search, setSearch] = useState('');
+  const [filterProjectId, setFilterProjectId] = useState('');
+  const [filterResult, setFilterResult] = useState('');
+  const [filterPriority, setFilterPriority] = useState('');
+  const [filterImplementer, setFilterImplementer] = useState('');
   const [panelOpen, setPanelOpen] = useState(false);
   const [form, setForm] = useState(emptyForm());
 
@@ -87,25 +82,63 @@ export default function TestCaseView() {
   });
 
   const getProjectName = (id) => projects.find(p => p.id === id)?.name || '—';
-  const getProgramName = (id) => programs.find(p => p.id === id)?.name || '—';
-  const getPortfolioName = (id) => portfolios.find(p => p.id === id)?.name || '—';
 
   const reqLinksFor = (tc) => requirements.filter(r => {
     const ids = Array.isArray(r.test_case_id) ? r.test_case_id : (r.test_case_id ? [r.test_case_id] : []);
     return ids.includes(tc.test_case_id || tc.id);
   });
 
-  const programsForFilter = filterPortfolioId === 'all' ? programs : programs.filter(p => p.portfolio_id === filterPortfolioId);
-  const projectsForFilter = filterProgramId === 'all'
-    ? (filterPortfolioId === 'all' ? projects : projects.filter(p => p.portfolio_id === filterPortfolioId || programsForFilter.some(pg => pg.id === p.program_id)))
-    : projects.filter(p => p.program_id === filterProgramId);
+  /** Requirement codes this test case covers: its own link, or requirements that list it. */
+  const requirementCodesFor = (tc) => {
+    if (tc.requirement_id) return [tc.requirement_id];
+    return reqLinksFor(tc).map(r => r.requirement_id || r.id);
+  };
+
+  const resultCounts = { pass: 0, fail: 0, not_executed: 0 };
+  testCases.forEach(tc => { resultCounts[tc.pass_fail in resultCounts ? tc.pass_fail : 'not_executed'] += 1; });
+  const share = (n) => (testCases.length ? Math.round(n / testCases.length * 100) : 0);
 
   const filtered = testCases.filter(tc => {
-    if (filterPortfolioId !== 'all' && tc.portfolio_id !== filterPortfolioId) return false;
-    if (filterProgramId !== 'all' && tc.program_id !== filterProgramId) return false;
-    if (filterProjectId !== 'all' && tc.project_id !== filterProjectId) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!(tc.title || '').toLowerCase().includes(q) && !(tc.test_case_id || '').toLowerCase().includes(q)) return false;
+    }
+    if (filterProjectId && tc.project_id !== filterProjectId) return false;
+    if (filterResult && (tc.pass_fail || 'not_executed') !== filterResult) return false;
+    if (filterPriority && tc.priority !== filterPriority) return false;
+    if (filterImplementer && tc.executed_by !== filterImplementer) return false;
     return true;
   });
+
+  const columns = [
+    {
+      key: 'testcase', label: 'Test Case', sortValue: tc => tc.test_case_id,
+      render: tc => (
+        <TitleCell
+          code={[tc.test_case_id, tc.sprint_id].filter(Boolean).join('  |  ')}
+          title={tc.title}
+          sub={`Project: ${getProjectName(tc.project_id)}`}
+          leading={<StarButton type="testcase" id={tc.id} name={tc.title} />}
+          dense
+        />
+      ),
+    },
+    {
+      key: 'requirements', label: 'Requirements', sortValue: tc => requirementCodesFor(tc).length, className: 'text-center', headerClassName: 'text-center',
+      render: tc => {
+        const codes = requirementCodesFor(tc);
+        return <span className="text-sm" style={{ color: NAVY }} title={codes.join(', ')}>{codes.length}</span>;
+      },
+    },
+    { key: 'priority', label: 'Priority', sortValue: tc => PRIORITY_RANK[tc.priority] ?? 9, render: tc => <PriorityPill priority={tc.priority} /> },
+    {
+      key: 'result', label: 'Result', sortValue: tc => PASS_FAIL_LABELS[tc.pass_fail] || '',
+      render: tc => <Pill tone={RESULT_TONES[tc.pass_fail] || 'grey'}>{PASS_FAIL_LABELS[tc.pass_fail] || PASS_FAIL_LABELS.not_executed}</Pill>,
+    },
+    { key: 'implementer', label: 'Implemented By', sortValue: tc => tc.executed_by, render: tc => <span className="text-sm" style={{ color: NAVY }}>{tc.executed_by || '—'}</span> },
+    { key: 'date', label: 'Implementation Date', sortValue: tc => tc.execution_date, render: tc => <span className="text-sm" style={{ color: NAVY }}>{tc.execution_date || '—'}</span> },
+    { key: 'open', label: 'Details', className: 'w-16', render: () => <DetailsChevron /> },
+  ];
 
   const handleExportAll = () => exportRecords(filtered, EXPORT_COLUMNS, `test_cases_${new Date().toISOString().slice(0, 10)}.csv`);
 
@@ -143,101 +176,46 @@ export default function TestCaseView() {
   }, [testCases]);
 
   return (
-    <div className="flex-1 overflow-auto bg-slate-50">
-      {/* Header */}
-      <div style={{ background: '#002046' }} className="px-6 py-5 text-white">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <ClipboardCheck className="w-5 h-5 text-indigo-400" />
-            <h1 className="text-xl font-bold text-white">Test Cases</h1>
-            <span className="text-xs text-white/50 bg-white/10 px-2 py-0.5 rounded">{filtered.length} test case{filtered.length !== 1 ? 's' : ''}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={handleExportAll} className="h-8 gap-1.5 bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white">
-              <Download className="w-3.5 h-3.5" /> Export
-            </Button>
-            <Button size="sm" onClick={() => { setForm(emptyForm()); setEditingId(null); setPanelOpen(true); }} className="h-8 gap-1.5 bg-[#c87b14] hover:bg-[#c87b14]/90 text-white">
-              <Plus className="w-3.5 h-3.5" /> New Test Case
-            </Button>
-          </div>
-        </div>
-      </div>
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <PageBody>
+        <PageHeader
+          icon={SquareCheckBig}
+          iconBox={false}
+          title="Testing"
+          subtitle="Manage test cases, implementation results, and requirement coverage across projects."
+          actions={(
+            <PrimaryButton icon={Plus} onClick={() => { setForm(emptyForm()); setEditingId(null); setPanelOpen(true); }}>
+              New Test Case
+            </PrimaryButton>
+          )}
+        />
 
-      {/* Filters */}
-      <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex items-center gap-3">
-        <select value={filterPortfolioId} onChange={e => { setFilterPortfolioId(e.target.value); setFilterProgramId('all'); setFilterProjectId('all'); }}
-          className="h-8 text-sm border border-slate-200 rounded-md px-2 text-slate-700 bg-white">
-          <option value="all">All Portfolios</option>
-          {portfolios.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <select value={filterProgramId} onChange={e => { setFilterProgramId(e.target.value); setFilterProjectId('all'); }}
-          className="h-8 text-sm border border-slate-200 rounded-md px-2 text-slate-700 bg-white">
-          <option value="all">All Programs</option>
-          {programsForFilter.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <select value={filterProjectId} onChange={e => setFilterProjectId(e.target.value)}
-          className="h-8 text-sm border border-slate-200 rounded-md px-2 text-slate-700 bg-white">
-          <option value="all">All Projects</option>
-          {projectsForFilter.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-      </div>
+        <StatGrid className="lg:grid-cols-4">
+          <StatCard value={testCases.length} label="Test Cases" sub="Across all projects" icon={FileText} />
+          <StatCard value={resultCounts.pass} label="Passed" sub={`${share(resultCounts.pass)}% success rate`} icon={CircleCheck} />
+          <StatCard value={resultCounts.fail} label="Failed" sub={`${share(resultCounts.fail)}% failure rate`} icon={CircleX} />
+          <StatCard value={resultCounts.not_executed} label="Not Implemented" sub={`${share(resultCounts.not_executed)}% pending implementation`} icon={CirclePlay} />
+        </StatGrid>
 
-      {/* Table */}
-      <div className="p-5">
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <ScrollArea className="max-h-[calc(100vh-220px)]">
-            <table className="w-full text-sm" style={{ minWidth: 1000 }}>
-              <thead className="bg-slate-50 border-b border-slate-100 sticky top-0">
-                <tr>
-                  {['', 'Test Case ID', 'Requirement ID', 'Sprint ID', 'Title', 'Description', 'Priority', 'Designed By', 'Executed By', 'Execution Date', 'Pass/Fail'].map(h => (
-                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {isLoading && <tr><td colSpan={11} className="text-center py-10 text-slate-400 text-xs">Loading...</td></tr>}
-                {!isLoading && filtered.length === 0 && (
-                  <tr><td colSpan={11} className="text-center py-14 text-slate-400 text-sm">No test cases yet. Click "New Test Case" to create one.</td></tr>
-                )}
-                {filtered.map(tc => (
-                  <tr key={tc.id} className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={() => handleRowClick(tc)}>
-                    <td className="px-2 py-2.5"><StarButton type="testcase" id={tc.id} name={tc.title} /></td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-slate-500 whitespace-nowrap">{tc.test_case_id}</td>
-                    <td className="px-4 py-2.5 text-xs whitespace-nowrap">
-                      {(() => {
-                        if (tc.requirement_id) {
-                          const r = requirements.find(x => x.requirement_id === tc.requirement_id || x.id === tc.requirement_id);
-                          return r
-                            ? <Link to={`/Requirements?reqId=${r.id}`} className="text-[#002046] hover:underline">{r.requirement_id || 'REQ'}</Link>
-                            : <span className="text-slate-600">{tc.requirement_id}</span>;
-                        }
-                        const links = reqLinksFor(tc);
-                        return links.length ? links.map(r => (
-                          <Link key={r.id} to={`/Requirements?reqId=${r.id}`} className="text-[#002046] hover:underline mr-1.5 inline-block">{r.requirement_id || 'REQ'}</Link>
-                        )) : '—';
-                      })()}
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-slate-600 whitespace-nowrap">{tc.sprint_id || '—'}</td>
-                    <td className="px-4 py-2.5 font-medium text-slate-800 max-w-[200px] truncate">{tc.title}</td>
-                    <td className="px-4 py-2.5 text-slate-500 max-w-[220px] truncate">{tc.description || '—'}</td>
-                    <td className="px-4 py-2.5">
-                      <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full capitalize', PRIORITY_COLORS[tc.priority] || PRIORITY_COLORS.medium)}>{tc.priority}</span>
-                    </td>
-                    <td className="px-4 py-2.5 text-slate-600 whitespace-nowrap">{tc.designed_by || '—'}</td>
-                    <td className="px-4 py-2.5 text-slate-600 whitespace-nowrap">{tc.executed_by || '—'}</td>
-                    <td className="px-4 py-2.5 text-slate-500 text-xs whitespace-nowrap">{tc.execution_date || '—'}</td>
-                    <td className="px-4 py-2.5">
-                      <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', PASS_FAIL_COLORS[tc.pass_fail] || PASS_FAIL_COLORS.not_executed)}>
-                        {PASS_FAIL_LABELS[tc.pass_fail] || tc.pass_fail}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ScrollArea>
-        </div>
-      </div>
+        <FilterBar right={<ExportButton onClick={handleExportAll} disabled={filtered.length === 0} />}>
+          <SearchInput value={search} onChange={setSearch} placeholder="Search test cases..." />
+          <FilterSelect value={filterProjectId} onChange={setFilterProjectId} allLabel="All Projects" options={projects.map(p => ({ value: p.id, label: p.name }))} />
+          <FilterSelect value={filterResult} onChange={setFilterResult} allLabel="Result" options={RESULT_OPTIONS} />
+          <FilterSelect value={filterPriority} onChange={setFilterPriority} allLabel="Priority" options={PRIORITY_OPTIONS} />
+          <FilterSelect value={filterImplementer} onChange={setFilterImplementer} allLabel="Implemented By" options={optionsFrom(testCases.map(tc => tc.executed_by))} />
+        </FilterBar>
+
+        <DataTable
+          columns={columns}
+          rows={filtered}
+          onRowClick={handleRowClick}
+          noun="test cases"
+          minWidth={980}
+          dense
+          initialSort={{ key: 'testcase', dir: 'asc' }}
+          empty={isLoading ? 'Loading...' : testCases.length ? 'No test cases match your filters.' : 'No test cases yet. Click "New Test Case" to create one.'}
+        />
+      </PageBody>
 
       {/* Add Test Case Panel */}
       {panelOpen && (
@@ -315,7 +293,7 @@ export default function TestCaseView() {
                     <Select value={form.pass_fail} onValueChange={v => setForm(p => ({ ...p, pass_fail: v }))}>
                       <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="not_executed">Not Executed</SelectItem>
+                        <SelectItem value="not_executed">Not Implemented</SelectItem>
                         <SelectItem value="pass">Pass</SelectItem>
                         <SelectItem value="fail">Fail</SelectItem>
                       </SelectContent>
@@ -325,9 +303,9 @@ export default function TestCaseView() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <Field label="Designed By"><Input value={form.designed_by} onChange={e => setForm(p => ({ ...p, designed_by: e.target.value }))} className="h-8 text-sm" /></Field>
-                  <Field label="Executed By"><Input value={form.executed_by} onChange={e => setForm(p => ({ ...p, executed_by: e.target.value }))} className="h-8 text-sm" /></Field>
+                  <Field label="Implemented By"><Input value={form.executed_by} onChange={e => setForm(p => ({ ...p, executed_by: e.target.value }))} className="h-8 text-sm" /></Field>
                 </div>
-                <Field label="Execution Date"><Input type="date" value={form.execution_date} onChange={e => setForm(p => ({ ...p, execution_date: e.target.value }))} className="h-8 text-sm" /></Field>
+                <Field label="Implementation Date"><Input type="date" value={form.execution_date} onChange={e => setForm(p => ({ ...p, execution_date: e.target.value }))} className="h-8 text-sm" /></Field>
                 <Field label="Dependencies"><Textarea value={form.dependencies} onChange={e => setForm(p => ({ ...p, dependencies: e.target.value }))} rows={2} className="text-sm" /></Field>
                 <Field label="Test Steps"><Textarea value={form.test_steps} onChange={e => setForm(p => ({ ...p, test_steps: e.target.value }))} rows={3} className="text-sm" /></Field>
                 <Field label="Conditions"><Textarea value={form.conditions} onChange={e => setForm(p => ({ ...p, conditions: e.target.value }))} rows={2} className="text-sm" /></Field>

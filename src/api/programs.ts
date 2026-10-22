@@ -9,6 +9,7 @@ export interface ProjectHubProgram {
   status: string | null;
   status_id: string | null;
   color: string | null;
+  owner: string | null;
   start_date: string | null;
   end_date: string | null;
   target_end_date: string | null;
@@ -60,6 +61,7 @@ export interface ProjectHubProgramsProjectsHierarchy {
     id: string;
     name: string;
     status: ProjectHubStatus | null;
+    owner: string | null;
     programs: ProjectHubProgram[];
   }>;
   programs: ProjectHubProgram[];
@@ -127,6 +129,7 @@ export const mapProgramResponse = (payload: unknown): ProjectHubProgram => {
     status: status?.value.toLowerCase() ?? statusValue(payload),
     status_id: nullableString(payload.status_id ?? status?.id),
     color: nullableString(payload.color),
+    owner: nullableString(payload.owner),
     start_date: nullableString(payload.start_date),
     end_date: targetEndDate,
     target_end_date: targetEndDate,
@@ -218,6 +221,7 @@ export const mapProgramsProjectsHierarchyResponse = (payload: unknown): ProjectH
       id: portfolioId,
       name: String(portfolioPayload.name),
       status: mapStatus(portfolioPayload.status),
+      owner: nullableString(portfolioPayload.owner),
       programs,
     };
   });
@@ -268,6 +272,8 @@ export const mapProgramCreatePayload = (formValues: Record<string, unknown>) => 
     ? { target_end_date: optionalDate(formValues.end_date ?? formValues.target_end_date) }
     : {}),
   ...(optionalString(formValues.status_id) ? { status_id: optionalString(formValues.status_id) } : {}),
+  // Sent as null to clear it.
+  ...(formValues.owner !== undefined ? { owner: nullableString(formValues.owner) } : {}),
 });
 
 export const mapProgramUpdatePayload = (formValues: Record<string, unknown>) => mapProgramCreatePayload(formValues);
@@ -284,6 +290,7 @@ export const mapProgramProjectCreatePayload = (formValues: Record<string, unknow
   ...(optionalString(formValues.portfolio_id) ? { portfolio_id: optionalString(formValues.portfolio_id) } : {}),
   ...(optionalString(formValues.delivery_type) ? { delivery_type: optionalString(formValues.delivery_type) } : {}),
   ...(formValues.budget !== undefined && formValues.budget !== '' && formValues.budget !== null ? { budget: Number(formValues.budget) } : {}),
+  ...(optionalString(formValues.project_manager) ? { project_manager: optionalString(formValues.project_manager) } : {}),
 });
 
 export const programsApi = {

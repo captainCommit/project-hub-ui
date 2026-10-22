@@ -33,7 +33,6 @@ const Testing = lazy(() => import('./pages/Testing'));
 const Requirements = lazy(() => import('./pages/Requirements'));
 const ResourceManagementHub = lazy(() => import('./pages/ResourceManagementHub'));
 const Account = lazy(() => import('./pages/Account'));
-const Favorites = lazy(() => import('./pages/Favorites'));
 const MyWork = lazy(() => import('./pages/MyWork'));
 const PlatformAdmin = lazy(() => import('./pages/PlatformAdmin'));
 
@@ -166,7 +165,8 @@ const AuthenticatedApp = () => {
       <Route path="/SprintManagement" element={<LayoutWrapper currentPageName="SprintManagement"><SprintManagement /></LayoutWrapper>} />
       <Route path="/Testing" element={<LayoutWrapper currentPageName="Testing"><Testing /></LayoutWrapper>} />
       <Route path="/Requirements" element={<LayoutWrapper currentPageName="Requirements"><Requirements /></LayoutWrapper>} />
-      <Route path="/Favorites" element={<LayoutWrapper currentPageName="Favorites"><Favorites /></LayoutWrapper>} />
+      {/* Favorites live on the home page; old links land there. */}
+      <Route path="/Favorites" element={<Navigate to="/" replace />} />
       <Route path="/ResourceManagementHub" element={<LayoutWrapper currentPageName="ResourceManagementHub"><ResourceManagementHub /></LayoutWrapper>} />
       <Route path="/Account" element={<LayoutWrapper currentPageName="Account"><Account /></LayoutWrapper>} />
       <Route path="/admin" element={<Suspense fallback={<PageLoading />}><PlatformAdmin /></Suspense>} />

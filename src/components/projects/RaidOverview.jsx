@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { cn } from '@/lib/utils';
-import { AlertTriangle, AlertCircle, BookOpen, Link2, X, Layers } from 'lucide-react';
+import { AlertTriangle, AlertCircle, BookOpen, Link2, X, Layers, ListChecks, FolderOpen, CircleCheck } from 'lucide-react';
 import MultiSelectFilter from '@/components/projects/MultiSelectFilter';
+import { StatCard } from '@/components/projects/DirectoryKit';
+import { inRaidScope } from '@/components/projects/RaidTable';
 
 const CLOSED = new Set(['closed', 'resolved', 'cancelled', 'invalidated', 'implemented_closed', 'no_longer_required', 'declined', 'rejected']);
 
@@ -21,10 +23,10 @@ const PRIORITIES = [
 ];
 const pCount = (arr, k) => arr.filter(r => (r.priority || 'medium') === k).length;
 
-export default function RaidOverview({ risks = [], issues = [], assumptions = [], dependencies = [], projects = [], programs = [], portfolios = [] }) {
-  const [filterPortfolios, setFilterPortfolios] = useState([]);
-  const [filterPrograms, setFilterPrograms] = useState([]);
-  const [filterProjects, setFilterProjects] = useState([]);
+// filters are the RAID page's shared filters; the overview uses their portfolio, program and project parts.
+export default function RaidOverview({ risks = [], issues = [], assumptions = [], dependencies = [], projects = [], programs = [], portfolios = [], filters, onFiltersChange }) {
+  const { portfolios: filterPortfolios, programs: filterPrograms, projects: filterProjects } = filters;
+  const setScope = (patch) => onFiltersChange({ ...filters, ...patch });
 
   const portfolioProgramIds = filterPortfolios.length ? programs.filter(p => filterPortfolios.includes(p.portfolio_id)).map(p => p.id) : null;
   const scopedProgramIds = portfolioProgramIds || programs.map(p => p.id);
@@ -32,12 +34,7 @@ export default function RaidOverview({ risks = [], issues = [], assumptions = []
   const activeProgramIds = filterPrograms.length ? filterPrograms.filter(id => scopedProgramIds.includes(id)) : scopedProgramIds;
   const projectOptions = projects.filter(p => activeProgramIds.includes(p.program_id));
 
-  const inScope = (r) => {
-    if (filterPortfolios.length && (!r.program_id || !portfolioProgramIds.includes(r.program_id))) return false;
-    if (filterPrograms.length && !filterPrograms.includes(r.program_id)) return false;
-    if (filterProjects.length && !filterProjects.includes(r.project_id)) return false;
-    return true;
-  };
+  const inScope = (r) => inRaidScope(r, filters, programs);
 
   const fRisks = risks.filter(inScope);
   const fIssues = issues.filter(inScope);
@@ -55,7 +52,7 @@ export default function RaidOverview({ risks = [], issues = [], assumptions = []
   const openAll = cards.reduce((s, c) => s + c.data.open, 0);
   const closedAll = cards.reduce((s, c) => s + c.data.closed, 0);
   const hasFilters = !!(filterPortfolios.length || filterPrograms.length || filterProjects.length);
-  const clearAll = () => { setFilterPortfolios([]); setFilterPrograms([]); setFilterProjects([]); };
+  const clearAll = () => setScope({ portfolios: [], programs: [], projects: [] });
 
   const nameById = (list, id) => list.find(x => x.id === id)?.name;
   const scopeParts = [];
@@ -70,15 +67,15 @@ export default function RaidOverview({ risks = [], issues = [], assumptions = []
       <div className="bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-4 flex-wrap">
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-500">Portfolio:</span>
-          <MultiSelectFilter options={portfolios.map(p => ({ value: p.id, label: p.name }))} selected={filterPortfolios} onChange={(v) => { setFilterPortfolios(v); setFilterPrograms([]); setFilterProjects([]); }} allLabel="All Portfolios" className="h-8 w-44" />
+          <MultiSelectFilter options={portfolios.map(p => ({ value: p.id, label: p.name }))} selected={filterPortfolios} onChange={(v) => setScope({ portfolios: v, programs: [], projects: [] })} allLabel="All Portfolios" className="h-8 w-44" />
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-500">Program:</span>
-          <MultiSelectFilter options={programOptions.map(p => ({ value: p.id, label: p.name }))} selected={filterPrograms} onChange={(v) => { setFilterPrograms(v); setFilterProjects([]); }} allLabel="All Programs" className="h-8 w-44" />
+          <MultiSelectFilter options={programOptions.map(p => ({ value: p.id, label: p.name }))} selected={filterPrograms} onChange={(v) => setScope({ programs: v, projects: [] })} allLabel="All Programs" className="h-8 w-44" />
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-500">Project:</span>
-          <MultiSelectFilter options={projectOptions.map(p => ({ value: p.id, label: p.name }))} selected={filterProjects} onChange={setFilterProjects} allLabel="All Projects" className="h-8 w-44" />
+          <MultiSelectFilter options={projectOptions.map(p => ({ value: p.id, label: p.name }))} selected={filterProjects} onChange={(v) => setScope({ projects: v })} allLabel="All Projects" className="h-8 w-44" />
         </div>
         {hasFilters && (
           <button onClick={clearAll} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 ml-1">
@@ -97,19 +94,10 @@ export default function RaidOverview({ risks = [], issues = [], assumptions = []
         </div>
 
         {/* Totals strip */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 shadow-sm">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Items</p>
-            <p className="text-2xl font-bold text-slate-800 mt-1">{totalAll}</p>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 shadow-sm">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Open</p>
-            <p className="text-2xl font-bold text-slate-600 mt-1">{openAll}</p>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 shadow-sm">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Closed</p>
-            <p className="text-2xl font-bold text-green-600 mt-1">{closedAll}</p>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <StatCard iconLeft icon={ListChecks} value={totalAll} label="Total RAID Items" sub="Across all portfolios, programs, and projects" />
+          <StatCard iconLeft icon={FolderOpen} value={openAll} label="Open" sub="Items requiring attention" />
+          <StatCard iconLeft icon={CircleCheck} value={closedAll} label="Closed" sub="Resolved items" />
         </div>
 
         {/* KPI cards */}

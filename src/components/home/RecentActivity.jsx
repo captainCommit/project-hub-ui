@@ -1,4 +1,6 @@
 import React from 'react';
+import { useScrollGutter } from '@/hooks/useScrollGutter';
+import { cn } from '@/lib/utils';
 import { Check, MessageSquare, Pencil, Plus, FileText } from 'lucide-react';
 import { parseISO, isValid, formatDistanceToNow } from 'date-fns';
 import DashboardCard, { TEXT, MUTED, BORDER } from '@/components/home/DashboardCard';
@@ -13,12 +15,13 @@ const KIND_META = {
 };
 
 export default function RecentActivity({ items = [], onOpen, viewAllTo }) {
+  const [scrollRef, scrolls] = useScrollGutter(items);
   return (
     <DashboardCard title="Recent Activity" viewAllTo={viewAllTo} heightClass="lg:h-[218px]">
       {items.length === 0 ? (
         <p className="text-xs py-6 text-center" style={{ color: MUTED }}>No recent activity yet.</p>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto -mr-1 pr-1 mt-2">
+        <div ref={scrollRef} className={cn('flex-1 min-h-0 overflow-y-auto mt-2', scrolls && 'pr-3')}>
           {items.map(item => {
             const meta = KIND_META[item.kind] || KIND_META.project;
             const Icon = meta.icon;

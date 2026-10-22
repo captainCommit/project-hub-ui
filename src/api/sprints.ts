@@ -318,5 +318,12 @@ export const sprintsApi = {
     mapSprintBoardTask(normalizeRoot(await apiClient.patch(`/api/v1/tasks/${taskId}/board-position`, mapSprintBoardPositionPayload(data)))),
   update: async (sprintId: string, data: ApiRecord) =>
     mapSprintResponse(await apiClient.patch(`/api/v1/sprints/${sprintId}`, mapSprintPayload(data))),
+  /** Put a task in a sprint, or back in the backlog with sprintId null. Its status is sent unchanged (null would clear it). */
+  moveTaskToSprint: async (taskId: string, { statusId, sortOrder, sprintId }: { statusId: string | null; sortOrder: number; sprintId: string | null }) =>
+    mapSprintBoardTask(normalizeRoot(await apiClient.patch(`/api/v1/tasks/${taskId}/board-position`, {
+      status_id: statusId ?? null,
+      sort_order: sortOrder ?? 0,
+      sprint_id: sprintId ?? null,
+    }))),
   getDeliveryOverview: async (accountId: string, query?: Record<string, unknown>) => mapDeliveryOverview(await apiClient.get(`/api/v1/accounts/${accountId}/delivery/overview`, query)),
 };

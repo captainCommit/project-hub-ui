@@ -13,7 +13,7 @@ import { X, Plus, ChevronDown, ChevronRight, AlertCircle, Loader2, Sun, Moon, Mo
 const DAYS = [{ v: 0, l: 'Sun' }, { v: 1, l: 'Mon' }, { v: 2, l: 'Tue' }, { v: 3, l: 'Wed' }, { v: 4, l: 'Thu' }, { v: 5, l: 'Fri' }, { v: 6, l: 'Sat' }];
 
 const LANDING_OPTIONS = [
-  { value: 'favorites', label: 'Favorites', description: 'Open to your starred items' },
+  { value: 'favorites', label: 'Home', description: 'Open to the home page and your favorites' },
   { value: 'all_portfolios', label: 'All Portfolios', description: 'Show the portfolios overview' },
   { value: 'all_programs', label: 'All Programs', description: 'Show all programs' },
   { value: 'sprints', label: 'Sprints', description: 'Open to the sprint board' },

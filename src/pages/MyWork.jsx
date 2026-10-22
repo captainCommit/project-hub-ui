@@ -239,7 +239,7 @@ export default function MyWork() {
             </section>
 
             <div className="space-y-6">
-              <SidePanel title="Favorites" icon={Star} action={<Link to="/Favorites" className="text-xs text-slate-500 hover:text-[#002046]">View all</Link>}>
+              <SidePanel title="Favorites" icon={Star}>
                 {favoriteItems.length ? favoriteItems.map(renderQuickLink) : <SideEmpty>Star a portfolio, program or project to keep it here.</SideEmpty>}
               </SidePanel>
 

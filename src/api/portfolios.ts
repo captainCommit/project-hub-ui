@@ -8,6 +8,7 @@ export interface ProjectHubPortfolio {
   status: string | null;
   status_id: string | null;
   color: string | null;
+  owner: string | null;
   start_date: string | null;
   end_date: string | null;
   target_end_date: string | null;
@@ -74,6 +75,7 @@ export const mapPortfolioResponse = (payload: unknown): ProjectHubPortfolio => {
     status: statusValue(payload),
     status_id: nullableString(payload.status_id),
     color: nullableString(payload.color),
+    owner: nullableString(payload.owner),
     start_date: nullableString(payload.start_date),
     end_date: targetEndDate,
     target_end_date: targetEndDate,
@@ -155,6 +157,8 @@ export const mapPortfolioCreatePayload = (formValues: Record<string, unknown>) =
     ? { target_end_date: optionalDate(formValues.end_date ?? formValues.target_end_date) }
     : {}),
   ...(optionalString(formValues.status_id) ? { status_id: optionalString(formValues.status_id) } : {}),
+  // Sent as null to clear it.
+  ...(formValues.owner !== undefined ? { owner: nullableString(formValues.owner) } : {}),
 });
 
 export const mapPortfolioUpdatePayload = (formValues: Record<string, unknown>) => mapPortfolioCreatePayload(formValues);

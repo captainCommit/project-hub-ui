@@ -28,7 +28,7 @@ export default function HomeHeader({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white flex-shrink-0" style={{ background: '#002046' }}>
+            <button className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white flex-shrink-0 hover:opacity-90" style={{ background: '#c87b14' }}>
               <Plus className="w-4 h-4" /> Create
             </button>
           </DropdownMenuTrigger>

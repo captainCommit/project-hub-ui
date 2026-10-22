@@ -1,4 +1,6 @@
 import React from 'react';
+import { useScrollGutter } from '@/hooks/useScrollGutter';
+import { cn } from '@/lib/utils';
 import { Calendar } from 'lucide-react';
 import DashboardCard, { TEXT, MUTED, BORDER, BLUE } from '@/components/home/DashboardCard';
 
@@ -16,6 +18,7 @@ const BADGE_TONE = {
 };
 
 export default function MyPriorities({ items, counts, activeTab, onTabChange, onOpen, onComplete }) {
+  const [scrollRef, scrolls] = useScrollGutter(items);
   return (
     <DashboardCard title="My Priorities" heightClass="lg:h-full min-h-0">
       <div className="flex items-center gap-1.5 flex-wrap mt-3 mb-1 flex-shrink-0">
@@ -36,7 +39,7 @@ export default function MyPriorities({ items, counts, activeTab, onTabChange, on
       {items.length === 0 ? (
         <p className="text-xs py-8 text-center" style={{ color: MUTED }}>Nothing here right now.</p>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto -mr-1 pr-1">
+        <div ref={scrollRef} className={cn('flex-1 min-h-0 overflow-y-auto', scrolls && 'pr-3')}>
           {items.map(item => (
             <div
               key={`${item.kind}-${item.id}`}

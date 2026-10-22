@@ -1,175 +1,136 @@
-import React, { useState } from 'react';
-import { cn } from '@/lib/utils';
-import { Folder, ChevronRight, Search, Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import StarButton from '@/components/projects/StarButton';
+import React, { useMemo, useState } from 'react';
+import { Folder, Plus, FileText, AlertTriangle, ShieldAlert, CircleCheck } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
+import { useFavorites } from '@/lib/favorites';
+import { exportRecords } from '@/lib/exportUtils';
+import { RAG } from './HealthIndicator';
+import {
+  PageHeader, PageBody, PrimaryButton, ExportButton, StatGrid, StatCard, FilterBar, SearchInput, FilterSelect, optionsFrom,
+  DataTable, TitleCell, HealthPill, WorkStatusPill, CompletionBar, CountCell, DetailsChevron,
+  WORK_STATUS_OPTIONS, workStatusInfo, isCompleteStatus, isOpenRaid, isHighOrCritical, riskIssueLine, NAVY,
+} from './DirectoryKit';
 
-const STATUS_COLOR = {
-  planning: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Not Started' },
-  active:   { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'In Progress' },
-  on_hold:  { bg: 'bg-amber-100', text: 'text-amber-700', label: 'On Hold' },
-  completed:{ bg: 'bg-slate-100', text: 'text-slate-600', label: 'Completed' },
-};
+const NOT_STARTED = new Set(['planning', 'not_started']);
 
-export default function ProjectsSummary({ projects = [], programs = [], portfolios = [], tasks = [], onSelectProject, onNewProject }) {
+function getRag(critHighRisks, critHighIssues, project, progress) {
+  if (critHighIssues > 0 || critHighRisks > 3) return RAG.red;
+  if (critHighRisks > 0) return RAG.amber;
+  if ((!project.status || NOT_STARTED.has(project.status)) && progress === 0) return RAG.grey;
+  return RAG.green;
+}
+
+const HEALTH_INFO = `${RAG.green.label}: ${RAG.green.description}. ${RAG.amber.label}: ${RAG.amber.description}. ${RAG.red.label}: ${RAG.red.description}. ${RAG.grey.label}: not started and no tasks done.`;
+const HEALTH_OPTIONS = [RAG.green, RAG.amber, RAG.red, RAG.grey].map(r => ({ value: r.key, label: r.label }));
+const SCOPE_OPTIONS = [{ value: 'mine', label: 'My Projects' }, { value: 'favorites', label: 'Favorites' }];
+
+/** The current person's name as owners are recorded (first and last name, else the profile's full name). */
+const personName = (user) => [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim() || user?.full_name || '';
+
+export default function ProjectsSummary({ projects = [], programs = [], portfolios = [], tasks = [], risks = [], issues = [], onSelectProject, onNewProject }) {
   const [search, setSearch] = useState('');
-  const [filterPortfolio, setFilterPortfolio] = useState('all');
-  const [filterProgram, setFilterProgram] = useState('all');
-  const [filterOwner, setFilterOwner] = useState('all');
+  const [scope, setScope] = useState('');
+  const { user } = useAuth();
+  const { isFav } = useFavorites();
+  const [health, setHealth] = useState('');
+  const [status, setStatus] = useState('');
+  const [owner, setOwner] = useState('');
 
-  const getProgram = (pid) => programs.find(p => p.id === pid);
-  const getPortfolio = (prog) => prog ? portfolios.find(p => p.id === prog.portfolio_id) : null;
+  const rows = useMemo(() => projects.map(project => {
+    const projectTasks = tasks.filter(t => t.project_id === project.id);
+    const done = projectTasks.filter(t => t.status === 'done' || Number(t.progress) >= 100).length;
+    const progress = projectTasks.length ? Math.round(done / projectTasks.length * 100) : 0;
+    const openRisks = risks.filter(r => r.project_id === project.id && isOpenRaid(r));
+    const openIssues = issues.filter(i => i.project_id === project.id && isOpenRaid(i));
+    const critHighRisks = openRisks.filter(isHighOrCritical).length;
+    const critHighIssues = openIssues.filter(isHighOrCritical).length;
+    const program = programs.find(p => p.id === project.program_id);
+    return {
+      project, program, progress, critHighRisks, critHighIssues,
+      done, total: projectTasks.length,
+      manager: project.project_manager || project.owner || '',
+      openRisks: openRisks.length, openIssues: openIssues.length,
+      rag: getRag(critHighRisks, critHighIssues, project, progress),
+    };
+  }), [projects, programs, tasks, risks, issues]);
 
-  const getTaskStats = (projectId) => {
-    const relevant = tasks.filter(t => t.project_id === projectId);
-    const done = relevant.filter(t => t.status === 'done' || Number(t.progress) >= 100).length;
-    return { total: relevant.length, done, progress: relevant.length ? Math.round(done / relevant.length * 100) : 0 };
-  };
-
-  const programsForFilter = filterPortfolio === 'all' ? programs : programs.filter(p => p.portfolio_id === filterPortfolio);
-
-  const owners = [...new Set(projects.map(p => p.owner).filter(Boolean))].sort();
-
-  const filtered = projects.filter(p => {
-    if (search && !p.name?.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filterOwner !== 'all' && p.owner !== filterOwner) return false;
-    if (filterProgram !== 'all' && p.program_id !== filterProgram) return false;
-    if (filterPortfolio !== 'all') {
-      const prog = programs.find(pr => pr.id === p.program_id);
-      if (!prog || prog.portfolio_id !== filterPortfolio) return false;
-    }
+  const filtered = rows.filter(r => {
+    if (search && !r.project.name?.toLowerCase().includes(search.toLowerCase())) return false;
+    if (scope === 'mine' && r.manager !== personName(user)) return false;
+    if (scope === 'favorites' && !isFav('project', r.project.id)) return false;
+    if (health && r.rag.key !== health) return false;
+    if (status && workStatusInfo(r.project.status).label !== status) return false;
+    if (owner && r.manager !== owner) return false;
     return true;
   });
 
-  const statusCounts = { planning: 0, active: 0, on_hold: 0, completed: 0 };
-  projects.forEach(p => { if (statusCounts[p.status] !== undefined) statusCounts[p.status]++; });
+  const offTrack = rows.filter(r => r.rag.key === 'red').length;
+  const completed = rows.filter(r => isCompleteStatus(r.project.status)).length;
+  const critHighRisks = rows.reduce((s, r) => s + r.critHighRisks, 0);
+  const critHighIssues = rows.reduce((s, r) => s + r.critHighIssues, 0);
+
+  const handleExport = () => exportRecords(filtered, [
+    { label: 'Project', value: r => r.project.name },
+    { label: 'Program', value: r => r.program?.name || '' },
+    { label: 'Health', value: r => r.rag.label },
+    { label: 'Status', value: r => workStatusInfo(r.project.status).label },
+    { label: 'Completion %', value: r => r.progress },
+    { label: 'Tasks Done', value: r => r.done },
+    { label: 'Tasks', value: r => r.total },
+    { label: 'Open Risks', value: r => r.openRisks },
+    { label: 'Open Issues', value: r => r.openIssues },
+    { label: 'Project Manager', value: r => r.manager },
+    { label: 'Due Date', value: r => r.project.end_date || '' },
+  ], `projects_${new Date().toISOString().slice(0, 10)}.csv`);
+
+  const columns = [
+    {
+      key: 'name', label: 'Project', sortValue: r => r.project.name,
+      render: r => (
+        <TitleCell title={r.project.name} sub={r.program ? `Program: ${r.program.name}` : null} />
+      ),
+    },
+    { key: 'health', label: 'Health', info: HEALTH_INFO, render: r => <HealthPill rag={r.rag} /> },
+    { key: 'status', label: 'Status', sortValue: r => workStatusInfo(r.project.status).label, render: r => <WorkStatusPill status={r.project.status} /> },
+    { key: 'completion', label: 'Completion', sortValue: r => r.progress, render: r => <CompletionBar pct={r.progress} /> },
+    { key: 'tasks', label: 'Tasks', sortValue: r => r.total, render: r => <span className="text-sm" style={{ color: NAVY }}>{r.done}/{r.total}</span> },
+    { key: 'risks', label: 'Open Risks', sortValue: r => r.openRisks, className: 'text-center', headerClassName: 'text-center', render: r => <CountCell value={r.openRisks} /> },
+    { key: 'issues', label: 'Open Issues', sortValue: r => r.openIssues, className: 'text-center', headerClassName: 'text-center', render: r => <CountCell value={r.openIssues} /> },
+    { key: 'owner', label: 'Project Owner(s)', sortValue: r => r.manager, render: r => <span className="text-sm" style={{ color: NAVY }}>{r.manager || '—'}</span> },
+    { key: 'open', label: '', className: 'w-8', render: () => <DetailsChevron /> },
+  ];
 
   return (
-    <div className="flex-1 overflow-auto bg-slate-50">
-      {/* Header banner */}
-      <div style={{ background: '#ffffff' }} className="px-8 py-8 text-[#002046] border-b border-slate-200">
-        <div className="flex items-start justify-between mb-2">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#002046]/10 flex items-center justify-center">
-              <Folder className="w-5 h-5 text-[#c87b14]" />
-            </div>
-            <h1 className="text-2xl font-bold text-[#002046]">Project Directory</h1>
-          </div>
-          {onNewProject && (
-            <Button onClick={onNewProject} style={{ backgroundColor: '#c87b14' }} className="hover:opacity-90 text-white text-sm h-9 border-0">
-              <Plus className="w-4 h-4 mr-1.5" /> New Project
-            </Button>
-          )}
-        </div>
-        <p className="text-[#002046]/70 text-sm mb-6">Browse and navigate all projects across programs and portfolios.</p>
-        <div className="flex gap-6">
-          {Object.entries(statusCounts).map(([status, count], i, arr) => {
-            const st = STATUS_COLOR[status];
-            return (
-              <React.Fragment key={status}>
-                <div>
-                  <p className="text-2xl font-bold text-[#002046]">{count}</p>
-                  <p className="text-xs text-[#002046]/60 mt-0.5">{st?.label || status}</p>
-                </div>
-                {i < arr.length - 1 && <div className="w-px bg-[#002046]/10 self-stretch" />}
-              </React.Fragment>
-            );
-          })}
-        </div>
-      </div>
+    <PageBody>
+      <PageHeader
+        icon={Folder}
+        title="Project Directory"
+        subtitle="Browse and navigate all projects across programs and portfolios."
+        actions={onNewProject && <PrimaryButton icon={Plus} onClick={onNewProject}>New Project</PrimaryButton>}
+      />
 
-      {/* Filter bar */}
-      <div className="bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-3 flex-wrap">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search projects..." className="h-8 text-sm pl-8 w-52" />
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">Portfolio:</span>
-          <Select value={filterPortfolio} onValueChange={v => { setFilterPortfolio(v); setFilterProgram('all'); }}>
-            <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Portfolios</SelectItem>
-              {portfolios.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">Program:</span>
-          <Select value={filterProgram} onValueChange={setFilterProgram}>
-            <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Programs</SelectItem>
-              {programsForFilter.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">Project Manager:</span>
-          <Select value={filterOwner} onValueChange={setFilterOwner}>
-            <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All PMs</SelectItem>
-              {owners.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+      <StatGrid className="lg:grid-cols-4">
+        <StatCard value={projects.length} label="Projects" sub="Across all programs" icon={FileText} />
+        <StatCard value={offTrack} label="Off Track" sub="Projects needing attention" icon={AlertTriangle} />
+        <StatCard value={critHighRisks + critHighIssues} label="High/Critical RAID" sub={riskIssueLine(critHighRisks, critHighIssues)} icon={ShieldAlert} />
+        <StatCard value={completed} label="Completed" sub="Projects completed" icon={CircleCheck} />
+      </StatGrid>
 
-      </div>
+      <FilterBar right={<ExportButton onClick={handleExport} disabled={filtered.length === 0} />}>
+        <SearchInput value={search} onChange={setSearch} placeholder="Search projects..." />
+        <FilterSelect value={scope} onChange={setScope} allLabel="All Projects" options={SCOPE_OPTIONS} />
+        <FilterSelect value={health} onChange={setHealth} allLabel="Health" options={HEALTH_OPTIONS} />
+        <FilterSelect value={status} onChange={setStatus} allLabel="Status" options={WORK_STATUS_OPTIONS} />
+        <FilterSelect value={owner} onChange={setOwner} allLabel="Project Owner" options={optionsFrom(rows.map(r => r.manager))} />
+      </FilterBar>
 
-      <div className="p-6">
-        {filtered.length === 0 && (
-          <div className="text-center py-20 text-slate-400">
-            <Folder className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p>{search || filterPortfolio !== 'all' || filterProgram !== 'all' || filterOwner !== 'all' ? 'No projects match your filters.' : 'No projects yet.'}</p>
-          </div>
-        )}
-
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>{['', 'Name', 'Program', 'Portfolio', 'Status', 'Tasks', 'Progress', 'Due Date', ''].map(h => (
-                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-600">{h}</th>
-              ))}</tr>
-            </thead>
-            <tbody>
-              {filtered.map(project => {
-                const stats = getTaskStats(project.id);
-                const st = STATUS_COLOR[project.status] || STATUS_COLOR.planning;
-                const program = getProgram(project.program_id);
-                const portfolio = getPortfolio(program);
-                return (
-                  <tr key={project.id} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => onSelectProject(project)}>
-                    <td className="px-3 py-3 w-8"><StarButton type="project" id={project.id} name={project.name} color={project.color} /></td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: project.color || '#6366f1' }} />
-                        <span className="font-medium text-slate-800">{project.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-violet-600">{program?.name || '—'}</td>
-                    <td className="px-4 py-3 text-xs text-amber-600">{portfolio?.name || '—'}</td>
-                    <td className="px-4 py-3"><span className={cn('text-[10px] px-2 py-0.5 rounded-full font-medium', st.bg, st.text)}>{st.label}</span></td>
-                    <td className="px-4 py-3 text-xs text-slate-600">{stats.done}/{stats.total}</td>
-                    <td className="px-4 py-3 w-32">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${stats.progress}%`, backgroundColor: project.color || '#6366f1' }} />
-                        </div>
-                        <span className="text-xs text-slate-500 w-8">{stats.progress}%</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-500">{project.end_date || '—'}</td>
-                    <td className="px-4 py-3"><ChevronRight className="w-4 h-4 text-slate-300" /></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+      <DataTable
+        columns={columns}
+        rows={filtered}
+        rowKey={r => r.project.id}
+        onRowClick={r => onSelectProject(r.project)}
+        noun="projects"
+        empty={projects.length ? 'No projects match your filters.' : 'No projects yet.'}
+      />
+    </PageBody>
   );
 }

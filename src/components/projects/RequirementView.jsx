@@ -6,26 +6,17 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ClipboardList, Plus, X, Download, ChevronDown, Check } from 'lucide-react';
+import { ClipboardList, Plus, X, ChevronDown, Check, CircleCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { exportRecords } from '@/lib/exportUtils';
-import StarButton from '@/components/projects/StarButton';
+import {
+  PageHeader, PageBody, PrimaryButton, ExportButton, StatGrid, StatCard, FilterBar, SearchInput, FilterSelect,
+  DataTable, TitleCell, Pill, PriorityPill, DetailsChevron, NAVY,
+} from '@/components/projects/DirectoryKit';
 import { useAccountHierarchy, useAccountRequirements, useAccountTestCases } from '@/hooks/useAccountLookups';
 import { mapRequirementFromApi, mapRequirementInputToPayload, requirementsApi } from '@/api/projectLogs';
 
-const PRIORITY_COLORS = {
-  low: 'bg-slate-100 text-black',
-  medium: 'bg-blue-100 text-black',
-  high: 'bg-orange-100 text-black',
-  critical: 'bg-red-100 text-black',
-};
-
-const STATUS_COLORS = {
-  in_review: 'bg-amber-100 text-amber-700',
-  validated: 'bg-emerald-100 text-emerald-700',
-  deferred: 'bg-slate-100 text-slate-600',
-  cancelled: 'bg-red-100 text-red-700',
-};
+const STATUS_TONES = { in_review: 'orange', validated: 'green', deferred: 'grey', cancelled: 'red' };
 
 const STATUS_LABELS = {
   in_review: 'In Review',
@@ -33,6 +24,11 @@ const STATUS_LABELS = {
   deferred: 'Deferred',
   cancelled: 'Cancelled',
 };
+
+const STATUS_OPTIONS = Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }));
+const PRIORITY_OPTIONS = ['critical', 'high', 'medium', 'low'].map(v => ({ value: v, label: v.charAt(0).toUpperCase() + v.slice(1) }));
+const PRIORITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
+const COVERAGE_OPTIONS = [{ value: 'covered', label: 'Has test cases' }, { value: 'not_covered', label: 'No test cases' }];
 
 const emptyForm = () => ({
   title: '', description: '', priority: 'medium', status: 'in_review',
@@ -53,9 +49,11 @@ const EXPORT_COLUMNS = [
 
 export default function RequirementView() {
   const queryClient = useQueryClient();
-  const [filterPortfolioId, setFilterPortfolioId] = useState('all');
-  const [filterProgramId, setFilterProgramId] = useState('all');
-  const [filterProjectId, setFilterProjectId] = useState('all');
+  const [search, setSearch] = useState('');
+  const [filterProjectId, setFilterProjectId] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterPriority, setFilterPriority] = useState('');
+  const [filterCoverage, setFilterCoverage] = useState('');
   const [panelOpen, setPanelOpen] = useState(false);
   const [form, setForm] = useState(emptyForm());
   const [editingId, setEditingId] = useState(null);
@@ -88,19 +86,45 @@ export default function RequirementView() {
   });
 
   const getProjectName = (id) => projects.find(p => p.id === id)?.name || '—';
-  const getProgramName = (id) => programs.find(p => p.id === id)?.name || '—';
+  const linkedIds = (r) => (Array.isArray(r.test_case_id) ? r.test_case_id : (r.test_case_id ? [r.test_case_id] : []));
 
-  const programsForFilter = filterPortfolioId === 'all' ? programs : programs.filter(p => p.portfolio_id === filterPortfolioId);
-  const projectsForFilter = filterProgramId === 'all'
-    ? (filterPortfolioId === 'all' ? projects : projects.filter(p => p.portfolio_id === filterPortfolioId || programsForFilter.some(pg => pg.id === p.program_id)))
-    : projects.filter(p => p.program_id === filterProgramId);
+  const validatedCount = requirements.filter(r => r.status === 'validated').length;
+  const inReviewCount = requirements.filter(r => r.status === 'in_review').length;
+  const coveragePct = requirements.length ? Math.round(requirements.filter(r => linkedIds(r).length > 0).length / requirements.length * 100) : 0;
 
   const filtered = requirements.filter(r => {
-    if (filterPortfolioId !== 'all' && r.portfolio_id !== filterPortfolioId) return false;
-    if (filterProgramId !== 'all' && r.program_id !== filterProgramId) return false;
-    if (filterProjectId !== 'all' && r.project_id !== filterProjectId) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!(r.title || '').toLowerCase().includes(q) && !(r.requirement_id || '').toLowerCase().includes(q)) return false;
+    }
+    if (filterProjectId && r.project_id !== filterProjectId) return false;
+    if (filterStatus && r.status !== filterStatus) return false;
+    if (filterPriority && r.priority !== filterPriority) return false;
+    if (filterCoverage === 'covered' && linkedIds(r).length === 0) return false;
+    if (filterCoverage === 'not_covered' && linkedIds(r).length > 0) return false;
     return true;
   });
+
+  const columns = [
+    {
+      key: 'requirement', label: 'Requirement', sortValue: r => r.requirement_id,
+      render: r => (
+        <TitleCell code={r.requirement_id} title={r.title} sub={`Project: ${getProjectName(r.project_id)}`} />
+      ),
+    },
+    { key: 'status', label: 'Status', sortValue: r => STATUS_LABELS[r.status] || r.status, render: r => <Pill tone={STATUS_TONES[r.status] || 'grey'}>{STATUS_LABELS[r.status] || r.status}</Pill> },
+    { key: 'priority', label: 'Priority', sortValue: r => PRIORITY_RANK[r.priority] ?? 9, render: r => <PriorityPill priority={r.priority} /> },
+    {
+      key: 'tests', label: 'Test Cases', sortValue: r => linkedIds(r).length,
+      render: r => {
+        const count = linkedIds(r).length;
+        return count
+          ? <span className="inline-flex items-center gap-1.5 text-sm" style={{ color: NAVY }} title={linkedIds(r).join(', ')}><CircleCheck className="w-4 h-4 text-slate-500" /> {count} linked</span>
+          : <span className="text-sm text-slate-400">None</span>;
+      },
+    },
+    { key: 'open', label: 'Details', className: 'w-16', render: () => <DetailsChevron /> },
+  ];
 
   const handleExportAll = () => exportRecords(filtered, EXPORT_COLUMNS, `requirements_${new Date().toISOString().slice(0, 10)}.csv`);
 
@@ -135,100 +159,44 @@ export default function RequirementView() {
   }, [requirements]);
 
   return (
-    <div className="flex-1 overflow-auto bg-slate-50">
-      {/* Header */}
-      <div style={{ background: '#002046' }} className="px-6 py-5 text-white">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <ClipboardList className="w-5 h-5 text-indigo-400" />
-            <h1 className="text-xl font-bold text-white">Requirements</h1>
-            <span className="text-xs text-white/50 bg-white/10 px-2 py-0.5 rounded">{filtered.length} requirement{filtered.length !== 1 ? 's' : ''}</span>
-          </div>
-        </div>
-      </div>
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <PageBody>
+        <PageHeader
+          icon={ClipboardList}
+          title="Requirements"
+          subtitle="Track requirements, validation, and test coverage across projects."
+          actions={(
+            <PrimaryButton icon={Plus} onClick={() => { setForm(emptyForm()); setEditingId(null); setPanelOpen(true); }}>
+              New Requirement
+            </PrimaryButton>
+          )}
+        />
 
-      {/* Filters */}
-      <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex items-center justify-between gap-3">
-        <select value={filterPortfolioId} onChange={e => { setFilterPortfolioId(e.target.value); setFilterProgramId('all'); setFilterProjectId('all'); }}
-          className="h-8 text-sm border border-slate-200 rounded-md px-2 text-slate-700 bg-white">
-          <option value="all">All Portfolios</option>
-          {portfolios.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <select value={filterProgramId} onChange={e => { setFilterProgramId(e.target.value); setFilterProjectId('all'); }}
-          className="h-8 text-sm border border-slate-200 rounded-md px-2 text-slate-700 bg-white">
-          <option value="all">All Programs</option>
-          {programsForFilter.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <select value={filterProjectId} onChange={e => setFilterProjectId(e.target.value)}
-          className="h-8 text-sm border border-slate-200 rounded-md px-2 text-slate-700 bg-white">
-          <option value="all">All Projects</option>
-          {projectsForFilter.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <div className="flex items-center gap-2 ml-auto">
-          <Button size="sm" variant="outline" onClick={handleExportAll} className="h-8 gap-1.5">
-            <Download className="w-3.5 h-3.5" /> Export
-          </Button>
-          <Button size="sm" onClick={() => { setForm(emptyForm()); setEditingId(null); setPanelOpen(true); }} className="h-8 gap-1.5 bg-[#c87b14] hover:bg-[#c87b14]/90 text-white">
-            <Plus className="w-3.5 h-3.5" /> New Requirement
-          </Button>
-        </div>
-      </div>
+        <StatGrid className="lg:grid-cols-4">
+          <StatCard value={requirements.length} label="Total Requirements" sub="Across all projects" />
+          <StatCard value={validatedCount} label="Validated" sub="Approved requirements" />
+          <StatCard value={inReviewCount} label="In Review" sub="Awaiting validation" />
+          <StatCard value={requirements.length ? `${coveragePct}%` : '—'} label="Test Coverage" sub="Requirements with test cases" />
+        </StatGrid>
 
-      {/* Table */}
-      <div className="p-5">
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <ScrollArea className="max-h-[calc(100vh-220px)]">
-            <table className="w-full text-sm" style={{ minWidth: 1100 }}>
-              <thead className="bg-slate-50 border-b border-slate-100 sticky top-0">
-                <tr>
-                  {[
-                    { h: '', w: 'w-10' },
-                    { h: 'Requirement ID', w: 'w-24' },
-                    { h: 'Test Case ID', w: 'w-24' },
-                    { h: 'Status', w: '' },
-                    { h: 'Program', w: '' },
-                    { h: 'Project', w: '' },
-                    { h: 'Priority', w: '' },
-                    { h: 'Title', w: 'min-w-[300px]' },
-                    { h: 'Entered By', w: '' },
-                    { h: 'Entered Date', w: '' },
-                  ].map(({ h, w }) => (
-                    <th key={h} className={cn('text-left px-4 py-2.5 text-xs font-semibold text-slate-500 whitespace-nowrap', w)}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {isLoading && <tr><td colSpan={10} className="text-center py-10 text-slate-400 text-xs">Loading...</td></tr>}
-                {!isLoading && filtered.length === 0 && (
-                  <tr><td colSpan={10} className="text-center py-14 text-slate-400 text-sm">No requirements yet. Click "New Requirement" to create one.</td></tr>
-                )}
-                {filtered.map(r => (
-                  <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={() => handleRowClick(r)}>
-                    <td className="px-2 py-2.5"><StarButton type="requirement" id={r.id} name={r.title} /></td>
-                    <td className="px-3 py-2.5 font-mono text-xs text-slate-500 whitespace-nowrap">{r.requirement_id}</td>
-                    <td className="px-3 py-2.5 text-xs text-slate-600 align-top"><div className="max-w-[180px] flex flex-wrap gap-1">{(() => { const ids = Array.isArray(r.test_case_id) ? r.test_case_id : (r.test_case_id ? [r.test_case_id] : []); return ids.length ? ids.map((id, i) => <span key={i} className="font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{id}</span>) : '—'; })()}</div></td>
-                    <td className="px-4 py-2.5">
-                      <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', STATUS_COLORS[r.status] || STATUS_COLORS.in_review)}>
-                        {STATUS_LABELS[r.status] || r.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 text-slate-600 align-top"><div className="max-w-[160px] break-words whitespace-normal leading-snug">{getProgramName(r.program_id)}</div></td>
-                    <td className="px-4 py-2.5 text-slate-700 align-top"><div className="max-w-[180px] break-words whitespace-normal leading-snug">{getProjectName(r.project_id)}</div></td>
-                    <td className="px-4 py-2.5">
-                      <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full capitalize', PRIORITY_COLORS[r.priority] || PRIORITY_COLORS.medium)}>{r.priority}</span>
-                    </td>
-                    <td className="px-4 py-2.5 font-medium text-slate-800 align-top">
-                      <div className="max-w-[360px] break-words whitespace-normal leading-snug">{r.title}</div>
-                    </td>
-                    <td className="px-4 py-2.5 text-slate-600 whitespace-nowrap">{r.entered_by || '—'}</td>
-                    <td className="px-4 py-2.5 text-slate-500 text-xs whitespace-nowrap">{r.entered_date || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ScrollArea>
-        </div>
-      </div>
+        <FilterBar right={<ExportButton onClick={handleExportAll} disabled={filtered.length === 0} />}>
+          <SearchInput value={search} onChange={setSearch} placeholder="Search requirements..." />
+          <FilterSelect value={filterProjectId} onChange={setFilterProjectId} allLabel="All Projects" options={projects.map(p => ({ value: p.id, label: p.name }))} />
+          <FilterSelect value={filterStatus} onChange={setFilterStatus} allLabel="Status" options={STATUS_OPTIONS} />
+          <FilterSelect value={filterPriority} onChange={setFilterPriority} allLabel="Priority" options={PRIORITY_OPTIONS} />
+          <FilterSelect value={filterCoverage} onChange={setFilterCoverage} allLabel="Test Coverage" options={COVERAGE_OPTIONS} />
+        </FilterBar>
+
+        <DataTable
+          columns={columns}
+          rows={filtered}
+          onRowClick={handleRowClick}
+          noun="requirements"
+          minWidth={760}
+          initialSort={{ key: 'requirement', dir: 'asc' }}
+          empty={isLoading ? 'Loading...' : requirements.length ? 'No requirements match your filters.' : 'No requirements yet. Click "New Requirement" to create one.'}
+        />
+      </PageBody>
 
       {/* Add / Edit Requirement Panel */}
       {panelOpen && (

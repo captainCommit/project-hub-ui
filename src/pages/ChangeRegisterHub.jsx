@@ -5,6 +5,7 @@ import ChangeRegister from './ChangeRegister';
 import { Scale, FileEdit, LayoutDashboard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ChangeOverview from '@/components/projects/ChangeOverview';
+import { EMPTY_RAID_FILTERS } from '@/components/projects/RaidTable';
 import { useAccountChangeRequests, useAccountDecisions, useAccountHierarchy } from '@/hooks/useAccountLookups';
 
 export default function ChangeRegisterHub() {
@@ -13,6 +14,9 @@ export default function ChangeRegisterHub() {
     const requested = new URLSearchParams(window.location.search).get('tab');
     return ['decisions', 'changes'].includes(requested) ? requested : 'overview';
   });
+
+  // The overview's portfolio/program/project scope, kept while switching tabs.
+  const [scope, setScope] = useState(EMPTY_RAID_FILTERS);
 
   const { projects, programs, portfolios } = useAccountHierarchy();
   const decisions = useAccountDecisions();
@@ -27,12 +31,11 @@ export default function ChangeRegisterHub() {
         onRenameItem={() => {}} onShowVacationCalendar={() => {}}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center">
-          <div>
-            <h1 className="text-lg font-semibold text-slate-800">Governance</h1>
-          </div>
+        <div className="bg-white px-6 pt-5">
+          <h1 className="text-2xl font-bold text-[#002046]">Governance</h1>
+          <p className="text-sm text-slate-500 mt-1">Track decisions and change requests across portfolios, programs, and projects.</p>
         </div>
-        <div className="flex items-center gap-1 border-b-2 border-slate-200 bg-white px-0">
+        <div className="flex items-center gap-1 border-b border-slate-200 bg-white px-6 pt-3">
           <button onClick={() => setTab('overview')} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', tab === 'overview' ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
             <LayoutDashboard className="w-4 h-4" /> Overview
           </button>
@@ -44,7 +47,8 @@ export default function ChangeRegisterHub() {
           </button>
         </div>
         {tab === 'overview' ? (
-          <ChangeOverview decisions={decisions} changeRequests={changeRequests} projects={projects} programs={programs} portfolios={portfolios} />
+          <ChangeOverview decisions={decisions} changeRequests={changeRequests} projects={projects} programs={programs} portfolios={portfolios}
+            filters={scope} onFiltersChange={setScope} onOpenTab={setTab} />
         ) : tab === 'decisions' ? (
           <DecisionLog embedded />
         ) : (

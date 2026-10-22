@@ -129,6 +129,7 @@ const mapSprintBoardTask = (task: ApiRecord = {}) => {
     mapped.name = title;
   }
   if (hasOwn(task, 'story_points')) mapped.story_points = task.story_points;
+  if (hasOwn(task, 'story_number')) mapped.story_number = task.story_number;
   if (hasOwn(task, 'percent_complete')) mapped.percent_complete = task.percent_complete;
   if (hasOwn(task, 'finish_date')) mapped.finish_date = task.finish_date;
   if (hasOwn(task, 'due_date')) mapped.due_date = task.due_date;
@@ -169,6 +170,9 @@ export const mapSprintBoardResponse = (response: any) => {
   return mapped;
 };
 
+/** A task's story id as people see it: US-100, US-101, ... */
+export const formatStoryId = (storyNumber: unknown) => (storyNumber === null || storyNumber === undefined || storyNumber === '' ? '' : `US-${storyNumber}`);
+
 const addIfPresent = (target: ApiRecord, source: ApiRecord, key: string) => {
   if (hasOwn(source, key) && source[key] !== undefined && source[key] !== '') target[key] = source[key];
 };
@@ -181,6 +185,8 @@ export const mapSprintPayload = (data: ApiRecord = {}) => {
   addIfPresent(payload, data, 'start_date');
   addIfPresent(payload, data, 'end_date');
   if (hasOwn(data, 'status_id') && data.status_id) payload.status_id = data.status_id;
+  // Empty clears the capacity.
+  if (hasOwn(data, 'capacity')) payload.capacity = data.capacity === '' || data.capacity == null ? null : Number(data.capacity);
 
   return payload;
 };

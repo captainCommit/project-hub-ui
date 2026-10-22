@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { sprintsApi } from '@/api/sprints';
+import { formatStoryId, sprintsApi } from '@/api/sprints';
 import { accountDataApi } from '@/api/accountData';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { cn } from '@/lib/utils';
-import { Plus, Zap, Loader2, AlertCircle, ChevronLeft, ChevronRight, GripVertical, MoreHorizontal, MoreVertical, FilePlus2 } from 'lucide-react';
+import { Plus, Zap, Loader2, AlertCircle, ChevronLeft, ChevronRight, GripVertical, MoreHorizontal, MoreVertical, FilePlus2, Filter, List, Check } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -56,12 +57,12 @@ function nextWorkday(dateStr) {
 // --- Sprint settings dialog ---
 function SprintSettingsDialog({ open, onOpenChange, sprint, previousSprint, projectId, projects, resources = [], statusOptions = [], onSave, onDelete }) {
   const defaultStart = previousSprint?.end_date ? nextWorkday(previousSprint.end_date) : format(new Date(), 'yyyy-MM-dd');
-  const init = sprint || { name: '', goal: '', start_date: defaultStart, duration_weeks: 2, status: 'planning', project_id: projectId || '', resource_id: '' };
+  const init = sprint || { name: '', goal: '', start_date: defaultStart, duration_weeks: 2, capacity: '', status: 'planning', project_id: projectId || '', resource_id: '' };
   const [form, setForm] = useState(init);
 
   useEffect(() => {
     if (open) {
-      setForm(sprint || { name: '', goal: '', start_date: defaultStart, duration_weeks: 2, status: 'planning', project_id: projectId || '' });
+      setForm(sprint ? { ...sprint, capacity: sprint.capacity ?? '' } : { name: '', goal: '', start_date: defaultStart, duration_weeks: 2, capacity: '', status: 'planning', project_id: projectId || '' });
     }
   }, [open, sprint?.id]);
 
@@ -102,6 +103,11 @@ function SprintSettingsDialog({ open, onOpenChange, sprint, previousSprint, proj
             <div>
               <label className="text-xs text-slate-500 font-medium">Duration (weeks)</label>
               <Input type="number" min={1} max={8} value={form.duration_weeks} onChange={e => setForm(p => ({ ...p, duration_weeks: Number(e.target.value) }))} className="mt-1" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-500 font-medium">Capacity (story points)</label>
+              <Input type="number" min={0} value={form.capacity ?? ''} placeholder="e.g. 40"
+                onChange={e => setForm(p => ({ ...p, capacity: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) }))} className="mt-1" />
             </div>
           </div>
           {computedEnd && (
@@ -209,20 +215,33 @@ function SprintStep({ sprint, index, selected, onSelect }) {
 }
 
 /** One table of stories (the sprint's or the backlog's). Rows drag between the two. */
-function StoryTable({ stories, statusFor, actionsFor, onDragStart, onDragEnd, draggable, empty }) {
+const STORY_COLUMNS = [
+  { key: 'id', label: 'ID' },
+  { key: 'title', label: 'Title' },
+  { key: 'priority', label: 'Priority' },
+  { key: 'points', label: 'Story Points' },
+  { key: 'status', label: 'Status' },
+  { key: 'assignee', label: 'Assignee' },
+];
+const ALL_STORY_COLUMNS = STORY_COLUMNS.map(c => c.key);
+
+function StoryTable({ stories, statusFor, actionsFor, onDragStart, onDragEnd, draggable, empty, columns = ALL_STORY_COLUMNS }) {
+  const show = (key) => columns.includes(key);
+  const shownColumns = STORY_COLUMNS.filter(c => show(c.key));
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200">
       <table className="w-full text-sm" style={{ minWidth: 760 }}>
         <thead>
           <tr style={{ backgroundColor: NAVY }}>
-            {['', '#', 'Title', 'Priority', 'Story Points', 'Status', 'Assignee', 'Actions'].map((h, i) => (
-              <th key={i} className={cn('px-3 py-2.5 text-xs font-semibold text-white text-left whitespace-nowrap', i === 0 && 'w-8', i === 1 && 'w-10', h === 'Actions' && 'w-16 text-center')}>{h}</th>
+            {[{ key: 'grip', label: '' }, { key: 'rank', label: '#' }, ...shownColumns, { key: 'actions', label: 'Actions' }].map(c => (
+              <th key={c.key} className={cn('px-3 py-2.5 text-xs font-semibold text-white text-left whitespace-nowrap',
+                c.key === 'grip' && 'w-8', c.key === 'rank' && 'w-10', c.key === 'id' && 'w-24', c.key === 'actions' && 'w-16 text-center')}>{c.label}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {stories.length === 0 && (
-            <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-400">{empty}</td></tr>
+            <tr><td colSpan={shownColumns.length + 3} className="px-4 py-8 text-center text-sm text-slate-400">{empty}</td></tr>
           )}
           {stories.map((story, i) => {
             const status = statusFor(story);
@@ -234,11 +253,12 @@ function StoryTable({ stories, statusFor, actionsFor, onDragStart, onDragEnd, dr
                 className={cn('border-b border-slate-100 last:border-b-0 bg-white hover:bg-slate-50', draggable && 'cursor-grab active:cursor-grabbing')}>
                 <td className="px-3 py-2.5 text-slate-400"><GripVertical className="w-4 h-4" /></td>
                 <td className="px-3 py-2.5 text-slate-500">{i + 1}</td>
-                <td className="px-3 py-2.5" style={{ color: NAVY }}>{story.title || story.name}</td>
-                <td className="px-3 py-2.5">{story.priority ? <Pill tone={SPRINT_PRIORITY_TONES[story.priority] || 'grey'} className="rounded-md">{raidLabel(story.priority)}</Pill> : <span className="text-slate-400">—</span>}</td>
-                <td className="px-3 py-2.5" style={{ color: NAVY }}>{story.story_points ?? '—'}</td>
-                <td className="px-3 py-2.5"><Pill tone={status.tone}>{status.label}</Pill></td>
-                <td className="px-3 py-2.5" style={{ color: NAVY }}>{story.assignee || '—'}</td>
+                {show('id') && <td className="px-3 py-2.5 whitespace-nowrap" style={{ color: NAVY }}>{formatStoryId(story.story_number) || '—'}</td>}
+                {show('title') && <td className="px-3 py-2.5" style={{ color: NAVY }}>{story.title || story.name}</td>}
+                {show('priority') && <td className="px-3 py-2.5">{story.priority ? <Pill tone={SPRINT_PRIORITY_TONES[story.priority] || 'grey'} className="rounded-md">{raidLabel(story.priority)}</Pill> : <span className="text-slate-400">—</span>}</td>}
+                {show('points') && <td className="px-3 py-2.5" style={{ color: NAVY }}>{story.story_points ?? '—'}</td>}
+                {show('status') && <td className="px-3 py-2.5"><Pill tone={status.tone}>{status.label}</Pill></td>}
+                {show('assignee') && <td className="px-3 py-2.5" style={{ color: NAVY }}>{story.assignee || '—'}</td>}
                 <td className="px-3 py-2.5 text-center">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -256,6 +276,89 @@ function StoryTable({ stories, statusFor, actionsFor, onDragStart, onDragEnd, dr
   );
 }
 
+const UNASSIGNED = '__unassigned';
+const EMPTY_BACKLOG_FILTERS = { id: '', title: '', points: '', assignee: '' };
+
+/** The backlog's Filters button: ID, title, story points and assignee. */
+function BacklogFilters({ filters, onChange, stories }) {
+  const active = Object.values(filters).filter(Boolean).length;
+  const set = (patch) => onChange({ ...filters, ...patch });
+  const points = [...new Set(stories.map(s => s.story_points).filter(p => p !== null && p !== undefined))].sort((a, b) => a - b);
+  const assignees = [...new Set(stories.map(s => s.assignee).filter(Boolean))].sort();
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="h-10 rounded-lg border-slate-200 text-[15px]" style={{ color: NAVY }}>
+          <Filter className="w-4 h-4 mr-2" /> Filters{active > 0 && <span className="ml-1.5 rounded-full px-1.5 text-xs text-white" style={{ backgroundColor: NAVY }}>{active}</span>}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 space-y-3">
+        <div>
+          <label className="text-xs font-medium text-slate-500">ID</label>
+          <Input value={filters.id} onChange={e => set({ id: e.target.value })} placeholder="e.g. US-104" className="h-8 mt-1 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-slate-500">Title</label>
+          <Input value={filters.title} onChange={e => set({ title: e.target.value })} placeholder="Contains..." className="h-8 mt-1 text-sm" />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs font-medium text-slate-500">Story Points</label>
+            <Select value={filters.points || 'all'} onValueChange={v => set({ points: v === 'all' ? '' : v })}>
+              <SelectTrigger className="h-8 mt-1 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any</SelectItem>
+                {points.map(p => <SelectItem key={p} value={String(p)}>{p}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-500">Assignee</label>
+            <Select value={filters.assignee || 'all'} onValueChange={v => set({ assignee: v === 'all' ? '' : v })}>
+              <SelectTrigger className="h-8 mt-1 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Anyone</SelectItem>
+                <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                {assignees.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <Button variant="ghost" size="sm" disabled={active === 0} onClick={() => onChange(EMPTY_BACKLOG_FILTERS)}>Clear filters</Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** The list button: which backlog columns to show (Title always stays). */
+function ColumnPicker({ columns, onChange }) {
+  const toggle = (key) => onChange(columns.includes(key) ? columns.filter(k => k !== key) : ALL_STORY_COLUMNS.filter(k => k === key || columns.includes(k)));
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="icon" className="h-10 w-10 rounded-lg border-slate-200" title="Columns" aria-label="Choose columns">
+          <List className="w-4 h-4" style={{ color: NAVY }} />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-48 p-1">
+        <p className="px-2 py-1.5 text-xs font-medium text-slate-500">Columns</p>
+        {STORY_COLUMNS.map(c => (
+          <button key={c.key} type="button" disabled={c.key === 'title'} onClick={() => toggle(c.key)}
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left hover:bg-slate-50 disabled:opacity-60" style={{ color: NAVY }}>
+            <span className={cn('w-4 h-4 rounded border flex items-center justify-center', columns.includes(c.key) ? 'border-[#002046] bg-[#002046]' : 'border-slate-300')}>
+              {columns.includes(c.key) && <Check className="w-3 h-3 text-white" />}
+            </span>
+            {c.label}
+          </button>
+        ))}
+        <button type="button" onClick={() => onChange(ALL_STORY_COLUMNS)} className="w-full px-2 py-1.5 text-xs text-left text-slate-500 hover:underline">Show all</button>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // --- Main SprintView: pick a project, step through its sprints, and drag stories between a sprint and the backlog ---
 // actionsSlot: where the page header wants the New Sprint button.
 export default function SprintView({ projects, programs = [], portfolios = [], resources = [], initialProjectId = undefined, focusSprintId = undefined, actionsSlot = null }) {
@@ -269,6 +372,9 @@ export default function SprintView({ projects, programs = [], portfolios = [], r
   const [editingSprint, setEditingSprint] = useState(null);
   const [backlogSearch, setBacklogSearch] = useState('');
   const [backlogPriority, setBacklogPriority] = useState('');
+  // The Filters button narrows the backlog by its columns; the list button picks which columns show.
+  const [backlogFilters, setBacklogFilters] = useState(EMPTY_BACKLOG_FILTERS);
+  const [backlogColumns, setBacklogColumns] = useState(ALL_STORY_COLUMNS);
   const [dragging, setDragging] = useState(/** @type {{ story: any, from: 'sprint' | 'backlog' } | null} */ (null));
   const [dropTarget, setDropTarget] = useState('');
   const [moveError, setMoveError] = useState('');
@@ -331,8 +437,13 @@ export default function SprintView({ projects, programs = [], portfolios = [], r
   const parentIds = new Set(projectTasks.map(t => t.parent_task_id).filter(Boolean));
   const backlog = projectTasks.filter(t => !t.sprint_id && !parentIds.has(t.id) && t.status !== 'done');
   const shownBacklog = backlog.filter(t => {
-    if (backlogSearch && !(t.title || '').toLowerCase().includes(backlogSearch.toLowerCase())) return false;
+    const id = formatStoryId(t.story_number).toLowerCase();
+    if (backlogSearch && !(t.title || '').toLowerCase().includes(backlogSearch.toLowerCase()) && !id.includes(backlogSearch.toLowerCase())) return false;
     if (backlogPriority && t.priority !== backlogPriority) return false;
+    if (backlogFilters.id && !id.includes(backlogFilters.id.trim().toLowerCase())) return false;
+    if (backlogFilters.title && !(t.title || '').toLowerCase().includes(backlogFilters.title.trim().toLowerCase())) return false;
+    if (backlogFilters.points && String(t.story_points ?? '') !== backlogFilters.points) return false;
+    if (backlogFilters.assignee === UNASSIGNED ? Boolean(t.assignee) : backlogFilters.assignee && t.assignee !== backlogFilters.assignee) return false;
     return true;
   });
 
@@ -414,6 +525,7 @@ export default function SprintView({ projects, programs = [], portfolios = [], r
   const handleExportSprint = () => {
     if (!activeSprint) return;
     exportRecords(sprintStories, [
+      { label: 'ID', value: (s) => formatStoryId(s.story_number) },
       { label: 'Title', key: 'title' },
       { label: 'Priority', key: 'priority' },
       { label: 'Story Points', key: 'story_points' },
@@ -537,7 +649,7 @@ export default function SprintView({ projects, programs = [], portfolios = [], r
                       {[
                         { value: sprintStories.length, label: 'Stories' },
                         { value: storyPoints, label: 'Story Points' },
-                        { value: donePoints, label: 'Points Done' },
+                        { value: activeSprint.capacity ?? '—', label: 'Capacity' },
                       ].map(m => (
                         <div key={m.label} className="text-center">
                           <p className="text-xl font-bold" style={{ color: NAVY }}>{m.value}</p>
@@ -608,7 +720,9 @@ export default function SprintView({ projects, programs = [], portfolios = [], r
                   <Pill tone="grey">{backlog.length} {backlog.length === 1 ? 'story' : 'stories'}</Pill>
                   <div className="ml-auto flex flex-wrap items-center gap-2">
                     <SearchInput value={backlogSearch} onChange={setBacklogSearch} placeholder="Search stories..." className="min-w-[220px]" />
+                    <BacklogFilters filters={backlogFilters} onChange={setBacklogFilters} stories={backlog} />
                     <FilterSelect value={backlogPriority} onChange={setBacklogPriority} allLabel="Priority" options={PRIORITY_OPTIONS} />
+                    <ColumnPicker columns={backlogColumns} onChange={setBacklogColumns} />
                   </div>
                 </div>
                 {loadingTasks ? (
@@ -616,11 +730,12 @@ export default function SprintView({ projects, programs = [], portfolios = [], r
                 ) : (
                   <StoryTable
                     stories={shownBacklog}
+                    columns={backlogColumns}
                     draggable={Boolean(activeSprintId) && !moveStory.isPending}
                     onDragStart={(story) => setDragging({ story, from: 'backlog' })}
                     onDragEnd={endDrag}
                     statusFor={() => ({ label: 'Backlog', tone: 'grey' })}
-                    empty={backlog.length ? 'No stories match your search.' : 'The backlog is empty. Work items without a sprint show up here.'}
+                    empty={backlog.length ? 'No stories match your search or filters.' : 'The backlog is empty. Work items without a sprint show up here.'}
                     actionsFor={(story) => (
                       <DropdownMenuItem disabled={!activeSprintId} onClick={() => moveStory.mutate({ story, sprintId: activeSprintId })}>
                         {activeSprint ? `Add to ${activeSprint.name}` : 'Create a sprint first'}

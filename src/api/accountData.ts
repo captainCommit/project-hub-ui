@@ -44,6 +44,7 @@ export const mapAccountTaskToUi = (task: ApiRecord) => {
     duration: task.duration_days == null ? null : toNumber(task.duration_days),
     progress: toNumber(task.percent_complete),
     story_points: task.story_points ?? null,
+    story_number: task.story_number ?? null,
     assignee: resources[0] || '',
     resources,
     resource_hours: assignments

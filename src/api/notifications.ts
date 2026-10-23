@@ -21,6 +21,9 @@ export const notificationsApi = {
   },
   markRead: (notificationId: string) => apiClient.patch(`/api/v1/notifications/${notificationId}/read`),
   markAllRead: () => apiClient.patch('/api/v1/notifications/read-all'),
+  // Removed from the bell only; the server keeps the row for email delivery.
+  remove: (notificationId: string) => apiClient.delete(`/api/v1/notifications/${notificationId}`),
+  removeRead: () => apiClient.delete('/api/v1/notifications/read') as Promise<{ removed: number }>,
 };
 
 export type EmailFrequency = 'IMMEDIATE' | 'DIGEST' | 'OFF';

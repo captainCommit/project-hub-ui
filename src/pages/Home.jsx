@@ -160,7 +160,9 @@ export default function Home() {
 
   const hour = new Date().getHours();
   const part = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
-  const firstName = String(/** @type {any} */ (user)?.full_name || '').trim().split(/\s+/)[0];
+  // The first name from the person's profile; the sign-in name is the fallback for profiles without one.
+  const profile = /** @type {any} */ (user);
+  const firstName = String(profile?.first_name || profile?.full_name || '').trim().split(/\s+/)[0];
   const greeting = firstName ? `Good ${part}, ${firstName}` : `Good ${part}`;
 
   const openProject = (projectId) => navigate(projectId ? `/projects/${projectId}/sheet` : '/Projects?view=all_projects');
@@ -209,6 +211,31 @@ export default function Home() {
     onError: (error) => toastError(error.message),
   });
 
+  // Takes the bell items away straight away. "Clear read" removes every read feed notification, listed or not.
+  const removeNotifications = useMutation({
+    mutationFn: ({ items, clearRead = false }) => {
+      const homeIds = items.filter(item => item.feedId === undefined).map(item => item.id);
+      const feedRequests = clearRead
+        ? [notificationsApi.removeRead()]
+        : items.filter(item => item.feedId !== undefined).map(item => notificationsApi.remove(item.feedId));
+      return Promise.all([
+        ...(homeIds.length ? [homeApi.dismissNotifications(selectedAccountId, homeIds)] : []),
+        ...feedRequests,
+      ]);
+    },
+    onMutate: ({ items }) => {
+      const homeIds = new Set(items.map(item => item.id));
+      const feedIds = new Set(items.map(item => item.feedId).filter(Boolean));
+      queryClient.setQueryData(homeKey, (old) => (old ? { ...old, notifications: old.notifications.filter(n => !homeIds.has(n.id)) } : old));
+      queryClient.setQueryData(['notifications'], (old) => (old ? { ...old, results: old.results.filter(n => !feedIds.has(n.id)) } : old));
+    },
+    onError: (error) => toastError(error.message),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: homeKey });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+
   const handleCard = (key) => {
     if (key === 'projects') { navigate('/Projects?view=all_projects'); return; }
     setPriorityTab(key === 'tasks' ? 'all' : key);
@@ -246,6 +273,9 @@ export default function Home() {
               onOpenNotification={openNotification}
               onMarkAllRead={() => markAllRead.mutate()}
               markingRead={markAllRead.isPending}
+              onRemoveNotification={(item) => removeNotifications.mutate({ items: [item] })}
+              onClearRead={(items) => removeNotifications.mutate({ items, clearRead: true })}
+              clearingRead={removeNotifications.isPending}
               onCreate={handleCreate}
             />
             {homeQuery.isLoading ? (

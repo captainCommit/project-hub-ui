@@ -6,7 +6,8 @@ import GlobalSearch from '@/components/home/GlobalSearch';
 
 export default function HomeHeader({
   greeting, subtitle,
-  notifications = [], notificationsReadAt, onOpenNotification, onMarkAllRead, markingRead, onCreate,
+  notifications = [], notificationsReadAt, onOpenNotification, onMarkAllRead, markingRead,
+  onRemoveNotification, onClearRead, clearingRead, onCreate,
 }) {
   return (
     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -24,6 +25,9 @@ export default function HomeHeader({
           onOpen={onOpenNotification}
           onMarkAllRead={onMarkAllRead}
           markingRead={markingRead}
+          onRemove={onRemoveNotification}
+          onClearRead={onClearRead}
+          clearingRead={clearingRead}
         />
 
         <DropdownMenu>

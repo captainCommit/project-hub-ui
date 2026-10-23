@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, ClipboardList, UserPlus, MessageSquare, LifeBuoy, AlertTriangle, CalendarClock, RefreshCw } from 'lucide-react';
+import { Bell, ClipboardList, UserPlus, MessageSquare, LifeBuoy, AlertTriangle, CalendarClock, RefreshCw, X } from 'lucide-react';
 import { parseISO, isValid, formatDistanceToNow } from 'date-fns';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -24,11 +24,14 @@ const LINE = '#E5E5E5';
 
 const relative = (ts) => (ts && isValid(parseISO(ts)) ? formatDistanceToNow(parseISO(ts), { addSuffix: true }) : '');
 
-export default function HomeNotifications({ items = [], readAt, onOpen, onMarkAllRead, markingRead = false }) {
+export default function HomeNotifications({
+  items = [], readAt, onOpen, onMarkAllRead, markingRead = false, onRemove, onClearRead, clearingRead = false,
+}) {
   const readTime = readAt ? new Date(readAt).getTime() : null;
   // Feed notifications carry their own read flag; the rest are unread if newer than the last "Mark all as read".
   const isUnread = (item) => (item.unread !== undefined ? item.unread : readTime === null || new Date(item.ts).getTime() > readTime);
   const count = items.filter(isUnread).length;
+  const readItems = items.filter(item => !isUnread(item));
 
   return (
     <DropdownMenu>
@@ -59,14 +62,24 @@ export default function HomeNotifications({ items = [], readAt, onOpen, onMarkAl
             </span>
           )}
           {items.length > 0 && (
-            <button
-              onClick={(e) => { e.preventDefault(); onMarkAllRead(); }}
-              disabled={count === 0 || markingRead}
-              className="ml-auto text-[11px] hover:underline disabled:opacity-40 disabled:no-underline"
-              style={{ color: SUB }}
-            >
-              Mark all as read
-            </button>
+            <span className="ml-auto flex items-center gap-3">
+              <button
+                onClick={(e) => { e.preventDefault(); onMarkAllRead(); }}
+                disabled={count === 0 || markingRead}
+                className="text-[11px] hover:underline disabled:opacity-40 disabled:no-underline"
+                style={{ color: SUB }}
+              >
+                Mark all as read
+              </button>
+              <button
+                onClick={(e) => { e.preventDefault(); onClearRead(readItems); }}
+                disabled={readItems.length === 0 || clearingRead}
+                className="text-[11px] hover:underline disabled:opacity-40 disabled:no-underline"
+                style={{ color: SUB }}
+              >
+                Clear read
+              </button>
+            </span>
           )}
         </div>
 
@@ -84,7 +97,7 @@ export default function HomeNotifications({ items = [], readAt, onOpen, onMarkAl
                 <DropdownMenuItem
                   key={item.id}
                   onClick={() => onOpen(item)}
-                  className="flex items-start gap-3 px-4 py-3 rounded-none border-b last:border-b-0 focus:bg-[#F7F9FC]"
+                  className="group flex items-start gap-3 px-4 py-3 rounded-none border-b last:border-b-0 focus:bg-[#F7F9FC]"
                   style={{ borderColor: LINE }}
                 >
                   <Icon className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: meta.color }} />
@@ -94,6 +107,15 @@ export default function HomeNotifications({ items = [], readAt, onOpen, onMarkAl
                     <span className="block text-[10px] mt-1" style={{ color: FAINT }}>{relative(item.ts)}</span>
                   </span>
                   {unread && <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ background: ACCENT }} />}
+                  {/* Stopping the click keeps the menu open and the notification from opening. */}
+                  <button
+                    title="Remove"
+                    aria-label="Remove notification"
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); onRemove(item); }}
+                    className="flex-shrink-0 -mr-1 p-0.5 rounded opacity-60 group-hover:opacity-100 focus:opacity-100 hover:bg-slate-200"
+                  >
+                    <X className="w-3.5 h-3.5" style={{ color: FAINT }} />
+                  </button>
                 </DropdownMenuItem>
               );
             })

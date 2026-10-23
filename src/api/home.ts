@@ -182,4 +182,7 @@ export const homeApi = {
     mapHomeFromApi(await apiClient.get(`/api/v1/accounts/${accountId}/me/home`) as HomeApiRead),
   markNotificationsRead: (accountId: string) =>
     apiClient.post(`/api/v1/accounts/${accountId}/me/home/notifications/read`) as Promise<{ notifications_read_at: string }>,
+  // Approvals, assignments and mentions are built from live data, so the server remembers which ones were removed.
+  dismissNotifications: (accountId: string, ids: string[]) =>
+    apiClient.post(`/api/v1/accounts/${accountId}/me/home/notifications/dismiss`, { ids }) as Promise<{ removed: number }>,
 };

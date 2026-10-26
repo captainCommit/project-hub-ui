@@ -5,10 +5,18 @@ import { AlertCircle, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Answers link records with app paths (/projects/…); open those in the app instead of reloading the page.
+// Lists, paragraphs and headings are styled here: the app has no Tailwind typography plugin, so prose classes do nothing.
 const MARKDOWN_COMPONENTS = {
   a: ({ href = '', children }) => (href.startsWith('/')
     ? <Link to={href} className="text-violet-700 underline underline-offset-2">{children}</Link>
     : <a href={href} target="_blank" rel="noreferrer noopener" className="text-violet-700 underline underline-offset-2">{children}</a>),
+  p: ({ children }) => <p className="my-1.5">{children}</p>,
+  ul: ({ children }) => <ul className="list-disc pl-5 my-1.5 space-y-1">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal pl-5 my-1.5 space-y-1">{children}</ol>,
+  h1: ({ children }) => <p className="font-semibold mt-2 mb-1">{children}</p>,
+  h2: ({ children }) => <p className="font-semibold mt-2 mb-1">{children}</p>,
+  h3: ({ children }) => <p className="font-semibold mt-2 mb-1">{children}</p>,
+  code: ({ children }) => <code className="px-1 rounded bg-slate-100 text-[0.9em]">{children}</code>,
 };
 
 export function AssistantMarkdown({ children, className }) {
@@ -43,6 +51,7 @@ export function AnswerSteps({ message, small = false }) {
 }
 
 const UNAVAILABLE = {
+  NOT_ENABLED: 'AI isn’t turned on for this account.',
   OFF: 'An account owner has switched the assistant off.',
   NOT_SET_UP: 'The assistant isn’t set up for this account yet.',
   LIMIT_REACHED: 'This account has used its AI allowance for the month.',
@@ -54,7 +63,11 @@ export function AssistantUnavailable({ status, small = false }) {
   return (
     <div className={cn('text-center text-slate-500', small ? 'text-[11px] px-3 py-2' : 'text-xs px-4 py-3')}>
       <p>{reason}</p>
-      {status?.can_manage ? (
+      {status?.reason === 'NOT_ENABLED' ? (
+        status?.can_manage
+          ? <Link to="/Account?tab=connected" className="text-violet-700 font-medium hover:underline">Request it in Account &gt; Connected apps</Link>
+          : <p>An account owner can request it in Account &gt; Connected apps.</p>
+      ) : status?.can_manage ? (
         <Link to="/Account?tab=ai" className="text-violet-700 font-medium hover:underline">Set it up in Account &gt; AI assistant</Link>
       ) : (
         <p>Ask an account owner to {status?.reason === 'OFF' ? 'turn it on' : 'set it up'}.</p>

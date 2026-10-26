@@ -2,6 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { cn } from "@/lib/utils";
 import BrandLogo from '@/components/BrandLogo';
 import { useAuth } from '@/lib/AuthContext';
+import { useAiStatus } from '@/hooks/useAiStatus';
 import {
   FolderTree, Building2, ChevronRight, ChevronDown,
   FileText, Shield, Users, Package, AlertTriangle,
@@ -54,6 +55,7 @@ export default function ProjectSidebar(/** @type {any} */ {
   });
   const scrollRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const { user, selectedAccount, logout } = useAuth();
+  const { aiEnabled } = useAiStatus();
   const location = useLocation();
   const pathname = location.pathname.toLowerCase();
 
@@ -167,7 +169,7 @@ export default function ProjectSidebar(/** @type {any} */ {
           <Link to={createPageUrl('ChangeRegisterHub')} title="Governance" className={collapsedClass(isPageActive('/ChangeRegisterHub'))}><Scale className="w-4 h-4" /></Link>
           <Link to={createPageUrl('ResourceManagementHub')} title="Resources" className={collapsedClass(isPageActive('/ResourceManagementHub'))}><Users className="w-4 h-4" /></Link>
           <Link to="/Projects?view=templates" title="Templates" className={collapsedClass(directoryView === 'templates')}><FileText className="w-4 h-4" /></Link>
-          <Link to="/AIAssistant" title="Ask Compass (powered by AI)" className="p-2 rounded-lg hover:bg-slate-100"><CompassBadge /></Link>
+          {aiEnabled && <Link to="/AIAssistant" title="Ask Compass (powered by AI)" className="p-2 rounded-lg hover:bg-slate-100"><CompassBadge /></Link>}
           <div className="mt-auto flex flex-col items-center gap-1">
             <Link to="/LearnSupport" title="Help Center" className={collapsedClass(isPageActive('/LearnSupport'))}><CircleHelp className="w-4 h-4" /></Link>
             {user?.is_platform_admin && (
@@ -258,16 +260,18 @@ export default function ProjectSidebar(/** @type {any} */ {
           </Link>
         </div>
 
-        {/* AI Assistant */}
-        <div className="mb-1">
-          <Link to="/AIAssistant" className={itemClass(isPageActive('/AIAssistant'))}>
-            <CompassBadge />
-            <span className="flex flex-col leading-tight">
-              <span>Ask Compass</span>
-              <span className="text-[10px] italic font-normal" style={{ color: MUTED }}>powered by AI</span>
-            </span>
-          </Link>
-        </div>
+        {/* AI Assistant: only once AI is turned on for the account */}
+        {aiEnabled && (
+          <div className="mb-1">
+            <Link to="/AIAssistant" className={itemClass(isPageActive('/AIAssistant'))}>
+              <CompassBadge />
+              <span className="flex flex-col leading-tight">
+                <span>Ask Compass</span>
+                <span className="text-[10px] italic font-normal" style={{ color: MUTED }}>powered by AI</span>
+              </span>
+            </Link>
+          </div>
+        )}
 
         {/* Help */}
         <div className="mb-1 space-y-0.5">

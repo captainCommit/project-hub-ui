@@ -91,10 +91,13 @@ export const AI_PROVIDERS: { value: AiProvider; label: string; needsEndpoint: bo
 export type AiStatus = {
   available: boolean;
   source: 'BYOK' | 'PLATFORM' | null;
-  reason: 'OFF' | 'NOT_SET_UP' | 'LIMIT_REACHED' | null;
+  // NOT_ENABLED: a platform admin hasn't turned AI on for the account; owners can request it.
+  reason: 'NOT_ENABLED' | 'OFF' | 'NOT_SET_UP' | 'LIMIT_REACHED' | null;
   provider_label: string | null;
   model: string | null;
   can_manage: boolean;
+  enabled: boolean;
+  requested_at: string | null;
 };
 
 export type AiKey = {
@@ -155,6 +158,8 @@ const aiPath = (accountId: string, path: string) => `/api/v1/accounts/${accountI
 
 export const aiSettingsApi = {
   status: (accountId: string) => apiClient.get(aiPath(accountId, '/status'), undefined, { silent: true }) as Promise<AiStatus>,
+  /** Owners: ask a platform admin to turn AI on for the account. */
+  requestAccess: (accountId: string) => apiClient.post(aiPath(accountId, '/access-request')) as Promise<AiStatus>,
   get: (accountId: string) => apiClient.get(aiPath(accountId, '/settings')) as Promise<AiSettings>,
   update: (accountId: string, changes: Partial<Pick<AiSettings, 'assistant_enabled' | 'retention_days'>>) =>
     apiClient.patch(aiPath(accountId, '/settings'), changes) as Promise<AiSettings>,
@@ -207,7 +212,19 @@ export type AiPlatformDecision = {
   clear_cap?: boolean;
 };
 
+/** One account's AI switch, as platform admins see it. */
+export type AiFeatureAccount = {
+  account_id: string;
+  account_name: string;
+  enabled: boolean;
+  requested_at: string | null;
+  requested_by_email: string | null;
+};
+
 export const aiAdminApi = {
+  featureAccounts: () => apiClient.get('/api/v1/admin/ai/feature') as Promise<AiFeatureAccount[]>,
+  setFeature: (accountId: string, enabled: boolean) =>
+    apiClient.put(`/api/v1/admin/ai/feature/${accountId}`, { enabled }) as Promise<AiFeatureAccount>,
   models: () => apiClient.get('/api/v1/admin/ai/models') as Promise<AiPlatformModel[]>,
   createModel: (model: AiPlatformModelInput) => apiClient.post('/api/v1/admin/ai/models', model) as Promise<AiPlatformModel>,
   updateModel: (id: string, changes: Partial<AiPlatformModelInput>) =>

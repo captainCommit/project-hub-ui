@@ -32,13 +32,15 @@ export default function ResourceUtilizationTable({ projectIds = [], scopeLabel =
       let weekly = 0;
       let involved = false;
       scopedTasks.forEach(t => {
-        const isInvolved = t.assignee === name || (Array.isArray(t.resources) && t.resources.includes(name));
+        const isInvolved = t.assignee === name
+          || (Array.isArray(t.resources) && t.resources.includes(name))
+          || (Array.isArray(t.resources_planned) && t.resources_planned.includes(name));
         if (!isInvolved) return;
         involved = true;
-        let hrs = 0;
-        if (Array.isArray(t.resource_hours)) {
-          hrs = t.resource_hours.filter(h => h && h.resource === name).reduce((s, h) => s + (Number(h.hours) || 0), 0);
-        }
+        // Planned hours, else hours logged: the same rule as Resources > Capacity, so both show the same load.
+        const sumFor = (list) => (Array.isArray(list) ? list : [])
+          .filter(h => h && h.resource === name).reduce((s, h) => s + (Number(h.hours) || 0), 0);
+        const hrs = sumFor(t.resource_hours_planned) || sumFor(t.resource_hours);
         const proj = projects.find(p => p.id === t.project_id);
         let weeks = 1;
         if (proj && proj.start_date && proj.end_date) {

@@ -353,9 +353,10 @@ export default function GanttChart({
     return (
       <React.Fragment key={task.id}>
         <div className="group relative hover:bg-slate-50/70 transition-colors border-b border-slate-100" style={{ height: 38, width: totalRowWidth }}>
-          {/* Frozen Task Name column */}
+          {/* Frozen Task Name column: above the bars (z 10) so a bar that starts off screen slides under it, below the sticky header (z 20).
+              Its hover colour is solid for the same reason. */}
           <div
-            className="absolute top-0 left-0 flex items-center gap-1.5 px-2 border-r border-slate-200 bg-white group-hover:bg-slate-50/70 z-10"
+            className="absolute top-0 left-0 flex items-center gap-1.5 px-2 border-r border-slate-200 bg-white group-hover:bg-slate-50 z-[15]"
             style={{ width: TASK_NAME_COL_W, height: 38, paddingLeft: `${8 + level * 14}px`, position: 'sticky', left: 0 }}
           >
             {hasChildren ? (

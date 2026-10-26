@@ -130,7 +130,7 @@ export function raidColumns({
 }) {
   return [
     {
-      key: 'item', label: noun, sortValue: r => r[idField],
+      key: 'item', label: noun, sortValue: r => r[idField], className: 'min-w-[240px]',
       render: r => <TitleCell code={r[idField]} title={r[titleField] || r.description || '—'} sub={`Project: ${getProjectName(r.project_id)}`} />,
     },
     ...(showPriority ? [{ key: 'priority', label: 'Priority', sortValue: r => PRIORITY_RANK[r.priority || 'medium'], render: r => <PriorityPill priority={r.priority} className={RAID_PILL} /> }] : []),

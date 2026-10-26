@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { PlayCircle, BookOpen, LifeBuoy, Ticket, ChevronLeft, Plus, Inbox, RotateCcw } from 'lucide-react';
+import { LifeBuoy, Ticket, ChevronLeft, Plus, Inbox, RotateCcw, Search, X } from 'lucide-react';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import TicketForm from '@/components/support/TicketForm';
 import TicketConversation from '@/components/support/TicketConversation';
@@ -11,6 +11,10 @@ import { supportTicketsApi } from '@/api/collaboration';
 import { useAuth } from '@/lib/AuthContext';
 import { tourStore } from '@/lib/tours';
 import { toast, toastError } from '@/components/ui/use-toast';
+import LearnHome from '@/components/learn/LearnHome';
+import TutorialLibrary, { TutorialCard } from '@/components/learn/TutorialLibrary';
+import TutorialView from '@/components/learn/TutorialView';
+import { ALL_TUTORIALS, findTutorial } from '@/tutorials/content';
 
 const STATUS_STYLES = {
   open: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -49,6 +53,29 @@ export default function LearnSupport() {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const linkedTicketId = searchParams.get('ticket');
+
+  // Lessons and tutorials live in the URL (?learn=<id>, ?learn=library) so they can be linked to and the back button works.
+  const learn = searchParams.get('learn');
+  const tutorial = learn ? findTutorial(learn) : null;
+  const showLibrary = learn === 'library';
+  const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const openLearn = (id) => {
+    setView('home');
+    setSearch('');
+    const next = new URLSearchParams(searchParams);
+    if (id) next.set('learn', id); else next.delete('learn');
+    setSearchParams(next);
+  };
+  const query = search.trim().toLowerCase();
+  const searchResults = query
+    ? ALL_TUTORIALS.filter(t => [t.title, t.summary, ...t.steps.map(step => `${step.title} ${step.body}`)].join(' ').toLowerCase().includes(query))
+    : [];
+  const contactSupport = () => { openLearn(null); setView(tickets.length ? 'requests' : 'new'); };
+
+  // Each lesson starts at the top.
+  const scrollRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }); }, [learn, view]);
   useEffect(() => {
     if (!linkedTicketId) return;
     let cancelled = false;
@@ -81,20 +108,50 @@ export default function LearnSupport() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-3 flex-shrink-0">
-          <div className="w-9 h-9 bg-indigo-100 rounded-lg flex items-center justify-center">
-            <LifeBuoy className="w-5 h-5 text-indigo-600" />
+          <div className="w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center">
+            <LifeBuoy className="w-5 h-5 text-[#002046]" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold text-slate-800">Learn & Support</h1>
-            <p className="text-xs text-slate-400">Get help and make the most of Row</p>
+            <h1 className="text-lg font-bold text-[#002046]">Learn & Support</h1>
+            <p className="text-xs text-slate-500">Everything you need to get started and grow with Row</p>
           </div>
-          <Button variant="outline" size="sm" className="ml-auto" onClick={replayTours} disabled={resettingTours}>
-            <RotateCcw className="w-4 h-4 mr-1.5" /> Show tours again
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            {searchOpen ? (
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input autoFocus value={search} onChange={e => { setSearch(e.target.value); setView('home'); }}
+                  placeholder="Search tutorials..." className="h-9 w-64 rounded-lg border border-slate-200 pl-8 pr-8 text-sm outline-none focus:border-slate-400" />
+                <button type="button" onClick={() => { setSearch(''); setSearchOpen(false); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" aria-label="Close search">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} title="Search tutorials" aria-label="Search tutorials">
+                <Search className="w-4 h-4 text-slate-600" />
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={replayTours} disabled={resettingTours}>
+              <RotateCcw className="w-4 h-4 mr-1.5" /> Show tours again
+            </Button>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-auto p-6">
-          {view === 'conversation' && activeTicket ? (
+        <div ref={scrollRef} className="flex-1 overflow-auto p-6">
+          {query && view === 'home' ? (
+            <div className="max-w-5xl mx-auto">
+              <h2 className="text-base font-bold text-[#002046] mb-3">
+                {searchResults.length ? `Tutorials matching "${search.trim()}"` : `No tutorials match "${search.trim()}"`}
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {searchResults.map(t => <TutorialCard key={t.id} tutorial={t} onOpen={openLearn} kicker={t.kind === 'lesson' ? 'Getting Started' : t.group} />)}
+              </div>
+            </div>
+          ) : view === 'home' && tutorial ? (
+            <TutorialView tutorial={tutorial} onOpen={openLearn} onLibrary={() => openLearn('library')}
+              onBack={() => openLearn(tutorial.kind === 'lesson' ? null : 'library')} />
+          ) : view === 'home' && showLibrary ? (
+            <TutorialLibrary onOpen={openLearn} onBack={() => openLearn(null)} />
+          ) : view === 'conversation' && activeTicket ? (
             <div className="h-full max-w-3xl mx-auto bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 140px)' }}>
               <TicketConversation ticket={activeTicket} onBack={() => { setView('requests'); setActiveTicket(null); }} />
             </div>
@@ -153,46 +210,7 @@ export default function LearnSupport() {
               </div>
             </div>
           ) : (
-            /* Home view */
-            <div className="max-w-4xl mx-auto space-y-6">
-              {/* Welcome banner */}
-              <div className="bg-gradient-to-br from-[#002046] to-[#003a7a] rounded-2xl p-8 text-white relative overflow-hidden">
-                <div className="absolute -right-8 -top-8 w-40 h-40 bg-white/10 rounded-full" />
-                <div className="absolute -right-16 -bottom-16 w-52 h-52 bg-[#c87b14]/20 rounded-full" />
-                <div className="relative">
-                  <h2 className="text-2xl font-bold mb-1">Welcome to Row Support</h2>
-                  <p className="text-sm text-white/80">Learn how to get the most from Row. We're here to help you succeed.</p>
-                </div>
-              </div>
-
-              {/* Action cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <button onClick={() => setView('requests')} className="text-left bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md hover:border-indigo-200 transition-all group">
-                  <div className="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
-                    <Ticket className="w-5 h-5 text-indigo-600" />
-                  </div>
-                  <h3 className="text-sm font-semibold text-slate-800 mb-1">Contact Support</h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">Submit a ticket and track your requests with our support team.</p>
-                </button>
-
-                <a href="#" className="text-left bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md hover:border-indigo-200 transition-all group">
-                  <div className="w-10 h-10 bg-rose-50 rounded-lg flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
-                    <PlayCircle className="w-5 h-5 text-rose-500" />
-                  </div>
-                  <h3 className="text-sm font-semibold text-slate-800 mb-1">Watch Getting Started</h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">Quick walkthrough videos to get you up and running in minutes.</p>
-                </a>
-
-                <a href="#" className="text-left bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md hover:border-indigo-200 transition-all group">
-                  <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
-                    <BookOpen className="w-5 h-5 text-emerald-600" />
-                  </div>
-                  <h3 className="text-sm font-semibold text-slate-800 mb-1">Browse Tutorials</h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">In-depth guides covering every feature and common workflows.</p>
-                </a>
-              </div>
-
-              {/* Recent requests preview */}
+            <LearnHome onOpen={openLearn} onLibrary={() => openLearn('library')} onContact={contactSupport}>
               {tickets.length > 0 && (
                 <div className="bg-white rounded-xl border border-slate-200">
                   <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
@@ -212,7 +230,7 @@ export default function LearnSupport() {
                   </div>
                 </div>
               )}
-            </div>
+            </LearnHome>
           )}
         </div>
       </div>

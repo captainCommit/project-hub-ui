@@ -4,6 +4,7 @@ import { Check, KeyRound, Loader2, Pencil, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { toastError } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import { aiAdminApi, formatAllowance } from '@/api/ai';
@@ -252,18 +253,55 @@ function AccountsPanel({ accounts, models }) {
   );
 }
 
-/** Platform admins: the models Project Hub provides, and which accounts use them on what terms. */
+/** Which accounts have AI at all. Owners request it from Account > Connected apps; requests are listed first. */
+function FeaturePanel({ accounts }) {
+  const queryClient = useQueryClient();
+  const toggle = useMutation({
+    mutationFn: ({ accountId, enabled }) => aiAdminApi.setFeature(accountId, enabled),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-ai-feature'] }),
+    onError: (error) => toastError(error?.message || 'AI could not be switched.'),
+  });
+  const waiting = accounts.filter(a => a.requested_at && !a.enabled).length;
+  return (
+    <Panel title="AI access" aside={waiting > 0 && <span className="text-xs font-medium text-amber-700">{waiting} waiting</span>}>
+      <p className="px-5 pt-3 text-xs text-slate-500">
+        Accounts with AI off have no Ask Compass, reports or AI assistant tab. Owners can ask for it from Account &gt; Connected apps.
+      </p>
+      <div className="divide-y divide-slate-100 mt-2">
+        {accounts.map(row => (
+          <div key={row.account_id} className="px-5 py-3 flex items-center gap-4 text-sm">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-slate-800 truncate">{row.account_name}</p>
+              {row.requested_at && !row.enabled && (
+                <p className="text-xs text-amber-700">
+                  Requested {formatDate(row.requested_at)}{row.requested_by_email ? ` by ${row.requested_by_email}` : ''}
+                </p>
+              )}
+            </div>
+            <span className={cn('text-xs font-medium', row.enabled ? 'text-emerald-700' : 'text-slate-500')}>{row.enabled ? 'On' : 'Off'}</span>
+            <Switch checked={row.enabled} disabled={toggle.isPending} aria-label={`AI for ${row.account_name}`}
+              onCheckedChange={(enabled) => toggle.mutate({ accountId: row.account_id, enabled })} />
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+/** Platform admins: which accounts have AI, the models Project Hub provides, and which accounts use them on what terms. */
 export default function PlatformAiAdmin() {
+  const feature = useQuery({ queryKey: ['admin-ai-feature'], queryFn: aiAdminApi.featureAccounts });
   const models = useQuery({ queryKey: ['admin-ai-models'], queryFn: aiAdminApi.models });
   const accounts = useQuery({ queryKey: ['admin-ai-accounts'], queryFn: aiAdminApi.accounts });
-  if (models.isLoading || accounts.isLoading) {
+  if (feature.isLoading || models.isLoading || accounts.isLoading) {
     return <div className="text-sm text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>;
   }
-  if (models.error || accounts.error) {
-    return <p className="text-sm text-red-600">{(models.error || accounts.error)?.message || 'AI settings could not load.'}</p>;
+  if (feature.error || models.error || accounts.error) {
+    return <p className="text-sm text-red-600">{(feature.error || models.error || accounts.error)?.message || 'AI settings could not load.'}</p>;
   }
   return (
     <div className="space-y-6 max-w-4xl">
+      <FeaturePanel accounts={feature.data || []} />
       <AccountsPanel accounts={accounts.data || []} models={models.data || []} />
       <ModelsPanel models={models.data || []} />
     </div>

@@ -378,6 +378,11 @@ export default function Projects() {
     queryFn: () => programsApi.getProjects(programId),
     enabled: !!programId && hasValidProgramRoute,
   });
+  // The program's project list only carries status ids; the account's programs-projects tree has the statuses.
+  const routeProgramProjectsWithStatus = useMemo(() => {
+    const treeById = new Map(accountProgramsProjects.projects.map(p => [p.id, p]));
+    return routeProgramProjects.map(p => (p.status ? p : { ...p, status: treeById.get(p.id)?.status ?? null }));
+  }, [routeProgramProjects, accountProgramsProjects.projects]);
 
   const {
     data: routeProject,
@@ -1829,7 +1834,7 @@ export default function Projects() {
           ) : (
             <ProgramDetailView
               program={programDetail}
-              projects={routeProgramProjects}
+              projects={routeProgramProjectsWithStatus}
               portfolios={portfolios}
               risks={risks}
               issues={issues}

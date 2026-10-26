@@ -12,6 +12,8 @@ import NotificationPreferences from '@/components/Account/NotificationPreference
 import AiAssistantSettings from '@/components/Account/AiAssistantSettings';
 import IntegrationsSettings from '@/components/Account/IntegrationsSettings';
 import ConnectedApps from '@/components/Account/ConnectedApps';
+import AiAccessCard from '@/components/Account/AiAccessCard';
+import { useAiStatus } from '@/hooks/useAiStatus';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 
@@ -48,6 +50,7 @@ export default function Account() {
   const { user, appPublicSettings, accounts, selectedAccount, selectedAccountId, setSelectedAccountId } = useAuth();
 
   const { projects, programs, portfolios } = useAccountHierarchy();
+  const { aiEnabled } = useAiStatus();
 
   const accountRole = selectedAccount?.role;
   const roleLabel = accountRole ? accountRole.charAt(0) + accountRole.slice(1).toLowerCase() : '—';
@@ -59,7 +62,7 @@ export default function Account() {
     { id: 'connected', label: 'Connected apps', icon: Link2 },
     canManageUsers && { id: 'users', label: 'Users', icon: Users },
     isAdmin && { id: 'billing', label: 'Billing', icon: CreditCard },
-    isAdmin && { id: 'ai', label: 'AI assistant', icon: Bot },
+    isAdmin && aiEnabled && { id: 'ai', label: 'AI assistant', icon: Bot },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ].filter(Boolean);
   const sheetsOwned = projects.filter(p => p.created_by_id === user?.id || p.owner === user?.full_name).length;
@@ -138,6 +141,8 @@ export default function Account() {
           <div className="flex-1 overflow-auto p-8">
             {/* Everyone's own connections, then (for owners) the account-wide Slack and Microsoft 365 setup. */}
             <div className="max-w-3xl space-y-8">
+              {/* The AI assistant is the account's, not a personal link, so it sits above both sections. */}
+              <AiAccessCard />
               <section className="space-y-3">
                 {isAdmin && <SectionHeading title="Your connections" sub="Link your own Slack user and calendar." />}
                 <ConnectedApps accountId={selectedAccountId} />
@@ -154,7 +159,7 @@ export default function Account() {
               )}
             </div>
           </div>
-        ) : tab === 'ai' && isAdmin ? (
+        ) : tab === 'ai' && isAdmin && aiEnabled ? (
           <div className="flex-1 overflow-auto p-8">
             <div className="max-w-3xl">
               <AiAssistantSettings accountId={selectedAccountId} />

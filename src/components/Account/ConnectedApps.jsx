@@ -11,7 +11,7 @@ import { DM_CATEGORY_LABELS, integrationsApi } from '@/api/integrations';
 
 const formatTime = (value) => (value ? new Date(value).toLocaleString() : 'not yet');
 
-function Card({ title, icon: Icon, children }) {
+export function Card({ title, icon: Icon, children }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200">
       <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">

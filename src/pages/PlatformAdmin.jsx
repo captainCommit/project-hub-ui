@@ -30,6 +30,8 @@ const AUDIT_ACTION_LABELS = {
   'account.billing_enabled': 'Turned billing on',
   'account.billing_disabled': 'Turned billing off',
   'account.billing_synced': 'Synced seats to Stripe',
+  'account.ai_enabled': 'Turned on AI',
+  'account.ai_disabled': 'Turned off AI',
   'account.ai_platform_enabled': 'Switched on the AI model',
   'account.ai_platform_disabled': 'Switched off the AI model',
   'account.ai_platform_declined': 'Declined the AI model request',

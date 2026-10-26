@@ -11,6 +11,7 @@ import { aiReportsApi, aiSettingsApi } from '@/api/ai';
 import { AssistantUnavailable } from '@/components/assistant/AssistantParts';
 import { toast, toastError } from '@/components/ui/use-toast';
 import { useAuth } from '@/lib/AuthContext';
+import { useAiStatus } from '@/hooks/useAiStatus';
 import { downloadPdf, downloadPpt, reportFileName } from '@/lib/reportExport';
 import { cn } from '@/lib/utils';
 
@@ -91,6 +92,7 @@ export default function ReportGenerator({ scope = 'project', project, program, p
   const scopeType = scope.toUpperCase();
   const entity = scopeType === 'PROGRAM' ? program : scopeType === 'PORTFOLIO' ? portfolio : project;
   const { selectedAccountId: accountId } = useAuth();
+  const { aiEnabled } = useAiStatus();
   const queryClient = useQueryClient();
   const previewRef = useRef(null);
   const [open, setOpen] = useState(false);
@@ -169,6 +171,7 @@ export default function ReportGenerator({ scope = 'project', project, program, p
   const unavailable = status && !status.available;
   const recent = recentQuery.data || [];
 
+  if (!aiEnabled) return null;
   return (
     <>
       <Button size="sm" variant="outline" onClick={() => setOpen(true)} className="h-9 gap-1.5" disabled={!entity?.id}>

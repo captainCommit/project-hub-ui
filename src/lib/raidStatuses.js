@@ -30,11 +30,13 @@ export const getStatusColor = (value) => {
 export const RAID_DEFAULTS = {
   risk: [
     { value: 'open', label: 'Open' },
+    { value: 'escalated', label: 'Escalated' },
     { value: 'resolved', label: 'Resolved' },
     { value: 'cancelled', label: 'Cancelled' },
   ],
   issue: [
     { value: 'open', label: 'Open' },
+    { value: 'escalated', label: 'Escalated' },
     { value: 'resolved', label: 'Resolved' },
     { value: 'cancelled', label: 'Cancelled' },
   ],

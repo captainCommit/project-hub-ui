@@ -48,6 +48,7 @@ const RECORD_PAGES = {
 const FEED_SKIP_TYPES = ['MENTION', 'TASK_ASSIGNED'];
 const FEED_KIND = {
   SUPPORT_REPLY: 'support',
+  ESCALATION: 'escalation',
   RISK_CREATED: 'risk',
   DUE_SOON: 'due',
   STATUS_CHANGED: 'status',

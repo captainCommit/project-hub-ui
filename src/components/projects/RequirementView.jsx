@@ -14,6 +14,7 @@ import {
   DataTable, TitleCell, Pill, PriorityPill, DetailsChevron, NAVY,
 } from '@/components/projects/DirectoryKit';
 import { useAccountHierarchy, useAccountRequirements, useAccountTestCases } from '@/hooks/useAccountLookups';
+import { useGlobalScope } from '@/lib/globalScope';
 import { mapRequirementFromApi, mapRequirementInputToPayload, requirementsApi } from '@/api/projectLogs';
 
 const STATUS_TONES = { in_review: 'orange', validated: 'green', deferred: 'grey', cancelled: 'red' };
@@ -59,7 +60,10 @@ export default function RequirementView() {
   const [editingId, setEditingId] = useState(null);
 
   const { requirements, isLoading } = useAccountRequirements();
-  const { projects, programs, portfolios } = useAccountHierarchy();
+  // The stats and table show what's inside the global scope; new IDs still count every requirement in the account.
+  const { inScope, scopeHierarchy } = useGlobalScope();
+  const { projects, programs, portfolios } = scopeHierarchy(useAccountHierarchy());
+  const shown = requirements.filter(inScope);
   const { testCases } = useAccountTestCases();
 
   const invalidateLinks = () => {
@@ -88,11 +92,11 @@ export default function RequirementView() {
   const getProjectName = (id) => projects.find(p => p.id === id)?.name || '—';
   const linkedIds = (r) => (Array.isArray(r.test_case_id) ? r.test_case_id : (r.test_case_id ? [r.test_case_id] : []));
 
-  const validatedCount = requirements.filter(r => r.status === 'validated').length;
-  const inReviewCount = requirements.filter(r => r.status === 'in_review').length;
-  const coveragePct = requirements.length ? Math.round(requirements.filter(r => linkedIds(r).length > 0).length / requirements.length * 100) : 0;
+  const validatedCount = shown.filter(r => r.status === 'validated').length;
+  const inReviewCount = shown.filter(r => r.status === 'in_review').length;
+  const coveragePct = shown.length ? Math.round(shown.filter(r => linkedIds(r).length > 0).length / shown.length * 100) : 0;
 
-  const filtered = requirements.filter(r => {
+  const filtered = shown.filter(r => {
     if (search) {
       const q = search.toLowerCase();
       if (!(r.title || '').toLowerCase().includes(q) && !(r.requirement_id || '').toLowerCase().includes(q)) return false;
@@ -173,10 +177,10 @@ export default function RequirementView() {
         />
 
         <StatGrid className="lg:grid-cols-4">
-          <StatCard value={requirements.length} label="Total Requirements" sub="Across all projects" />
+          <StatCard value={shown.length} label="Total Requirements" sub="Across all projects" />
           <StatCard value={validatedCount} label="Validated" sub="Approved requirements" />
           <StatCard value={inReviewCount} label="In Review" sub="Awaiting validation" />
-          <StatCard value={requirements.length ? `${coveragePct}%` : '—'} label="Test Coverage" sub="Requirements with test cases" />
+          <StatCard value={shown.length ? `${coveragePct}%` : '—'} label="Test Coverage" sub="Requirements with test cases" />
         </StatGrid>
 
         <FilterBar right={<ExportButton onClick={handleExportAll} disabled={filtered.length === 0} />}>
@@ -194,7 +198,7 @@ export default function RequirementView() {
           noun="requirements"
           minWidth={760}
           initialSort={{ key: 'requirement', dir: 'asc' }}
-          empty={isLoading ? 'Loading...' : requirements.length ? 'No requirements match your filters.' : 'No requirements yet. Click "New Requirement" to create one.'}
+          empty={isLoading ? 'Loading...' : shown.length ? 'No requirements match your filters.' : 'No requirements yet. Click "New Requirement" to create one.'}
         />
       </PageBody>
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import { AlertTriangle, AlertCircle, BookOpen, Link2, X, Layers, ListChecks, FolderOpen, CircleCheck } from 'lucide-react';
 import MultiSelectFilter from '@/components/projects/MultiSelectFilter';
-import { StatCard } from '@/components/projects/DirectoryKit';
+import { PageFilterLabel, StatCard } from '@/components/projects/DirectoryKit';
 import { inRaidScope } from '@/components/projects/RaidTable';
 
 const CLOSED = new Set(['closed', 'resolved', 'cancelled', 'invalidated', 'implemented_closed', 'no_longer_required', 'declined', 'rejected']);
@@ -65,6 +65,7 @@ export default function RaidOverview({ risks = [], issues = [], assumptions = []
     <div className="flex-1 flex flex-col overflow-hidden bg-slate-50" style={{ fontFamily: 'Segoe UI, sans-serif' }}>
       {/* Filter bar */}
       <div className="bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-4 flex-wrap">
+        <PageFilterLabel />
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-500">Portfolio:</span>
           <MultiSelectFilter options={portfolios.map(p => ({ value: p.id, label: p.name }))} selected={filterPortfolios} onChange={(v) => setScope({ portfolios: v, programs: [], projects: [] })} allLabel="All Portfolios" className="h-8 w-44" />

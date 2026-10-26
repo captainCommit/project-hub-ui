@@ -5,6 +5,7 @@ import DeliverySummary from '@/components/projects/DeliverySummary';
 import { Package, RefreshCw, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAccountHierarchy, useAccountResources, useAccountSprints } from '@/hooks/useAccountLookups';
+import { useGlobalScope } from '@/lib/globalScope';
 
 export default function SprintManagement() {
   const [tab, setTab] = useState('overview');
@@ -12,11 +13,15 @@ export default function SprintManagement() {
   const [focusSprintId, setFocusSprintId] = useState(null);
   // The Sprint Board puts its New Sprint button in the header, in this element.
   const [actionsSlot, setActionsSlot] = useState(/** @type {HTMLDivElement | null} */ (null));
-  const { projects, programs, portfolios } = useAccountHierarchy();
+  const hierarchy = useAccountHierarchy();
+  const { projects, programs, portfolios } = useGlobalScope().scopeHierarchy(hierarchy);
   const resources = useAccountResources();
   // A ?focusSprint= link names only the sprint; its project comes from the account's sprints.
   const accountSprints = useAccountSprints();
   const focusProjectId = focusSprint?.project_id || accountSprints.find(s => s.id === focusSprintId)?.project_id;
+  // The board offers the projects inside the global scope, plus a linked sprint's project when it's outside.
+  const focusProject = focusProjectId && !projects.some(p => p.id === focusProjectId) && hierarchy.projects.find(p => p.id === focusProjectId);
+  const boardProjects = focusProject ? [...projects, focusProject] : projects;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -67,7 +72,7 @@ export default function SprintManagement() {
           />
         ) : (
           <SprintView
-            projects={projects}
+            projects={boardProjects}
             programs={programs}
             portfolios={portfolios}
             resources={resources}

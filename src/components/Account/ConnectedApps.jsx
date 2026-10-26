@@ -34,7 +34,7 @@ function ChatLink({ accountId, provider, label, howToLink, state, options }) {
   const unlink = useMutation({ mutationFn: () => integrationsApi.unlink(accountId, provider), onSuccess: refresh });
 
   if (!state.connected) {
-    return <p className="text-sm text-slate-500">This account isn’t connected to {label}. An account owner can connect it in Account &gt; Integrations.</p>;
+    return <p className="text-sm text-slate-500">This account isn’t connected to {label}. An account owner can connect it in Account &gt; Connected apps.</p>;
   }
   if (!state.link) {
     return (

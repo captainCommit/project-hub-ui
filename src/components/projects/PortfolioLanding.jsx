@@ -5,7 +5,7 @@ import { exportRecords } from '@/lib/exportUtils';
 import { RAG } from './HealthIndicator';
 import {
   PageHeader, PageBody, PrimaryButton, ExportButton, StatGrid, StatCard, FilterBar, SearchInput, FilterSelect, optionsFrom,
-  DataTable, TitleCell, HealthPill, WorkStatusPill, CompletionBar, CountCell, DetailsChevron,
+  DataTable, TitleCell, HealthPill, WorkStatusPill, CompletionBar, DetailsChevron,
   WORK_STATUS_OPTIONS, workStatusInfo, isCompleteStatus, isOpenRaid, isHighOrCritical, riskIssueLine, NAVY, SOFT, PersonCell,
 } from './DirectoryKit';
 
@@ -69,7 +69,7 @@ export default function PortfolioLanding({ portfolios = [], programs = [], proje
 
   const columns = [
     {
-      key: 'name', label: 'Portfolio', sortValue: r => r.port.name, className: 'whitespace-nowrap',
+      key: 'name', label: 'Portfolio', sortValue: r => r.port.name, className: 'whitespace-nowrap min-w-[240px]', headerClassName: 'min-w-[240px]',
       render: r => <TitleCell title={r.port.name} />,
     },
     { key: 'health', label: 'Health', info: HEALTH_INFO, render: r => <HealthPill rag={r.rag} /> },
@@ -77,8 +77,6 @@ export default function PortfolioLanding({ portfolios = [], programs = [], proje
     { key: 'completion', label: 'Completion', sortValue: r => r.pct, render: r => <CompletionBar pct={r.pct} /> },
     { key: 'programs', label: 'Programs', sortValue: r => r.programCount, className: 'text-center', headerClassName: 'text-center', render: r => <span style={{ color: SOFT }}>{r.programCount}</span> },
     { key: 'projects', label: 'Projects', sortValue: r => r.projectCount, className: 'text-center', headerClassName: 'text-center', render: r => <span style={{ color: SOFT }}>{r.projectCount}</span> },
-    { key: 'risks', label: 'Open Risks', sortValue: r => r.openRisks, className: 'text-center', headerClassName: 'text-center', render: r => <CountCell value={r.openRisks} /> },
-    { key: 'issues', label: 'Open Issues', sortValue: r => r.openIssues, className: 'text-center', headerClassName: 'text-center', render: r => <CountCell value={r.openIssues} /> },
     { key: 'owner', label: 'Portfolio Owner(s)', sortValue: r => r.port.owner, render: r => <PersonCell name={r.port.owner} /> },
     { key: 'open', label: '', className: 'w-8', render: () => <DetailsChevron /> },
   ];
@@ -86,6 +84,7 @@ export default function PortfolioLanding({ portfolios = [], programs = [], proje
   return (
     <PageBody>
       <PageHeader
+        icon={Building2}
         title="Portfolio Directory"
         subtitle="Enterprise portfolio health and delivery performance."
         actions={<PrimaryButton icon={Plus} onClick={onNewPortfolio}>New Portfolio</PrimaryButton>}

@@ -17,8 +17,8 @@ const STATUS_TONES = {
   open: 'grey', draft: 'grey', closed: 'grey', cancelled: 'grey',
   mitigating: 'blue', in_progress: 'blue',
   in_review: 'yellow', pending: 'yellow',
-  resolved: 'green', validated: 'green', approved: 'green',
-  blocked: 'orange',
+  resolved: 'green', validated: 'green', approved: 'green', implemented: 'green',
+  blocked: 'orange', deferred: 'orange',
   escalated: 'red', invalidated: 'red',
 };
 
@@ -47,15 +47,18 @@ export function inRaidScope(item, filters, programs) {
   return true;
 }
 
-/** Scope plus the search box (code or title), status, priority and assignee. */
-export function filterRaidItems(items, filters, programs, idField) {
+/**
+ * Scope plus the search box (code or title), status, priority and assignee.
+ * titleField/personField: where the title and the person live (decisions use decision and proposed_by).
+ */
+export function filterRaidItems(items, filters, programs, idField, { titleField = 'title', personField = 'assigned_to' } = {}) {
   const q = filters.search.trim().toLowerCase();
   return items.filter(item => {
     if (!inRaidScope(item, filters, programs)) return false;
-    if (q && !(item.title || '').toLowerCase().includes(q) && !String(item[idField] || '').toLowerCase().includes(q)) return false;
+    if (q && !String(item[titleField] || '').toLowerCase().includes(q) && !String(item[idField] || '').toLowerCase().includes(q)) return false;
     if (filters.status && item.status !== filters.status) return false;
     if (filters.priority && (item.priority || 'medium') !== filters.priority) return false;
-    if (filters.assignee && item.assigned_to !== filters.assignee) return false;
+    if (filters.assignee && item[personField] !== filters.assignee) return false;
     return true;
   });
 }
@@ -71,7 +74,7 @@ function projectOptions(filters, projects, programs) {
 
 export function RaidToolbar({
   filters, onFiltersChange, items, projects, programs, statuses = undefined, showPriority = true, assigneeLabel = 'Assigned To',
-  searchPlaceholder = undefined,
+  searchPlaceholder = undefined, personField = 'assigned_to',
 }) {
   const set = (patch) => onFiltersChange({ ...filters, ...patch });
   const statusOptions = statuses
@@ -89,7 +92,7 @@ export function RaidToolbar({
       />
       <FilterSelect value={filters.status} onChange={status => set({ status })} allLabel="Status" options={statusOptions} />
       {showPriority && <FilterSelect value={filters.priority} onChange={priority => set({ priority })} allLabel="Priority" options={PRIORITY_OPTIONS} />}
-      <FilterSelect value={filters.assignee} onChange={assignee => set({ assignee })} allLabel={assigneeLabel} options={optionsFrom(items.map(i => i.assigned_to))} />
+      <FilterSelect value={filters.assignee} onChange={assignee => set({ assignee })} allLabel={assigneeLabel} options={optionsFrom(items.map(i => i[personField]))} />
       {narrowedAbove && (
         <button type="button" onClick={() => set({ portfolios: [], programs: [] })} title="Portfolio and program filters set on the Overview"
           className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700">
@@ -119,17 +122,22 @@ const formatDay = (value) => {
 /**
  * The columns the RAID tabs use: the item (code, title, project), then priority, status, a person and a date.
  * dateLabel/dateField and person (label) vary by log; showPriority is off for assumptions.
+ * titleField/personField: where the title and the person live; extra: columns placed before Details.
  */
-export function raidColumns({ noun, idField, getProjectName, showPriority = true, person = undefined, dateLabel = 'Target Date', dateField = 'target_date' }) {
+export function raidColumns({
+  noun, idField, getProjectName, showPriority = true, person = undefined, dateLabel = 'Target Date', dateField = 'target_date',
+  titleField = 'title', personField = 'assigned_to', extra = [],
+}) {
   return [
     {
       key: 'item', label: noun, sortValue: r => r[idField],
-      render: r => <TitleCell code={r[idField]} title={r.title || r.description || '—'} sub={`Project: ${getProjectName(r.project_id)}`} />,
+      render: r => <TitleCell code={r[idField]} title={r[titleField] || r.description || '—'} sub={`Project: ${getProjectName(r.project_id)}`} />,
     },
     ...(showPriority ? [{ key: 'priority', label: 'Priority', sortValue: r => PRIORITY_RANK[r.priority || 'medium'], render: r => <PriorityPill priority={r.priority} className={RAID_PILL} /> }] : []),
     { key: 'status', label: 'Status', sortValue: r => raidStatusLabel(r.status), render: r => <RaidStatusPill status={r.status} openTone={noun === 'Dependency' ? 'blue' : 'grey'} /> },
-    ...(person ? [{ key: 'person', label: person, sortValue: r => r.assigned_to, render: r => <PersonCell name={r.assigned_to} /> }] : []),
+    ...(person ? [{ key: 'person', label: person, sortValue: r => r[personField], render: r => <PersonCell name={r[personField]} /> }] : []),
     { key: 'date', label: dateLabel, sortValue: r => r[dateField], render: r => <span className="text-sm whitespace-nowrap" style={{ color: SOFT }}>{formatDay(r[dateField])}</span> },
+    ...extra,
     { key: 'open', label: 'Details', className: 'w-16', render: () => <DetailsChevron /> },
   ];
 }

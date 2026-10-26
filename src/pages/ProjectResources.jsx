@@ -12,6 +12,8 @@ import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, ReferenceLine } from 'recharts';
 import { parseISO, isValid } from 'date-fns';
 import { useAccountHierarchy, useAccountTasks } from '@/hooks/useAccountLookups';
+import { useGlobalScope } from '@/lib/globalScope';
+import { PageFilterLabel } from '@/components/projects/DirectoryKit';
 
 // section: 'overview' (summary + utilization dashboard), 'capacity' (resource directory) or 'all'.
 export default function ProjectResources({ embedded = false, section = 'all' }) {
@@ -81,7 +83,11 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
     queryFn: () => resourcesApi.getResource(editingId),
     enabled: Boolean(editingId),
   });
-  const { projects, programs, portfolios } = useAccountHierarchy();
+  // A person's load counts all their work (projects); the global scope narrows who is listed and the filter options.
+  const hierarchy = useAccountHierarchy();
+  const { projects } = hierarchy;
+  const { active: scopeActive, scopeHierarchy } = useGlobalScope();
+  const { projects: inScopeProjects, programs, portfolios } = scopeHierarchy(hierarchy);
   const { tasks: allTasks } = useAccountTasks();
 
   const invalidateResources = (resourceId) => {
@@ -198,10 +204,10 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
   // Utilization dashboard scope filters (portfolio → program → project)
   const scopedProjectIds = useMemo(() => {
     if (filterProject !== 'all') return new Set([filterProject]);
-    if (filterProgram !== 'all') return new Set(projects.filter(p => p.program_id === filterProgram).map(p => p.id));
-    if (filterPortfolio !== 'all') return new Set(projects.filter(p => p.portfolio_id === filterPortfolio).map(p => p.id));
-    return null;
-  }, [projects, filterProject, filterProgram, filterPortfolio]);
+    if (filterProgram !== 'all') return new Set(inScopeProjects.filter(p => p.program_id === filterProgram).map(p => p.id));
+    if (filterPortfolio !== 'all') return new Set(inScopeProjects.filter(p => p.portfolio_id === filterPortfolio).map(p => p.id));
+    return scopeActive ? new Set(inScopeProjects.map(p => p.id)) : null;
+  }, [inScopeProjects, scopeActive, filterProject, filterProgram, filterPortfolio]);
 
   const resourcesInScope = useMemo(() => {
     if (!scopedProjectIds) return null;
@@ -223,7 +229,7 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
   });
   const departments = [...new Set(resources.map(r => r.department).filter(Boolean))].sort();
   const scopePrograms = programs.filter(p => filterPortfolio === 'all' || p.portfolio_id === filterPortfolio);
-  const scopeProjects = projects.filter(p => {
+  const scopeProjects = inScopeProjects.filter(p => {
     if (filterProgram !== 'all') return p.program_id === filterProgram;
     if (filterPortfolio !== 'all') return p.portfolio_id === filterPortfolio;
     return true;
@@ -420,6 +426,7 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
             {/* Filters */}
             <div className="px-3 py-2 bg-slate-50 rounded-lg mb-5 border border-slate-100 space-y-2">
               <div className="flex flex-wrap items-center gap-3">
+                <PageFilterLabel />
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-slate-500">Portfolio:</span>
                   <Select value={filterPortfolio} onValueChange={(v) => { setFilterPortfolio(v); setFilterProgram('all'); setFilterProject('all'); }}>

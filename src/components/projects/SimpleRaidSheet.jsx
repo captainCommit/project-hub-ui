@@ -13,6 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { X, MessageSquare, Loader2, Bell } from 'lucide-react';
 import { DataTable, PageBody } from '@/components/projects/DirectoryKit';
 import { RaidActions, RaidToolbar, filterRaidItems, raidColumns } from '@/components/projects/RaidTable';
+import { useGlobalScope } from '@/lib/globalScope';
+import EscalateDialog from '@/components/projects/EscalateDialog';
 import { exportRecords } from '@/lib/exportUtils';
 import { cn } from '@/lib/utils';
 import { confirmAction } from '@/components/ui/confirm-dialog';
@@ -177,6 +179,7 @@ function DetailPanel({ record, noun, idField, descriptionLabel, statuses, status
   const { comments, addComment: postComment } = useEntityComments(commentEntityType, record.id);
   useEffect(() => { setLocal(record); }, [record.id]);
   const save = (field, value) => onUpdate(record.id, { [field]: value });
+  const [escalateOpen, setEscalateOpen] = useState(false);
   const addComment = async () => {
     if (!commentText.trim()) return;
     await postComment(commentText.trim());
@@ -249,16 +252,28 @@ function DetailPanel({ record, noun, idField, descriptionLabel, statuses, status
               </SelectContent>
             </Select>
           </DField>
-          {statusMap.escalated && (
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline"
-                className={cn('h-8 text-xs gap-1', local.status === 'escalated' ? 'text-red-700 bg-red-50 border-red-200' : 'text-amber-600 hover:bg-amber-50')}
-                disabled={local.status === 'escalated'}
-                onClick={() => { setLocal(p => ({ ...p, status: 'escalated' })); save('status', 'escalated'); }}>
-                <Bell className="w-3.5 h-3.5" />{local.status === 'escalated' ? 'Escalated' : 'Escalate'}
-              </Button>
-            </div>
-          )}
+          {/* Escalate: pick a person or team to notify and email; logs with an Escalated status mark the item. */}
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline"
+              className={cn('h-8 text-xs gap-1', local.status === 'escalated' ? 'text-red-700 bg-red-50 border-red-200' : 'text-amber-600 hover:bg-amber-50')}
+              title={local.status === 'escalated' ? 'Already escalated. Escalate again to notify someone else.' : undefined}
+              onClick={() => setEscalateOpen(true)}>
+              <Bell className="w-3.5 h-3.5" />{local.status === 'escalated' ? 'Escalated' : 'Escalate'}
+            </Button>
+          </div>
+          <EscalateDialog
+            open={escalateOpen}
+            onOpenChange={setEscalateOpen}
+            entityType={commentEntityType}
+            item={record}
+            code={local[idField]}
+            resources={resources}
+            onEscalated={() => {
+              if (!statusMap.escalated || local.status === 'escalated') return;
+              setLocal(p => ({ ...p, status: 'escalated' }));
+              save('status', 'escalated');
+            }}
+          />
           <div className="border-t pt-4">
             <div className="flex items-center gap-2 mb-3">
               <MessageSquare className="w-4 h-4 text-slate-500" />
@@ -348,7 +363,8 @@ export default function SimpleRaidSheet({
   const getProjectName = (id) => projects.find(p => p.id === id)?.name || '—';
   const getProgramName = (id) => programs.find(p => p.id === id)?.name || '—';
 
-  const filtered = filterRaidItems(records, filters, programs, idField);
+  const { inScope } = useGlobalScope();
+  const filtered = filterRaidItems(records.filter(inScope), filters, programs, idField);
 
   useEffect(() => { onCountChange?.(filtered.length); }, [filtered.length, onCountChange]);
 

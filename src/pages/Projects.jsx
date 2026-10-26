@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { toast, toastError } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import ProjectsSummary from '@/components/projects/ProjectsSummary';
+import { useGlobalScope } from '@/lib/globalScope';
 import RAIDSummary from '@/components/projects/RAIDSummary';
 import TemplatesView from '@/components/projects/TemplatesView';
 import SprintView from '@/components/projects/SprintView';
@@ -651,6 +652,17 @@ export default function Projects() {
   const { tasks: accountTasks } = useAccountTasks();
   // Sprint-scoped tasks are the API's user stories.
   const stories = useMemo(() => accountTasks.filter(t => t.sprint_id).map(mapTaskToUserStory), [accountTasks]);
+
+  // The directories, RAID rollup, Delivery and Sprints follow the global scope; a routed portfolio, program or project shows in full.
+  const { inScope, scopeHierarchy } = useGlobalScope();
+  const scoped = useMemo(() => ({
+    ...scopeHierarchy({ portfolios, programs, projects }),
+    tasks: accountTasks.filter(inScope),
+    risks: risks.filter(inScope),
+    issues: issues.filter(inScope),
+    assumptions: assumptions.filter(inScope),
+    decisions: decisions.filter(inScope),
+  }), [scopeHierarchy, inScope, portfolios, programs, projects, accountTasks, risks, issues, assumptions, decisions]);
 
   // RAID and task data scoped to the routed project (reports, sheet indicators)
   const routedProjectData = useMemo(() => {
@@ -1833,11 +1845,11 @@ export default function Projects() {
             <PortfolioState title="Portfolios could not load" message="We could not load portfolios for this account." onRetry={refetchAccountPortfolios} />
           ) : (
           <PortfolioLanding
-            portfolios={portfolios}
-            programs={programs}
-            projects={projects}
-            risks={risks}
-            issues={issues}
+            portfolios={scoped.portfolios}
+            programs={scoped.programs}
+            projects={scoped.projects}
+            risks={scoped.risks}
+            issues={scoped.issues}
             onNewPortfolio={handleNewPortfolio}
             onSelectPortfolio={p => navigate(`/portfolios/${p.id}`)}
           />
@@ -1851,44 +1863,44 @@ export default function Projects() {
             <div className="flex-1 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>
           ) : (
           <ProgramsLanding
-            programs={programs}
-            projects={projects}
-            portfolios={portfolios}
-            risks={risks}
-            issues={issues}
+            programs={scoped.programs}
+            projects={scoped.projects}
+            portfolios={scoped.portfolios}
+            risks={scoped.risks}
+            issues={scoped.issues}
             onNewProgram={handleNewProgram}
             onSelectProgram={p => handleSelectItem(p, 'program')}
           />
           )
         ) : viewMode === 'all_projects' ? (
           <ProjectsSummary
-            projects={projects}
-            programs={programs}
-            portfolios={portfolios}
-            tasks={accountTasks}
-            risks={risks}
-            issues={issues}
+            projects={scoped.projects}
+            programs={scoped.programs}
+            portfolios={scoped.portfolios}
+            tasks={scoped.tasks}
+            risks={scoped.risks}
+            issues={scoped.issues}
             onSelectProject={(p) => handleSelectItem(p, 'project')}
             onNewProject={() => { setEditingProject({}); setDialogType('project'); setProjectDialogOpen(true); }}
           />
         ) : viewMode === 'all_raid' ? (
           <RAIDSummary
-            risks={risks}
-            issues={issues}
-            assumptions={assumptions}
-            decisions={decisions}
-            projects={projects}
+            risks={scoped.risks}
+            issues={scoped.issues}
+            assumptions={scoped.assumptions}
+            decisions={scoped.decisions}
+            projects={scoped.projects}
           />
         ) : viewMode === 'templates' ? (
           <TemplatesView />
         ) : viewMode === 'all_resource_mgmt' ? (
           <div />
         ) : viewMode === 'delivery' ? (
-          <DeliverySummary projects={projects} programs={programs} portfolios={portfolios} onNavigateToSprints={() => handleSelectItem({ id: 'sprints' }, 'sprints')} />
+          <DeliverySummary projects={scoped.projects} programs={scoped.programs} portfolios={scoped.portfolios} onNavigateToSprints={() => handleSelectItem({ id: 'sprints' }, 'sprints')} />
         ) : viewMode === 'test_cases' ? (
           <TestCaseView />
         ) : viewMode === 'sprints' ? (
-          <SprintView projects={projects} programs={programs} portfolios={portfolios} resources={resources} />
+          <SprintView projects={scoped.projects} programs={scoped.programs} portfolios={scoped.portfolios} resources={resources} />
         ) : viewMode === 'portfolio' && selectedItem ? (
           <PortfolioDetailView
             portfolio={selectedItem}

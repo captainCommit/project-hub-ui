@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, ClipboardList, UserPlus, MessageSquare, LifeBuoy, AlertTriangle, CalendarClock, RefreshCw, X } from 'lucide-react';
+import { Bell, BellRing, ClipboardList, UserPlus, MessageSquare, LifeBuoy, AlertTriangle, CalendarClock, RefreshCw, X } from 'lucide-react';
 import { parseISO, isValid, formatDistanceToNow } from 'date-fns';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -11,6 +11,7 @@ const KIND_META = {
   comment: { icon: MessageSquare, color: '#475569' },
   support: { icon: LifeBuoy, color: '#0056D2' },
   risk: { icon: AlertTriangle, color: '#C2410C' },
+  escalation: { icon: BellRing, color: '#DC2626' },
   due: { icon: CalendarClock, color: '#C2410C' },
   status: { icon: RefreshCw, color: '#475569' },
   update: { icon: Bell, color: '#475569' },

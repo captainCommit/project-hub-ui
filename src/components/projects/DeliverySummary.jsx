@@ -2,12 +2,13 @@ import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { sprintsApi } from '@/api/sprints';
 import { useAuth } from '@/lib/AuthContext';
+import { useGlobalScope } from '@/lib/globalScope';
 import { cn } from '@/lib/utils';
 import { Zap, ChevronRight, ChevronDown, AlertCircle, Loader2 } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 import { formatDate, parseDate } from '@/lib/dateUtils';
 import { Button } from '@/components/ui/button';
-import { FilterSelect, NAVY } from '@/components/projects/DirectoryKit';
+import { FilterSelect, NAVY, PageFilterLabel } from '@/components/projects/DirectoryKit';
 
 const STATUS_CONFIG = {
   active:    { label: 'Active',    color: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
@@ -82,14 +83,19 @@ export default function DeliverySummary({ portfolios = [], onNavigateToSprints, 
   const [filterProgramId, setFilterProgramId] = useState('');
   const [filterProjectId, setFilterProjectId] = useState('');
 
+  // The page filters narrow inside the global scope; where one isn't set, the scope's choice applies.
+  const { ids: scopeIds } = useGlobalScope();
   const deliveryFilters = useMemo(() => {
     /** @type {Record<string, unknown>} */
     const query = {};
-    if (filterPortfolioId) query.portfolio_id = filterPortfolioId;
-    if (filterProgramId) query.program_id = filterProgramId;
-    if (filterProjectId) query.project_id = filterProjectId;
+    const portfolioId = filterPortfolioId || scopeIds.portfolioId;
+    const programId = filterProgramId || scopeIds.programId;
+    const projectId = filterProjectId || scopeIds.projectId;
+    if (portfolioId) query.portfolio_id = portfolioId;
+    if (programId) query.program_id = programId;
+    if (projectId) query.project_id = projectId;
     return query;
-  }, [filterPortfolioId, filterProgramId, filterProjectId]);
+  }, [filterPortfolioId, filterProgramId, filterProjectId, scopeIds]);
 
   const {
     data: delivery = DEFAULT_DELIVERY_OVERVIEW,
@@ -98,7 +104,7 @@ export default function DeliverySummary({ portfolios = [], onNavigateToSprints, 
     error,
     refetch,
   } = useQuery({
-    queryKey: ['account-delivery-overview', selectedAccountId || null, filterPortfolioId || null, filterProgramId || null, filterProjectId || null],
+    queryKey: ['account-delivery-overview', selectedAccountId || null, deliveryFilters],
     queryFn: () => sprintsApi.getDeliveryOverview(selectedAccountId, deliveryFilters),
     enabled: Boolean(selectedAccountId),
   });
@@ -153,6 +159,7 @@ export default function DeliverySummary({ portfolios = [], onNavigateToSprints, 
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <PageFilterLabel className="mr-1" />
           <FilterSelect value={filterPortfolioId} onChange={v => { setFilterPortfolioId(v); setFilterProgramId(''); setFilterProjectId(''); }}
             allLabel="All Portfolios" options={portfolios.map(p => ({ value: p.id, label: p.name }))} />
           <FilterSelect value={filterProgramId} onChange={v => { setFilterProgramId(v); setFilterProjectId(''); }}

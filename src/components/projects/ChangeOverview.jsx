@@ -1,7 +1,7 @@
 import React from 'react';
 import { Scale, FilePen, X, ClipboardList, Clock, ClipboardCheck, ChevronRight, ArrowRight } from 'lucide-react';
 import MultiSelectFilter from '@/components/projects/MultiSelectFilter';
-import { StatCard, NAVY, MUTED } from '@/components/projects/DirectoryKit';
+import { PageFilterLabel, StatCard, NAVY, MUTED } from '@/components/projects/DirectoryKit';
 import { inRaidScope, raidStatusLabel } from '@/components/projects/RaidTable';
 
 // Colours are hex values: index.css remaps Tailwind's green/blue/amber classes to the brand navy/orange.
@@ -102,6 +102,7 @@ export default function ChangeOverview({ decisions = [], changeRequests = [], pr
     <div className="flex-1 overflow-auto" style={{ backgroundColor: '#F7F9FC', fontFamily: 'Segoe UI, sans-serif' }}>
       <div className="px-6 py-5 space-y-4">
         <div className="flex flex-wrap items-center gap-2">
+          <PageFilterLabel className="mr-1" />
           <MultiSelectFilter options={portfolios.map(p => ({ value: p.id, label: p.name }))} selected={filterPortfolios}
             onChange={(v) => setScope({ portfolios: v, programs: [], projects: [] })} allLabel="All Portfolios" className="h-11 w-auto min-w-[190px] px-4 gap-6 rounded-lg border-slate-200 text-[15px] text-[#002046] [&>svg]:w-4 [&>svg]:h-4 [&>svg]:text-[#002046]" />
           <MultiSelectFilter options={programOptions.map(p => ({ value: p.id, label: p.name }))} selected={filterPrograms}

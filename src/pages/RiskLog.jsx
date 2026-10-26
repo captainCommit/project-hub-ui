@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/AuthContext';
@@ -13,6 +13,7 @@ import RaidOverview from '@/components/projects/RaidOverview';
 import { EMPTY_RAID_FILTERS } from '@/components/projects/RaidTable';
 import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
 import { useMyAccess } from '@/hooks/useMyAccess';
+import { useGlobalScope } from '@/lib/globalScope';
 
 const RAID_TABS = [
   { key: 'risks', label: 'Risks', icon: AlertTriangle, module: 'RISKS' },
@@ -65,7 +66,16 @@ export default function RiskLog() {
     queryFn: () => raidEntityAdapters.Dependency.list(selectedAccountId),
     enabled: !!selectedAccountId,
   });
-  const { projects, programs, portfolios } = useAccountHierarchy();
+  // Everything below is narrowed to the global scope; links that open one item (?id=) still find it anywhere.
+  const { inScope, scopeHierarchy } = useGlobalScope();
+  const hierarchy = useAccountHierarchy();
+  const { projects, programs, portfolios } = scopeHierarchy(hierarchy);
+  const scoped = useMemo(() => ({
+    risks: risks.filter(inScope),
+    issues: issues.filter(inScope),
+    assumptions: assumptions.filter(inScope),
+    dependencies: dependencies.filter(inScope),
+  }), [risks, issues, assumptions, dependencies, inScope]);
 
   const riskDetailId = activeTab === 'risks' && detailOpen ? selectedItem?.id : null;
   const { data: selectedRiskDetail } = useQuery({
@@ -142,7 +152,7 @@ export default function RiskLog() {
 
   const isRaidSheet = activeTab === 'risks' || activeTab === 'issues';
   const tabType = activeTab === 'risks' ? 'risk' : 'issue';
-  const raidItems = activeTab === 'risks' ? risks : issues;
+  const raidItems = activeTab === 'risks' ? scoped.risks : scoped.issues;
 
   const switchTab = (tab) => {
     setActiveTab(tab);
@@ -223,14 +233,14 @@ export default function RiskLog() {
           </div>
         </div>
         {renderRiskState() || (activeTab === 'overview' ? (
-          risks.length === 0 ? (
-            <RiskState title="No risks found" message="No risks have been created for this account yet." />
+          scoped.risks.length === 0 ? (
+            <RiskState title="No risks found" message={risks.length ? 'No risks in the part of the account you are viewing.' : 'No risks have been created for this account yet.'} />
           ) : (
             <RaidOverview
-              risks={risks}
-              issues={issues}
-              assumptions={assumptions}
-              dependencies={dependencies}
+              risks={scoped.risks}
+              issues={scoped.issues}
+              assumptions={scoped.assumptions}
+              dependencies={scoped.dependencies}
               projects={projects}
               programs={programs}
               portfolios={portfolios}
@@ -302,7 +312,7 @@ export default function RiskLog() {
           onOpenChange={setDetailOpen}
           item={riskDetailItem}
           type={tabType}
-          projects={projects}
+          projects={hierarchy.projects}
           resources={resources}
           onUpdate={(id, data) => (activeTab === 'risks' ? updateRisk : updateIssue).mutate({ id, data })}
           onDelete={(id) => { (activeTab === 'risks' ? deleteRisk : deleteIssue).mutate(id); setDetailOpen(false); }}

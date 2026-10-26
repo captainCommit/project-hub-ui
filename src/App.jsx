@@ -14,6 +14,7 @@ import AuthStatusScreen from '@/components/AuthStatusScreen';
 import { isCognitoMode, resetLoginAttempts } from '@/lib/cognitoSession';
 import Home from './pages/Home';
 import BillingBanner from '@/components/BillingBanner';
+import ScopeBar from '@/components/ScopeBar';
 import TimezoneSync from '@/components/TimezoneSync';
 
 // Home is the landing page and ships with the app; every other page downloads the first time it's opened.
@@ -45,11 +46,12 @@ const PageLoading = () => (
   </div>
 );
 
-// The billing bar sits above the page, which gets the rest of the screen. Pages built as full-screen
-// (h-screen / min-h-screen) are sized to that remaining space, so nothing hides under the bar.
+// The billing bar and, on module pages, the global scope bar sit above the page, which gets the rest of the screen.
+// Pages built as full-screen (h-screen / min-h-screen) are sized to that remaining space, so nothing hides under the bars.
 const LayoutWrapper = ({ children, currentPageName }) => (
   <div className="h-screen flex flex-col">
     <BillingBanner />
+    <ScopeBar />
     <TimezoneSync />
     <div className="flex-1 min-h-0 overflow-auto [&>.h-screen]:h-full [&>.min-h-screen]:min-h-full">
       <Suspense fallback={<PageLoading />}>

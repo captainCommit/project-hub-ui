@@ -198,6 +198,10 @@ export const raidApi = {
   updateIssue: (issueId: string, data: unknown) => apiClient.patch(`/api/v1/issues/${issueId}`, data),
   deleteIssue: (issueId: string) => apiClient.delete(`/api/v1/issues/${issueId}`),
 
+  /** Notify a person (resource_id) and/or a team (department) and email them; entityType is risk, issue, assumption or dependency. */
+  escalate: (entityType: string, itemId: string, data: { resource_id?: string; team?: string; note?: string }) =>
+    apiClient.post(`/api/v1/raid/${entityType}/${itemId}/escalate`, data),
+
   listProjectAssumptions: (projectId: string, query?: Record<string, unknown>) => apiClient.get(projectCollection(projectId, 'assumptions'), query),
   listAccountAssumptions: (accountId: string, query?: Record<string, unknown>) => apiClient.get(accountCollection(accountId, 'assumptions'), query),
   createAssumption: (projectId: string, data: unknown) => apiClient.post(projectCollection(projectId, 'assumptions'), data),

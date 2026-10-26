@@ -123,6 +123,7 @@ const ACTION_VERB: Record<string, string> = {
   DELETED: 'deleted',
   COMMENT: 'commented on',
   COMMENTED: 'commented on',
+  ESCALATED: 'escalated',
 };
 
 const titleCase = (value: string) => value.toLowerCase().replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());

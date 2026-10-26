@@ -14,6 +14,7 @@ import {
   DataTable, TitleCell, Pill, PriorityPill, DetailsChevron, SOFT,
 } from '@/components/projects/DirectoryKit';
 import { useAccountHierarchy, useAccountRequirements, useAccountSprints, useAccountTestCases } from '@/hooks/useAccountLookups';
+import { useGlobalScope } from '@/lib/globalScope';
 import { mapTestCaseFromApi, mapTestCaseInputToPayload, testCasesApi } from '@/api/projectLogs';
 
 const RESULT_TONES = { pass: 'green', fail: 'red', not_executed: 'grey' };
@@ -62,7 +63,10 @@ export default function TestCaseView() {
   const [form, setForm] = useState(emptyForm());
 
   const { testCases, isLoading } = useAccountTestCases();
-  const { projects, programs, portfolios } = useAccountHierarchy();
+  // The stats and table show what's inside the global scope; new IDs still count every test case in the account.
+  const { inScope, scopeHierarchy } = useGlobalScope();
+  const { projects, programs, portfolios } = scopeHierarchy(useAccountHierarchy());
+  const shown = testCases.filter(inScope);
   const sprints = useAccountSprints();
   const { requirements } = useAccountRequirements();
 
@@ -97,10 +101,10 @@ export default function TestCaseView() {
   };
 
   const resultCounts = { pass: 0, fail: 0, not_executed: 0 };
-  testCases.forEach(tc => { resultCounts[tc.pass_fail in resultCounts ? tc.pass_fail : 'not_executed'] += 1; });
-  const share = (n) => (testCases.length ? Math.round(n / testCases.length * 100) : 0);
+  shown.forEach(tc => { resultCounts[tc.pass_fail in resultCounts ? tc.pass_fail : 'not_executed'] += 1; });
+  const share = (n) => (shown.length ? Math.round(n / shown.length * 100) : 0);
 
-  const filtered = testCases.filter(tc => {
+  const filtered = shown.filter(tc => {
     if (search) {
       const q = search.toLowerCase();
       if (!(tc.title || '').toLowerCase().includes(q) && !(tc.test_case_id || '').toLowerCase().includes(q)) return false;
@@ -193,7 +197,7 @@ export default function TestCaseView() {
         />
 
         <StatGrid className="lg:grid-cols-4">
-          <StatCard value={testCases.length} label="Test Cases" sub="Across all projects" icon={FileText} />
+          <StatCard value={shown.length} label="Test Cases" sub="Across all projects" icon={FileText} />
           <StatCard value={resultCounts.pass} label="Passed" sub={`${share(resultCounts.pass)}% success rate`} icon={CircleCheck} />
           <StatCard value={resultCounts.fail} label="Failed" sub={`${share(resultCounts.fail)}% failure rate`} icon={CircleX} />
           <StatCard value={resultCounts.not_executed} label="Not Implemented" sub={`${share(resultCounts.not_executed)}% pending implementation`} icon={CirclePlay} />
@@ -204,7 +208,7 @@ export default function TestCaseView() {
           <FilterSelect value={filterProjectId} onChange={setFilterProjectId} allLabel="All Projects" options={projects.map(p => ({ value: p.id, label: p.name }))} />
           <FilterSelect value={filterResult} onChange={setFilterResult} allLabel="Result" options={RESULT_OPTIONS} />
           <FilterSelect value={filterPriority} onChange={setFilterPriority} allLabel="Priority" options={PRIORITY_OPTIONS} />
-          <FilterSelect value={filterImplementer} onChange={setFilterImplementer} allLabel="Implemented By" options={optionsFrom(testCases.map(tc => tc.executed_by))} />
+          <FilterSelect value={filterImplementer} onChange={setFilterImplementer} allLabel="Implemented By" options={optionsFrom(shown.map(tc => tc.executed_by))} />
         </FilterBar>
 
         <DataTable
@@ -215,7 +219,7 @@ export default function TestCaseView() {
           minWidth={980}
           dense
           initialSort={{ key: 'testcase', dir: 'asc' }}
-          empty={isLoading ? 'Loading...' : testCases.length ? 'No test cases match your filters.' : 'No test cases yet. Click "New Test Case" to create one.'}
+          empty={isLoading ? 'Loading...' : shown.length ? 'No test cases match your filters.' : 'No test cases yet. Click "New Test Case" to create one.'}
         />
       </PageBody>
 

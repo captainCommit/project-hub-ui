@@ -12,6 +12,8 @@ import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import { mapTaskToUserStory, vacationsApi } from '@/api/accountData';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAccountHierarchy, useAccountResources, useAccountSprints, useAccountTasks, useAccountVacations } from '@/hooks/useAccountLookups';
+import { useGlobalScope } from '@/lib/globalScope';
+import { PageFilterLabel } from '@/components/projects/DirectoryKit';
 import { toastError } from '@/components/ui/use-toast';
 
 const COLOR_DOTS = [
@@ -40,7 +42,11 @@ export default function ResourceCalendarPage({ embedded = false }) {
 
   const vacations = useAccountVacations();
   const { tasks } = useAccountTasks();
-  const { projects, programs, portfolios } = useAccountHierarchy();
+  // Conflicts look at all of a person's work (projects); the global scope narrows who is listed and the filter options.
+  const hierarchy = useAccountHierarchy();
+  const { projects } = hierarchy;
+  const { active: scopeActive, scopeHierarchy } = useGlobalScope();
+  const { projects: inScopeProjects, programs, portfolios } = scopeHierarchy(hierarchy);
   const sprints = useAccountSprints();
   const stories = useMemo(() => tasks.filter(t => t.sprint_id).map(mapTaskToUserStory), [tasks]);
   const resourceRecords = useAccountResources();
@@ -123,13 +129,14 @@ export default function ResourceCalendarPage({ embedded = false }) {
 
   const scopePrograms = useMemo(() => selectedPortfolioId ? programs.filter(p => p.portfolio_id === selectedPortfolioId) : programs, [programs, selectedPortfolioId]);
   const scopeProjects = useMemo(() => {
-    if (selectedProgramId) return projects.filter(p => p.program_id === selectedProgramId);
-    if (selectedPortfolioId) return projects.filter(p => p.portfolio_id === selectedPortfolioId);
-    return projects;
-  }, [projects, selectedProgramId, selectedPortfolioId]);
+    if (selectedProgramId) return inScopeProjects.filter(p => p.program_id === selectedProgramId);
+    if (selectedPortfolioId) return inScopeProjects.filter(p => p.portfolio_id === selectedPortfolioId);
+    return inScopeProjects;
+  }, [inScopeProjects, selectedProgramId, selectedPortfolioId]);
 
   const resourceMatchesScope = (name) => {
     const pids = getAssignedProjectIds(name);
+    if (scopeActive && !pids.some(id => inScopeProjects.some(p => p.id === id))) return false;
     if (selectedPortfolioId && !pids.some(id => projects.find(p => p.id === id)?.portfolio_id === selectedPortfolioId)) return false;
     if (selectedProgramId && !pids.some(id => projects.find(p => p.id === id)?.program_id === selectedProgramId)) return false;
     if (selectedProjectId && !pids.includes(selectedProjectId)) return false;
@@ -208,6 +215,7 @@ export default function ResourceCalendarPage({ embedded = false }) {
         {/* Filters */}
         <div className="px-4 py-2 border-b bg-slate-50 flex-shrink-0 space-y-2">
           <div className="flex items-center gap-3 flex-wrap">
+            <PageFilterLabel />
             <select value={selectedPortfolioId} onChange={e => { setSelectedPortfolioId(e.target.value); setSelectedProgramId(''); setSelectedProjectId(''); }} className="h-7 text-xs border border-slate-200 rounded-md px-2 text-slate-700 bg-white">
               <option value="">All Portfolios</option>
               {portfolios.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}

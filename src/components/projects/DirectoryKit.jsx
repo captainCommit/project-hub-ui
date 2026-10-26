@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, ChevronsUpDown, ChevronUp, ChevronDown, Download, Info, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronsUpDown, ChevronUp, ChevronDown, Download, Info, Search, SlidersHorizontal } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -109,10 +109,24 @@ export function StatCard({ value, label, sub = undefined, icon: Icon = undefined
   );
 }
 
-/** The white bar that holds the search box, filter dropdowns and (on the right) export. */
-export function FilterBar({ children, right = undefined, bare = false }) {
+/**
+ * Marks a row of dropdowns as this page's own filters, as opposed to the global "Viewing" scope in the top bar:
+ * they narrow inside that scope and never change it.
+ */
+export function PageFilterLabel({ className = undefined }) {
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide whitespace-nowrap', className)} style={{ color: MUTED }}
+      title="Filters for this page only. They narrow what's shown inside the Viewing scope at the top and don't change it.">
+      <SlidersHorizontal className="w-3.5 h-3.5" /> Page filters
+    </span>
+  );
+}
+
+/** The white bar that holds the search box, filter dropdowns and (on the right) export, under a "Page filters" label. */
+export function FilterBar({ children, right = undefined, bare = false, pageLabel = true }) {
   return (
     <div className={cn('flex flex-wrap items-center gap-3', !bare && 'bg-white rounded-xl border p-3')} style={bare ? undefined : { borderColor: CARD_BORDER }}>
+      {pageLabel && <PageFilterLabel />}
       {children}
       {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
     </div>

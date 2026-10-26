@@ -5,6 +5,8 @@ import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import { Wallet, TrendingUp, TrendingDown, DollarSign, PiggyBank, Percent, AlertTriangle, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAccountHierarchy, useAccountResources, useAccountTasks } from '@/hooks/useAccountLookups';
+import { useGlobalScope } from '@/lib/globalScope';
+import { PageFilterLabel } from '@/components/projects/DirectoryKit';
 
 const fmtMoney = (n) => `$${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const fmtPct = (n) => `${Math.round((n || 0))}%`;
@@ -16,7 +18,8 @@ export default function Financials({ embedded = false }) {
 
   const { tasks } = useAccountTasks();
   const resources = useAccountResources();
-  const { projects, programs, portfolios } = useAccountHierarchy();
+  // Only projects inside the global scope count; tasks of other projects are left out below.
+  const { projects, programs, portfolios } = useGlobalScope().scopeHierarchy(useAccountHierarchy());
 
   const resByName = useMemo(() => {
     const m = {};
@@ -195,6 +198,7 @@ export default function Financials({ embedded = false }) {
           {/* Filters */}
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <div className="flex flex-wrap items-center gap-3">
+              <PageFilterLabel />
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-slate-500">Portfolio:</span>
                 <Select value={filterPortfolio} onValueChange={(v) => { setFilterPortfolio(v); setFilterProgram('all'); setFilterProject('all'); }}>

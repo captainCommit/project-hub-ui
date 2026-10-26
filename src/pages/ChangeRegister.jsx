@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
-import { FileEdit, Loader2, X, MessageSquare, Download } from 'lucide-react';
-import SavedFilterView from '@/components/projects/SavedFilterView';
-import MultiSelectFilter from '@/components/projects/MultiSelectFilter';
+import { FileEdit, Loader2, X, MessageSquare } from 'lucide-react';
+import { DataTable, PageBody, PageHeader } from '@/components/projects/DirectoryKit';
+import { EMPTY_RAID_FILTERS, RaidActions, RaidToolbar, filterRaidItems, raidColumns } from '@/components/projects/RaidTable';
 import { exportRecords } from '@/lib/exportUtils';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,11 +12,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
 import { useAccountChangeRequests, useAccountDecisions, useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
 import { changeRequestsApi, mapChangeRequestFromApi, mapChangeRequestInputToPayload } from '@/api/projectLogs';
 import { raidApi } from '@/api/raid';
 import { confirmAction } from '@/components/ui/confirm-dialog';
+import { useGlobalScope } from '@/lib/globalScope';
 
 const CR_STATUSES = [
   { value: 'draft', label: 'Draft', color: 'bg-slate-100 text-slate-600' },
@@ -29,25 +29,23 @@ const CR_STATUSES = [
 ];
 
 const getStatus = (val) => CR_STATUSES.find(s => s.value === val) || CR_STATUSES[0];
-const priorityColors = {
-  low: 'bg-blue-100 text-black',
-  medium: 'bg-yellow-100 text-black',
-  high: 'bg-orange-100 text-black',
-  critical: 'bg-red-100 text-black',
-};
 const today = () => new Date().toISOString().split('T')[0];
 const parseRelated = (val) => { if (!val) return []; try { const p = JSON.parse(val); if (Array.isArray(p)) return p; } catch {} return val ? [val] : []; };
 const saveRelated = (arr) => arr.length === 0 ? '' : JSON.stringify(arr);
 
-export default function ChangeRegister({ embedded = false }) {
-  const [filterPrograms, setFilterPrograms] = useState([]);
-  const [filterProjects, setFilterProjects] = useState([]);
+// filters / onFiltersChange / actionsSlot: given by the Governance page so the filters carry across its tabs and the
+// Export and New buttons sit on its tab row; on its own the register keeps its own filters.
+export default function ChangeRegister({ embedded = false, filters: sharedFilters = undefined, onFiltersChange = undefined, actionsSlot = null }) {
+  const [ownFilters, setOwnFilters] = useState(EMPTY_RAID_FILTERS);
+  const filters = sharedFilters || ownFilters;
+  const setFilters = onFiltersChange || setOwnFilters;
   const [selectedCR, setSelectedCR] = useState(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const { changeRequests, isLoading } = useAccountChangeRequests();
-  const { projects, programs, portfolios } = useAccountHierarchy();
+  const { inScope, scopeHierarchy } = useGlobalScope();
+  const { projects, programs, portfolios } = scopeHierarchy(useAccountHierarchy());
   const resources = useAccountResources();
   const decisions = useAccountDecisions();
 
@@ -99,13 +97,7 @@ export default function ChangeRegister({ embedded = false }) {
     if (selectedCR?.id === id) setSelectedCR(prev => ({ ...prev, ...data }));
   };
 
-  const filteredProjectsForDropdown = filterPrograms.length ? projects.filter(p => filterPrograms.includes(p.program_id)) : projects;
-
-  const filtered = changeRequests.filter(c => {
-    if (filterPrograms.length && !filterPrograms.includes(c.program_id)) return false;
-    if (filterProjects.length && !filterProjects.includes(c.project_id)) return false;
-    return true;
-  });
+  const filtered = filterRaidItems(changeRequests.filter(inScope), filters, programs, 'cr_id', { personField: 'proposed_by' });
 
   const getProject = (id) => projects.find(p => p.id === id)?.name || '—';
   const getProgram = (id) => programs.find(p => p.id === id)?.name || '—';
@@ -133,128 +125,76 @@ export default function ChangeRegister({ embedded = false }) {
     </div>
   );
 
+  const columns = raidColumns({
+    noun: 'Change Request', idField: 'cr_id', getProjectName: getProject,
+    person: 'Proposed By', personField: 'proposed_by', dateLabel: 'Proposed Date', dateField: 'proposed_date',
+    extra: [{
+      key: 'related', label: 'Related Record', sortValue: c => parseRelated(c.related_record).join(' '),
+      render: c => {
+        const related = parseRelated(c.related_record);
+        return related.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {related.map(id => (
+              <span key={id} title={decisions.find(d => d.decision_id === id)?.decision || ''}
+                className="px-2 py-0.5 bg-[#002046]/10 text-[#002046] rounded text-xs font-mono cursor-default whitespace-nowrap">{id}</span>
+            ))}
+          </div>
+        ) : <span className="text-slate-300">—</span>;
+      },
+    }],
+  });
+
   const content = (
-    <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {!embedded && (
-            <div className="flex items-center gap-3 mb-4 px-6 pt-4">
-              <FileEdit className="w-6 h-6 text-violet-500" />
-              <h1 className="text-2xl font-bold text-slate-800">Change Register</h1>
-              <span className="text-sm text-slate-500 bg-slate-200 px-2 py-0.5 rounded">{changeRequests.length} changes</span>
-            </div>
-          )}
-
-          {/* Filters */}
-          <div className="flex items-center gap-3 px-3 py-2 bg-slate-100 border border-b-0 border-slate-300 rounded-t-sm flex-wrap">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">Program:</span>
-              <MultiSelectFilter
-                options={programs.map(p => ({ value: p.id, label: p.name }))}
-                selected={filterPrograms}
-                onChange={setFilterPrograms}
-                allLabel="All Programs"
-                className="h-7 w-40 bg-white"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">Project:</span>
-              <MultiSelectFilter
-                options={filteredProjectsForDropdown.map(p => ({ value: p.id, label: p.name }))}
-                selected={filterProjects}
-                onChange={setFilterProjects}
-                allLabel="All Projects"
-                className="h-7 w-40 bg-white"
-              />
-            </div>
-            <SavedFilterView
-              storageKey="change_register_views"
-              currentFilters={{ programs: filterPrograms, projects: filterProjects }}
-              onLoadFilters={f => { setFilterPrograms(f.programs || []); setFilterProjects(f.projects || []); }}
-            />
-            <div className="flex items-center gap-2 ml-auto">
-              <button onClick={handleExportAll} className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 hover:bg-slate-100 text-slate-600 text-sm font-medium rounded-lg transition-colors">
-                <Download className="w-3.5 h-3.5" /> Export
-              </button>
-              <button onClick={() => setAddDialogOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#c87b14] hover:bg-[#a86610] text-white text-sm font-medium rounded-lg transition-colors">
-                + New Change Request
-              </button>
-            </div>
-          </div>
-
-          {/* Table */}
-          <div className="flex-1 overflow-hidden bg-white border border-slate-300 rounded-b-sm">
-            <ScrollArea className="h-full">
-              <table className="w-full border-collapse" style={{ minWidth: '1100px' }}>
-                <thead className="sticky top-0 z-10">
-                  <tr className="bg-gradient-to-b from-slate-100 to-slate-200 border-b-2 border-slate-300">
-                    {[{l:'CR ID',c:'text-center w-24'},{l:'Status',c:'text-center w-24'},{l:'Program',c:'text-left w-28'},{l:'Project',c:'text-left w-32'},{l:'Priority',c:'text-center w-24'},{l:'Title',c:'text-left min-w-[240px]'},{l:'Proposed By',c:'text-left w-28'},{l:'Proposed Date',c:'text-center w-28'},{l:'Related Record',c:'text-left w-44'}].map((h, i) => (
-                      <th key={i} className={cn("py-2 px-3 text-xs font-semibold text-slate-700 whitespace-nowrap", h.c)}>{h.l}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map(cr => (
-                    <tr key={cr.id} className={cn("border-b border-slate-200 hover:bg-violet-50/30 cursor-pointer", selectedCR?.id === cr.id && "bg-violet-50")}
-                      onClick={() => setSelectedCR(cr)}>
-                      <td className="py-2 px-3 text-sm font-mono text-slate-600 whitespace-nowrap text-center">{cr.cr_id}</td>
-                      <td className="py-2 px-3 whitespace-nowrap text-center">
-                        <span className={cn("px-2 py-0.5 rounded text-xs font-medium", getStatus(cr.status).color)}>{getStatus(cr.status).label}</span>
-                      </td>
-                      <td className="py-2 px-3 text-sm text-slate-500 break-words">{getProgram(cr.program_id)}</td>
-                      <td className="py-2 px-3 text-sm break-words">{getProject(cr.project_id)}</td>
-                      <td className="py-2 px-3 text-center">
-                        <span className={cn("px-2 py-0.5 rounded text-xs font-medium", priorityColors[cr.priority] || priorityColors.medium)}>{cr.priority || 'medium'}</span>
-                      </td>
-                      <td className="py-2 px-3">
-                        <span className="text-sm block">{cr.title || <span className="text-slate-300">—</span>}</span>
-                      </td>
-                      <td className="py-2 px-3 text-sm whitespace-nowrap">{cr.proposed_by || '—'}</td>
-                      <td className="py-2 px-3 text-xs text-slate-500 whitespace-nowrap text-center">{cr.proposed_date || '—'}</td>
-                      <td className="py-2 px-3 w-44">
-                        <div className="flex flex-wrap gap-1">
-                          {parseRelated(cr.related_record).length > 0
-                            ? parseRelated(cr.related_record).map(id => (
-                                <span key={id} title={decisions.find(d => d.decision_id === id)?.decision || ''}
-                                  className="px-2 py-0.5 bg-[#002046]/10 text-[#002046] rounded text-xs font-mono cursor-default">{id}</span>
-                              ))
-                            : <span className="text-slate-300">—</span>}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {filtered.length === 0 && (
-                    <tr><td colSpan={9} className="py-10 text-center text-slate-400 text-sm">No change requests yet. Click "New Change Request" to create one.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </ScrollArea>
-          </div>
-        </div>
-
-        {/* Detail Panel */}
-        {selectedCR && (
-          <CRDetailPanel
-            cr={selectedCR}
-            resources={resources}
-            decisions={decisions}
-            getRelatedDecisions={getRelatedDecisions}
-            onUpdate={handleUpdate}
-            onClose={() => setSelectedCR(null)}
-            onDelete={() => remove.mutate(selectedCR.id)}
-          />
-        )}
-
-        <AddCRDialog
-          open={addDialogOpen}
-          onOpenChange={setAddDialogOpen}
+    <div className="flex-1 flex min-h-0 overflow-hidden">
+      <PageBody>
+        {!embedded && <PageHeader icon={FileEdit} iconBox={false} title="Change Register" subtitle={`${changeRequests.length} changes`} />}
+        <RaidActions slot={actionsSlot} noun="Change Request" onExport={handleExportAll} exportDisabled={filtered.length === 0} onNew={() => setAddDialogOpen(true)} />
+        <RaidToolbar
+          filters={filters}
+          onFiltersChange={setFilters}
+          items={changeRequests}
           projects={projects}
           programs={programs}
+          statuses={CR_STATUSES.map(s => ({ value: s.value, label: s.label }))}
+          assigneeLabel="Proposed By"
+          personField="proposed_by"
+          searchPlaceholder="Search change requests..."
+        />
+        <DataTable
+          columns={columns}
+          rows={filtered}
+          onRowClick={setSelectedCR}
+          rowClassName={c => (selectedCR?.id === c.id ? 'bg-slate-50' : '')}
+          noun="change requests"
+          minWidth={760}
+          empty={changeRequests.length ? 'No change requests match your filters.' : 'No change requests yet. Click "New Change Request" to create one.'}
+        />
+      </PageBody>
+
+      {/* Detail Panel */}
+      {selectedCR && (
+        <CRDetailPanel
+          cr={selectedCR}
           resources={resources}
           decisions={decisions}
           getRelatedDecisions={getRelatedDecisions}
-          onCreate={handleAdd}
+          onUpdate={handleUpdate}
+          onClose={() => setSelectedCR(null)}
+          onDelete={() => remove.mutate(selectedCR.id)}
         />
-      </div>
+      )}
+
+      <AddCRDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        projects={projects}
+        programs={programs}
+        resources={resources}
+        decisions={decisions}
+        getRelatedDecisions={getRelatedDecisions}
+        onCreate={handleAdd}
+      />
+    </div>
   );
   if (embedded) return content;
   return (

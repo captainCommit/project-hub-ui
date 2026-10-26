@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageSquare, X, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { confirmAction } from '@/components/ui/confirm-dialog';
+import EscalateDialog from './EscalateDialog';
 
 const priorityColors = {
   low: 'bg-blue-100 text-black',
@@ -38,6 +39,7 @@ export default function RiskIssueDetail({
 }) {
   const [formData, setFormData] = useState(item || {});
   const [commentText, setCommentText] = useState('');
+  const [escalateOpen, setEscalateOpen] = useState(false);
   const [assignedQ, setAssignedQ] = useState(null);
   const [assignedDrop, setAssignedDrop] = useState(false);
   const [loggedByQ, setLoggedByQ] = useState(null);
@@ -122,15 +124,28 @@ export default function RiskIssueDetail({
             </DField>
           </div>
 
-          {/* Escalate */}
+          {/* Escalate: pick a person or team to notify and email; the item is then marked Escalated. */}
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline"
               className={cn('h-8 text-xs gap-1', formData.status === 'escalated' ? 'text-red-700 bg-red-50 border-red-200' : 'text-amber-600 hover:bg-amber-50')}
-              disabled={formData.status === 'escalated'}
-              onClick={() => { setFormData(f => ({ ...f, status: 'escalated' })); save('status', 'escalated'); }}>
+              title={formData.status === 'escalated' ? 'Already escalated. Escalate again to notify someone else.' : undefined}
+              onClick={() => setEscalateOpen(true)}>
               <Bell className="w-3.5 h-3.5" />{formData.status === 'escalated' ? 'Escalated' : 'Escalate'}
             </Button>
           </div>
+          <EscalateDialog
+            open={escalateOpen}
+            onOpenChange={setEscalateOpen}
+            entityType={type === 'risk' ? 'RISK' : 'ISSUE'}
+            item={formData}
+            code={formData[type === 'risk' ? 'risk_id' : 'issue_id']}
+            resources={resources}
+            onEscalated={() => {
+              if (formData.status === 'escalated') return;
+              setFormData(f => ({ ...f, status: 'escalated' }));
+              save('status', 'escalated');
+            }}
+          />
 
           {/* Assigned To */}
           <DField label="Assigned To">

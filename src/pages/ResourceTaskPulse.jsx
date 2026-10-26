@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { tasksApi } from '@/api/tasks';
 import { useAuth } from '@/lib/AuthContext';
+import { useGlobalScope } from '@/lib/globalScope';
+import { PageFilterLabel } from '@/components/projects/DirectoryKit';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
@@ -50,7 +52,7 @@ export default function ResourceTaskPulse() {
   }, [filter, days, selectedProjectId, selectedProgramId, selectedAssignee]);
 
   const {
-    data: tasks = [],
+    data: dueTasks = [],
     isLoading,
     isError,
     error,
@@ -60,6 +62,10 @@ export default function ResourceTaskPulse() {
     queryFn: () => tasksApi.listDueTasks(selectedAccountId, dueTaskFilters),
     enabled: Boolean(selectedAccountId),
   });
+
+  // Only tasks inside the global scope; the project and program filters are built from these.
+  const { inScope } = useGlobalScope();
+  const tasks = useMemo(() => dueTasks.filter(inScope), [dueTasks, inScope]);
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
 
@@ -223,6 +229,7 @@ export default function ResourceTaskPulse() {
 
         {/* Filters */}
         <div className="bg-white border-b border-slate-100 px-6 py-2.5 flex items-center gap-3 flex-wrap">
+          <PageFilterLabel />
           <select value={selectedProgramId} onChange={e => { setSelectedProgramId(e.target.value); setSelectedProjectId(''); setSelectedForNudge(new Set()); }}
             className="h-8 text-sm border border-slate-200 rounded-md px-2 text-slate-700 bg-white">
             <option value="">All Programs</option>

@@ -236,7 +236,7 @@ function updateProjectGanttCacheTaskDates(cache, taskId, dates) {
 }
 
 export default function Projects() {
-  const { selectedAccountId, user } = useAuth();
+  const { selectedAccountId } = useAuth();
   const { portfolioId, programId, projectId, projectTab } = useParams();
   const { canEdit, canView } = useMyAccess();
   // Without the Tasks module, the sheet, board and Gantt are read-only: they get no edit handlers.

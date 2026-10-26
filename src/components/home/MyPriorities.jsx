@@ -20,7 +20,7 @@ const BADGE_TONE = {
 export default function MyPriorities({ items, counts, activeTab, onTabChange, onOpen, onComplete }) {
   const [scrollRef, scrolls] = useScrollGutter(items);
   return (
-    <DashboardCard title="My Priorities" heightClass="lg:h-full min-h-0">
+    <DashboardCard title="My Priorities" heightClass="lg:h-full min-h-0" tour="home-priorities">
       <div className="flex items-center gap-1.5 flex-wrap mt-3 mb-1 flex-shrink-0">
         {TABS.map(tab => (
           <button

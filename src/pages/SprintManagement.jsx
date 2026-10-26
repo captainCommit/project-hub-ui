@@ -6,6 +6,8 @@ import { Package, RefreshCw, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAccountHierarchy, useAccountResources, useAccountSprints } from '@/hooks/useAccountLookups';
 import { useGlobalScope } from '@/lib/globalScope';
+import Tour from '@/components/tour/Tour';
+import { SPRINTS_TOUR } from './SprintManagement.tour';
 
 export default function SprintManagement() {
   const [tab, setTab] = useState('overview');
@@ -53,9 +55,10 @@ export default function SprintManagement() {
                 <p className="text-sm text-slate-500 mt-0.5">Plan, track, and manage agile delivery across projects.</p>
               </div>
             </div>
-            <div ref={setActionsSlot} className="flex items-center gap-2" />
+            <div ref={setActionsSlot} data-tour="page-actions" className="flex items-center gap-2" />
+            <Tour tour={SPRINTS_TOUR} />
           </div>
-          <div className="flex items-center gap-1 border-b border-slate-200 mt-3">
+          <div data-tour="module-tabs" className="flex items-center gap-1 border-b border-slate-200 mt-3">
             <button onClick={() => setTab('overview')} className={tabClass(tab === 'overview')}>
               <Package className="w-4 h-4" /> Overview
             </button>

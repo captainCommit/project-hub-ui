@@ -6,6 +6,8 @@ import Financials from '@/pages/Financials';
 import { Users, Gauge, Calendar, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAccountHierarchy } from '@/hooks/useAccountLookups';
+import Tour from '@/components/tour/Tour';
+import { RESOURCES_TOUR } from './ResourceManagementHub.tour';
 
 export default function ResourceManagementHub() {
   const [tab, setTab] = useState('overview');
@@ -25,7 +27,8 @@ export default function ResourceManagementHub() {
             <h1 className="text-lg font-semibold text-slate-800">Resources</h1>
           </div>
         </div>
-        <div className="flex items-center gap-1 border-b-2 border-slate-200 bg-white px-0">
+        <Tour tour={RESOURCES_TOUR} />
+        <div data-tour="module-tabs" className="flex items-center gap-1 border-b-2 border-slate-200 bg-white px-0">
           <button onClick={() => setTab('overview')} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', tab === 'overview' ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
             <Users className="w-4 h-4" /> Overview
           </button>

@@ -2,13 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { PlayCircle, BookOpen, LifeBuoy, Ticket, ChevronLeft, Plus, Inbox } from 'lucide-react';
+import { PlayCircle, BookOpen, LifeBuoy, Ticket, ChevronLeft, Plus, Inbox, RotateCcw } from 'lucide-react';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import TicketForm from '@/components/support/TicketForm';
 import TicketConversation from '@/components/support/TicketConversation';
 import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 import { supportTicketsApi } from '@/api/collaboration';
 import { useAuth } from '@/lib/AuthContext';
+import { tourStore } from '@/lib/tours';
+import { toast, toastError } from '@/components/ui/use-toast';
 
 const STATUS_STYLES = {
   open: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -24,7 +26,19 @@ export default function LearnSupport() {
   const [activeTicket, setActiveTicket] = useState(null);
 
   const { projects, programs, portfolios } = useAccountHierarchy();
-  const { selectedAccountId } = useAuth();
+  const { selectedAccountId, refreshUser } = useAuth();
+  const [resettingTours, setResettingTours] = useState(false);
+  const replayTours = async () => {
+    setResettingTours(true);
+    try {
+      await tourStore.reset(refreshUser);
+      toast({ title: 'Tours are back on', description: 'Each page shows its short tour again the next time you open it.' });
+    } catch (error) {
+      toastError(error?.message || 'The tours could not be reset.');
+    } finally {
+      setResettingTours(false);
+    }
+  };
   const { data: tickets = [], isLoading } = useQuery({
     queryKey: ['support_tickets', selectedAccountId],
     queryFn: () => supportTicketsApi.list(selectedAccountId),
@@ -74,6 +88,9 @@ export default function LearnSupport() {
             <h1 className="text-lg font-semibold text-slate-800">Learn & Support</h1>
             <p className="text-xs text-slate-400">Get help and make the most of Row</p>
           </div>
+          <Button variant="outline" size="sm" className="ml-auto" onClick={replayTours} disabled={resettingTours}>
+            <RotateCcw className="w-4 h-4 mr-1.5" /> Show tours again
+          </Button>
         </div>
 
         <div className="flex-1 overflow-auto p-6">

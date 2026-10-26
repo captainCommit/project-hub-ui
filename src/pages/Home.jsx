@@ -24,6 +24,8 @@ import { raidApi, mapRiskInputToPayload, mapIssueInputToPayload, mapDecisionInpu
 import { getRaidStatuses } from '@/lib/raidStatuses';
 import { dependenciesApi } from '@/api/projectLogs';
 import { notificationsApi } from '@/api/notifications';
+import Tour from '@/components/tour/Tour';
+import { HOME_TOUR } from './Home.tour';
 
 const BADGE = {
   overdue: { tone: 'urgent', badge: 'Overdue' },
@@ -266,6 +268,7 @@ export default function Home() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="p-5 max-w-[1400px] mx-auto flex flex-col gap-4 lg:h-full lg:min-h-0">
+            <Tour tour={HOME_TOUR} />
             <HomeHeader
               greeting={greeting}
               subtitle="Your workspace at a glance"

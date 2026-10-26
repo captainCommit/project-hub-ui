@@ -19,6 +19,8 @@ export interface ProjectHubUser {
   is_active: boolean;
   /** Can create accounts and manage users in any account. */
   is_platform_admin: boolean;
+  /** First-time tours this person has finished or skipped (src/lib/tours.js). */
+  seen_tours: string[];
   created_at?: string;
   updated_at?: string;
 }
@@ -51,6 +53,7 @@ export const mapUserResponse = (payload: unknown): ProjectHubUser => {
     photo_url: nullableString(payload.photo_url) ?? '',
     is_active: Boolean(payload.is_active),
     is_platform_admin: Boolean(payload.is_platform_admin),
+    seen_tours: Array.isArray(payload.seen_tours) ? payload.seen_tours.map(String) : [],
     created_at: nullableString(payload.created_at) ?? undefined,
     updated_at: nullableString(payload.updated_at) ?? undefined,
   };
@@ -90,6 +93,10 @@ export const authApi = {
     );
     return mapUserResponse(await apiClient.patch('/api/v1/me', payload));
   },
+  /** Remember that the person finished or skipped a first-time tour (see src/lib/tours.js). */
+  markTourSeen: async (tourId: string) => mapUserResponse(await apiClient.post(`/api/v1/me/tours/${encodeURIComponent(tourId)}`)),
+  /** Show every first-time tour again. */
+  resetTours: async () => mapUserResponse(await apiClient.delete('/api/v1/me/tours')),
   /** Upload a profile photo straight to S3; returns the refreshed user (with a signed photo_url). */
   uploadPhoto: async (file: File) => {
     const presigned = await apiClient.post<Record<string, any>>('/api/v1/me/photo/presigned-upload', {

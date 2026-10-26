@@ -158,7 +158,7 @@ export default function DeliverySummary({ portfolios = [], onNavigateToSprints, 
             </div>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div data-tour="page-filters" className="flex flex-wrap items-center gap-2">
           <PageFilterLabel className="mr-1" />
           <FilterSelect value={filterPortfolioId} onChange={v => { setFilterPortfolioId(v); setFilterProgramId(''); setFilterProjectId(''); }}
             allLabel="All Portfolios" options={portfolios.map(p => ({ value: p.id, label: p.name }))} />

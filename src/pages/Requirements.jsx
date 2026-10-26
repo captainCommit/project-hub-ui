@@ -2,6 +2,8 @@ import React from 'react';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import RequirementView from '@/components/projects/RequirementView';
 import { useAccountHierarchy } from '@/hooks/useAccountLookups';
+import Tour from '@/components/tour/Tour';
+import { REQUIREMENTS_TOUR } from './Requirements.tour';
 
 export default function Requirements() {
   const { projects, programs, portfolios } = useAccountHierarchy();
@@ -15,6 +17,7 @@ export default function Requirements() {
         onRenameItem={() => {}} onShowVacationCalendar={() => {}}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
+        <Tour tour={REQUIREMENTS_TOUR} />
         <RequirementView />
       </div>
     </div>

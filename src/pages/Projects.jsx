@@ -29,6 +29,8 @@ import { toast, toastError } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import ProjectsSummary from '@/components/projects/ProjectsSummary';
 import { useGlobalScope } from '@/lib/globalScope';
+import Tour from '@/components/tour/Tour';
+import { DIRECTORY_TOUR } from './Projects.tour';
 import RAIDSummary from '@/components/projects/RAIDSummary';
 import TemplatesView from '@/components/projects/TemplatesView';
 import SprintView from '@/components/projects/SprintView';
@@ -1553,6 +1555,7 @@ export default function Projects() {
       
       {/* Directory views pad themselves; a project page always needs padding, even when opened from a program. */}
       <div className={`flex-1 flex flex-col overflow-hidden ${!hasProjectRoute && ['all_portfolios','all_programs','all_projects','portfolio','program'].includes(viewMode) ? '' : sheetFocusMode ? 'p-3' : 'p-8'}`}>
+        <Tour tour={DIRECTORY_TOUR} enabled={!hasProjectRoute && ['all_portfolios', 'all_programs', 'all_projects'].includes(viewMode)} />
         {hasProjectRoute ? (
           !hasValidProjectRoute ? (
             <PortfolioState title="Invalid project link" message="This project URL is not a valid Project Hub UUID." />

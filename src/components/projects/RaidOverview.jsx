@@ -64,7 +64,7 @@ export default function RaidOverview({ risks = [], issues = [], assumptions = []
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-slate-50" style={{ fontFamily: 'Segoe UI, sans-serif' }}>
       {/* Filter bar */}
-      <div className="bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-4 flex-wrap">
+      <div data-tour="page-filters" className="bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-4 flex-wrap">
         <PageFilterLabel />
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-500">Portfolio:</span>

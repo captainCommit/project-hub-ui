@@ -197,7 +197,7 @@ export default function ProjectSidebar(/** @type {any} */ {
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 px-2 py-3 overflow-y-auto">
+      <div ref={scrollRef} data-tour="sidebar-nav" className="flex-1 px-2 py-3 overflow-y-auto">
 
         {/* Home */}
         <Link to="/" className={cn(itemClass(pathname === '/'), 'mb-1 font-medium')}>

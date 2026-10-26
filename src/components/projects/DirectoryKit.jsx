@@ -48,7 +48,7 @@ export function PageHeader({ icon: Icon = undefined, iconBox = true, title, subt
         </div>
         {subtitle && <p className="text-[15px] mt-1" style={{ color: MUTED }}>{subtitle}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2 flex-shrink-0">{actions}</div>}
+      {actions && <div data-tour="page-actions" className="flex items-center gap-2 flex-shrink-0">{actions}</div>}
     </div>
   );
 }
@@ -125,7 +125,7 @@ export function PageFilterLabel({ className = undefined }) {
 /** The white bar that holds the search box, filter dropdowns and (on the right) export, under a "Page filters" label. */
 export function FilterBar({ children, right = undefined, bare = false, pageLabel = true }) {
   return (
-    <div className={cn('flex flex-wrap items-center gap-3', !bare && 'bg-white rounded-xl border p-3')} style={bare ? undefined : { borderColor: CARD_BORDER }}>
+    <div data-tour="page-filters" className={cn('flex flex-wrap items-center gap-3', !bare && 'bg-white rounded-xl border p-3')} style={bare ? undefined : { borderColor: CARD_BORDER }}>
       {pageLabel && <PageFilterLabel />}
       {children}
       {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
@@ -313,7 +313,7 @@ export function DataTable({ columns, rows, rowKey = (r) => r.id, onRowClick = un
 
   return (
     <div className="space-y-3">
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div data-tour="data-table" className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm" style={{ minWidth }}>
             <thead>

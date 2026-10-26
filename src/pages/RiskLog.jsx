@@ -14,6 +14,8 @@ import { EMPTY_RAID_FILTERS } from '@/components/projects/RaidTable';
 import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
 import { useMyAccess } from '@/hooks/useMyAccess';
 import { useGlobalScope } from '@/lib/globalScope';
+import Tour from '@/components/tour/Tour';
+import { RAID_TOUR } from './RiskLog.tour';
 
 const RAID_TABS = [
   { key: 'risks', label: 'Risks', icon: AlertTriangle, module: 'RISKS' },
@@ -215,11 +217,12 @@ export default function RiskLog() {
       />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <div className="bg-white px-6 pt-5">
+          <Tour tour={RAID_TOUR} />
           <h1 className="text-2xl font-bold text-[#002046]">RAID</h1>
           <p className="text-sm text-slate-500 mt-1">Manage risks, assumptions, issues, and dependencies across delivery.</p>
           {/* Tabs, with the open tab's Export and New buttons on the right */}
           <div className="flex flex-wrap items-end justify-between gap-2 border-b border-slate-200 mt-3">
-            <div className="flex items-center gap-1">
+            <div data-tour="module-tabs" className="flex items-center gap-1">
               <button onClick={() => switchTab('overview')} className={cn('flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors', activeTab === 'overview' ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50')}>
                 <LayoutDashboard className="w-4 h-4" /> Overview
               </button>
@@ -229,7 +232,7 @@ export default function RiskLog() {
                 </button>
               ))}
             </div>
-            <div ref={setActionsSlot} className="flex items-center gap-2 pb-2" />
+            <div ref={setActionsSlot} data-tour="page-actions" className="flex items-center gap-2 pb-2" />
           </div>
         </div>
         {renderRiskState() || (activeTab === 'overview' ? (

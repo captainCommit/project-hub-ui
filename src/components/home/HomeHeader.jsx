@@ -17,22 +17,26 @@ export default function HomeHeader({
       </div>
 
       <div className="flex items-center gap-3 flex-shrink-0">
-        <GlobalSearch className="w-full sm:w-72" />
+        <div data-tour="home-search" className="w-full sm:w-72">
+          <GlobalSearch className="w-full" />
+        </div>
 
-        <HomeNotifications
-          items={notifications}
-          readAt={notificationsReadAt}
-          onOpen={onOpenNotification}
-          onMarkAllRead={onMarkAllRead}
-          markingRead={markingRead}
-          onRemove={onRemoveNotification}
-          onClearRead={onClearRead}
-          clearingRead={clearingRead}
-        />
+        <div data-tour="home-bell">
+          <HomeNotifications
+            items={notifications}
+            readAt={notificationsReadAt}
+            onOpen={onOpenNotification}
+            onMarkAllRead={onMarkAllRead}
+            markingRead={markingRead}
+            onRemove={onRemoveNotification}
+            onClearRead={onClearRead}
+            clearingRead={clearingRead}
+          />
+        </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white flex-shrink-0 hover:opacity-90" style={{ background: '#c87b14' }}>
+            <button data-tour="home-create" className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white flex-shrink-0 hover:opacity-90" style={{ background: '#c87b14' }}>
               <Plus className="w-4 h-4" /> Create
             </button>
           </DropdownMenuTrigger>

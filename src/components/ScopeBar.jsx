@@ -5,6 +5,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 import { EMPTY_SCOPE, useGlobalScope } from '@/lib/globalScope';
+import Tour from '@/components/tour/Tour';
+import { SCOPE_TOUR } from './ScopeBar.tour';
 
 // The module pages the global scope narrows. Home, My Work, a single portfolio/program/project, and the account and
 // help pages are left alone, so the bar only shows where it changes what you see.
@@ -58,7 +60,8 @@ export default function ScopeBar() {
   };
 
   return (
-    <div className="flex items-center gap-3 px-4 h-11 bg-white border-b border-slate-200 text-sm flex-shrink-0">
+    <div data-tour="scope-bar" className="flex items-center gap-3 px-4 h-11 bg-white border-b border-slate-200 text-sm flex-shrink-0">
+      <Tour tour={SCOPE_TOUR} />
       <Crosshair className="w-4 h-4 text-[#002046] flex-shrink-0" />
       <span className="font-semibold text-slate-500">Viewing:</span>
       <Popover open={open} onOpenChange={setOpen}>

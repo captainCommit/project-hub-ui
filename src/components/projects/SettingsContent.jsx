@@ -12,13 +12,6 @@ import { X, Plus, ChevronDown, ChevronRight, AlertCircle, Loader2, Sun, Moon, Mo
 
 const DAYS = [{ v: 0, l: 'Sun' }, { v: 1, l: 'Mon' }, { v: 2, l: 'Tue' }, { v: 3, l: 'Wed' }, { v: 4, l: 'Thu' }, { v: 5, l: 'Fri' }, { v: 6, l: 'Sat' }];
 
-const LANDING_OPTIONS = [
-  { value: 'favorites', label: 'Home', description: 'Open to the home page and your favorites' },
-  { value: 'all_portfolios', label: 'All Portfolios', description: 'Show the portfolios overview' },
-  { value: 'all_programs', label: 'All Programs', description: 'Show all programs' },
-  { value: 'sprints', label: 'Sprints', description: 'Open to the sprint board' },
-];
-
 const DEFAULT_TASK_VIEW_OPTIONS = [
   { value: 'sheet', label: 'Sheet' },
   { value: 'gantt', label: 'Gantt' },
@@ -349,7 +342,6 @@ export default function SettingsContent() {
     try { return JSON.parse(localStorage.getItem('app_nonworking_days') || '[0,6]'); } catch { return [0, 6]; }
   });
   const [hideDelivery, setHideDelivery] = useState(localStorage.getItem('app_hide_delivery') === 'true');
-  const [landingPage, setLandingPage] = useState(localStorage.getItem('app_landing_page') || 'all_portfolios');
   const [defaultTaskView, setDefaultTaskView] = useState(localStorage.getItem('app_default_task_view') || 'sheet');
   const [mutationError, setMutationError] = useState('');
   const [holidayMutationError, setHolidayMutationError] = useState('');
@@ -400,7 +392,6 @@ export default function SettingsContent() {
   useEffect(() => {
     if (!accountSettings || Object.keys(accountSettings).length === 0) return;
     if (accountSettings.date_format !== undefined) setDateFormat(accountSettings.date_format);
-    if (accountSettings.default_landing_page !== undefined) setLandingPage(accountSettings.default_landing_page);
     if (accountSettings.hide_delivery_section !== undefined) setHideDelivery(Boolean(accountSettings.hide_delivery_section));
   }, [accountSettings]);
 
@@ -410,7 +401,6 @@ export default function SettingsContent() {
       setMutationError('');
       queryClient.invalidateQueries({ queryKey: ['account-settings', selectedAccountId] });
       if (updatedSettings.date_format !== undefined) localStorage.setItem('app_date_format', updatedSettings.date_format);
-      if (updatedSettings.default_landing_page !== undefined) localStorage.setItem('app_landing_page', updatedSettings.default_landing_page);
       if (updatedSettings.hide_delivery_section !== undefined) localStorage.setItem('app_hide_delivery', String(updatedSettings.hide_delivery_section));
     },
     onError: () => {
@@ -640,32 +630,6 @@ export default function SettingsContent() {
               <SelectItem value="D MMM YYYY">D MMM YYYY</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-
-        {/* Default Landing Page */}
-        <div className="px-5 py-4">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-sm font-medium text-slate-800">Default Landing Page</p>
-              <p className="text-xs text-slate-400 mt-0.5">Where the app opens when you first load it</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {LANDING_OPTIONS.map(opt => (
-              <button key={opt.value} disabled={isSavingGeneralSettings} onClick={() => applyGeneralSetting({ default_landing_page: opt.value }, () => setLandingPage(opt.value))}
-                className={cn('flex flex-col items-start gap-0.5 px-4 py-3 rounded-xl border-2 text-left transition-all',
-                  landingPage === opt.value
-                    ? 'border-indigo-400 bg-indigo-50'
-                    : 'border-slate-200 bg-white hover:border-slate-300',
-                  isSavingGeneralSettings && 'opacity-60 cursor-not-allowed')}>
-                <span className={cn('text-sm font-medium', landingPage === opt.value ? 'text-indigo-700' : 'text-slate-700')}>
-                  {opt.label}
-                  {landingPage === opt.value && <span className="ml-2 text-xs font-normal text-indigo-400">(current)</span>}
-                </span>
-                <span className="text-xs text-slate-400">{opt.description}</span>
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Default Sheet View */}

@@ -254,7 +254,8 @@ export default function Projects() {
   const hasValidProgramRoute = !programId || UUID_RE.test(programId);
   const hasValidProjectRoute = !projectId || UUID_RE.test(projectId);
   const activeProjectTab = PROJECT_TABS.includes(projectTab) ? projectTab : 'sheet';
-  const _defaultLanding = localStorage.getItem('app_landing_page') || 'all_portfolios';
+  // /Projects without ?view= shows the Portfolio Directory; the app itself always opens on Home.
+  const _defaultLanding = 'all_portfolios';
   const [selectedType, setSelectedType] = useState(_defaultLanding);
   const [selectedItem, setSelectedItem] = useState(_defaultLanding === 'sprints' ? { id: 'sprints', name: 'Sprints' } : null);
   const [taskImportOpen, setTaskImportOpen] = useState(false);

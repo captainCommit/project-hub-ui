@@ -34,7 +34,6 @@ const Testing = lazy(() => import('./pages/Testing'));
 const Requirements = lazy(() => import('./pages/Requirements'));
 const ResourceManagementHub = lazy(() => import('./pages/ResourceManagementHub'));
 const Account = lazy(() => import('./pages/Account'));
-const MyWork = lazy(() => import('./pages/MyWork'));
 const PlatformAdmin = lazy(() => import('./pages/PlatformAdmin'));
 
 const { Pages, Layout } = pagesConfig;
@@ -129,7 +128,8 @@ const AuthenticatedApp = () => {
     <Routes>
       {/* Home is the person's own workspace; the portfolio/program/project directory stays at /Projects. */}
       <Route path="/" element={<LayoutWrapper currentPageName="Home"><Home /></LayoutWrapper>} />
-      <Route path="/MyWork" element={<LayoutWrapper currentPageName="MyWork"><MyWork /></LayoutWrapper>} />
+      {/* My Work was folded into Home; old links land there. */}
+      <Route path="/MyWork" element={<Navigate to="/" replace />} />
       {Object.entries(Pages).map(([path, Page]) => (
         <Route
           key={path}

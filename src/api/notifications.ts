@@ -34,7 +34,7 @@ export type NotificationPreferences = Record<EmailCategory, EmailFrequency> & {
   digest_hour: number;
   // False while the timezone is still the default nobody chose; TimezoneSync then saves the browser's zone.
   timezone_confirmed: boolean;
-  // The daily email's summary of My work: overdue, due today, blocked, new mentions.
+  // The daily email's Home summary: overdue, due today, blocked, new mentions.
   my_work_summary: boolean;
   email: string;
   // False until the server has an email sender set up; settings still save.

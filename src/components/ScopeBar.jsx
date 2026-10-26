@@ -8,7 +8,7 @@ import { EMPTY_SCOPE, useGlobalScope } from '@/lib/globalScope';
 import Tour from '@/components/tour/Tour';
 import { SCOPE_TOUR } from './ScopeBar.tour';
 
-// The module pages the global scope narrows. Home, My Work, a single portfolio/program/project, and the account and
+// The module pages the global scope narrows. Home, a single portfolio/program/project, and the account and
 // help pages are left alone, so the bar only shows where it changes what you see.
 const SCOPED_PATHS = new Set([
   '/Projects', '/RiskLog', '/ChangeRegisterHub', '/DecisionLog', '/ChangeRegister',

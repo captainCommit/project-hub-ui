@@ -313,7 +313,7 @@ export const LIBRARY = [
           {
             title: 'Choose your emails',
             image: 'account/notifications',
-            body: 'Account > Notifications decides which notifications are also emailed to you: right away, in a daily digest, or not at all. The My work summary adds your overdue, due-today and blocked tasks to the digest. Set the time and time zone it arrives.',
+            body: 'Account > Notifications decides which notifications are also emailed to you: right away, in a daily digest, or not at all. The Home summary adds your overdue, due-today and blocked tasks to the digest. Set the time and time zone it arrives.',
           },
         ],
       },

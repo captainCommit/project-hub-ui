@@ -126,13 +126,13 @@ export default function NotificationPreferences() {
 
           <div className="flex items-center justify-between gap-4 border border-slate-100 rounded-lg px-4 py-3">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-slate-800">My work summary</p>
+              <p className="text-sm font-medium text-slate-800">Home summary</p>
               <p className="text-xs text-slate-500">
                 Your overdue, due-today and blocked tasks, plus new mentions, in the daily digest. Skipped on days with nothing to report.
               </p>
             </div>
             <Switch checked={form.my_work_summary} onCheckedChange={value => setField('my_work_summary', value)}
-              aria-label="My work summary emails" className="data-[state=checked]:bg-[#c87b14]" />
+              aria-label="Home summary emails" className="data-[state=checked]:bg-[#c87b14]" />
           </div>
 
           <div className="space-y-2">

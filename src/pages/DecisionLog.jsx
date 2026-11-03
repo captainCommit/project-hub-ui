@@ -7,7 +7,7 @@ import { Scale, Loader2, Plus, X, MessageSquare, ChevronDown, ChevronRight, AtSi
 import { DataTable, PageBody, PageHeader } from '@/components/projects/DirectoryKit';
 import { EMPTY_RAID_FILTERS, RaidActions, RaidToolbar, filterRaidItems, raidColumns } from '@/components/projects/RaidTable';
 import { exportRecords } from '@/lib/exportUtils';
-import { getRaidStatuses } from '@/lib/raidStatuses';
+import { useStatusOptions } from '@/hooks/useStatusOptions';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,8 +19,6 @@ import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLook
 import { confirmAction } from '@/components/ui/confirm-dialog';
 import { useGlobalScope } from '@/lib/globalScope';
 
-const getDecisionStatuses = () => getRaidStatuses('decision');
-const statusOptions = getDecisionStatuses();
 
 const empty = { project_id: '', program_id: '', priority: 'medium', decision: '', description: '', proposed_date: '', proposed_by: '', status: 'draft' };
 
@@ -43,6 +41,7 @@ export default function DecisionLog({ embedded = false, filters: sharedFilters =
   const { inScope, scopeHierarchy } = useGlobalScope();
   const { projects, programs, portfolios } = scopeHierarchy(useAccountHierarchy());
   const resources = useAccountResources();
+  const statusOptions = useStatusOptions('decision');
 
   // ?id= opens that decision once the list has loaded (links from the Home search use it).
   const requestedId = useRef(new URLSearchParams(window.location.search).get('id'));
@@ -211,6 +210,7 @@ export default function DecisionLog({ embedded = false, filters: sharedFilters =
         <DetailPanel
           decision={selectedDecisionDetail || selectedDecision}
           resources={resources}
+          statusOptions={statusOptions}
           onUpdate={handleUpdate}
           onClose={() => setSelectedDecision(null)}
           onDelete={() => remove.mutate(selectedDecision.id)}
@@ -249,7 +249,7 @@ const OPTION_COLORS = [
   { bg: 'bg-pink-50', title: 'text-pink-700' },
 ];
 
-function DetailPanel({ decision, resources = [], onUpdate, onClose, onDelete }) {
+function DetailPanel({ decision, resources = [], statusOptions, onUpdate, onClose, onDelete }) {
   const [local, setLocal] = React.useState(decision);
   const [commentText, setCommentText] = React.useState('');
   const [templateOpen, setTemplateOpen] = React.useState(true);

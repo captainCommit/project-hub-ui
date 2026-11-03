@@ -298,12 +298,6 @@ export default function RiskLog() {
             filters={raidFilters}
             onFiltersChange={setRaidFilters}
             actionsSlot={actionsSlot}
-            statuses={[
-              { value: 'closed', label: 'Closed', className: 'bg-slate-100 text-slate-600' },
-              { value: 'open', label: 'Open', className: 'bg-blue-100 text-blue-700' },
-              { value: 'in_review', label: 'In Review', className: 'bg-yellow-100 text-yellow-700' },
-              { value: 'escalated', label: 'Escalated', className: 'bg-red-100 text-red-700' },
-            ]}
             showImpactDelay
             showFallbackPlan
           />

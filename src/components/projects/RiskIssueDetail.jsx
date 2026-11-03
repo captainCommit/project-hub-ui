@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getRaidStatuses } from '@/lib/raidStatuses';
+import { useStatusOptions } from '@/hooks/useStatusOptions';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -44,6 +44,7 @@ export default function RiskIssueDetail({
   const [assignedDrop, setAssignedDrop] = useState(false);
   const [loggedByQ, setLoggedByQ] = useState(null);
   const [loggedByDrop, setLoggedByDrop] = useState(false);
+  const raidStatuses = useStatusOptions(type);
 
   React.useEffect(() => {
     if (item) { setFormData(item); setCommentText(''); }
@@ -55,7 +56,6 @@ export default function RiskIssueDetail({
   const mitigationField = type === 'risk' ? 'mitigation' : 'resolution';
   const mitigationLabel = type === 'risk' ? 'Mitigation Plan' : 'Issue Resolution';
   const label = type === 'risk' ? 'Risk' : 'Issue';
-  const raidStatuses = getRaidStatuses(type);
   const statusOptions = raidStatuses.map(s => ({ value: s.value || s, label: s.label || s }));
 
   const getProjectName = (id) => projects?.find(p => p.id === id)?.name || '—';

@@ -27,6 +27,7 @@ export const getStatusColor = (value) => {
   return 'bg-slate-100 text-slate-500';
 };
 
+// Used until the account's own lists load (see useStatusOptions); Account > Settings edits those.
 export const RAID_DEFAULTS = {
   risk: [
     { value: 'open', label: 'Open' },
@@ -55,20 +56,19 @@ export const RAID_DEFAULTS = {
     { value: 'cancelled', label: 'Cancelled' },
     { value: 'deferred', label: 'Deferred' },
   ],
-};
-
-export const getRaidStatuses = (type) => {
-  try {
-    const stored = localStorage.getItem(`app_raid_status_${type}`);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch {}
-  return RAID_DEFAULTS[type] || [];
-};
-
-export const setRaidStatuses = (type, statuses) => {
-  localStorage.setItem(`app_raid_status_${type}`, JSON.stringify(statuses));
-  window.dispatchEvent(new Event('raid-statuses-changed'));
+  dependency: [
+    { value: 'open', label: 'Open' },
+    { value: 'in_review', label: 'In Review' },
+    { value: 'closed', label: 'Closed' },
+    { value: 'escalated', label: 'Escalated' },
+  ],
+  change_request: [
+    { value: 'draft', label: 'Draft' },
+    { value: 'open', label: 'Open' },
+    { value: 'in_review', label: 'In Review' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'cancelled', label: 'Cancelled' },
+    { value: 'deferred', label: 'Deferred' },
+    { value: 'implemented', label: 'Implemented' },
+  ],
 };

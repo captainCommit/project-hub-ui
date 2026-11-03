@@ -91,6 +91,7 @@ export const mapOptionSet = (optionSet: ApiRecord = {}) => {
   if (hasOwn(optionSet, 'id')) mapped.id = optionSet.id;
   else if (hasOwn(optionSet, 'option_set_id')) mapped.id = optionSet.option_set_id;
   addIfPresent(mapped, optionSet, 'account_id');
+  addIfPresent(mapped, optionSet, 'entity_type');
   addIfPresent(mapped, optionSet, 'key');
   addIfPresent(mapped, optionSet, 'code');
   addIfPresent(mapped, optionSet, 'name');

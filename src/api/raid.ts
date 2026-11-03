@@ -125,6 +125,7 @@ export const mapAssumptionListFromApi = (response: any) => asArray(response).map
 export const mapAssumptionInputToPayload = (input: ApiRecord = {}) => buildPayload(input, {
   description: 'description',
   status: 'status',
+  priority: 'priority',
   entered_by: 'entered_by_name',
   date_entered: 'date_entered',
   assigned_to: 'assigned_to_name',

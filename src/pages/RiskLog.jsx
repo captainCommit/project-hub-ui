@@ -276,7 +276,6 @@ export default function RiskLog() {
             projects={projects}
             programs={programs}
             resources={resources}
-            showPriority={false}
             personLabel="Owner"
             dateLabel="Review Date"
             filters={raidFilters}

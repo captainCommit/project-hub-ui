@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { FolderTree, LayoutGrid, Plus, Network, FileText, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { FolderTree, Plus, Network, FileText, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/AuthContext';
 import { useFavorites } from '@/lib/favorites';
@@ -7,7 +7,7 @@ import { exportRecords } from '@/lib/exportUtils';
 import { RAG } from './HealthIndicator';
 import {
   PageHeader, PageBody, PrimaryButton, ExportButton, StatGrid, StatCard, FilterBar, SearchInput, FilterSelect, optionsFrom,
-  DataTable, TitleCell, HealthPill, WorkStatusPill, CompletionBar, CountCell, DetailsChevron,
+  DataTable, TitleCell, HealthPill, WorkStatusPill, CompletionBar, DetailsChevron,
   WORK_STATUS_OPTIONS, workStatusInfo, isCompleteStatus, isOpenRaid, isHighOrCritical, riskIssueLine, NAVY, SOFT, PersonCell,
 } from './DirectoryKit';
 
@@ -80,7 +80,7 @@ export default function ProgramsLanding({ programs = [], projects = [], portfoli
 
   const columns = [
     {
-      key: 'name', label: 'Program', sortValue: r => r.prog.name,
+      key: 'name', label: 'Program', sortValue: r => r.prog.name, className: 'min-w-[360px]', headerClassName: 'min-w-[360px]',
       render: r => (
         <TitleCell title={r.prog.name} sub={r.portfolio ? `Portfolio: ${r.portfolio.name}` : null} />
       ),
@@ -89,8 +89,6 @@ export default function ProgramsLanding({ programs = [], projects = [], portfoli
     { key: 'status', label: 'Status', sortValue: r => workStatusInfo(r.prog.status).label, render: r => <WorkStatusPill status={r.prog.status} /> },
     { key: 'completion', label: 'Completion', sortValue: r => r.pct, render: r => <CompletionBar pct={r.pct} /> },
     { key: 'projects', label: 'Projects', sortValue: r => r.projectCount, className: 'text-center', headerClassName: 'text-center', render: r => <span style={{ color: SOFT }}>{r.projectCount}</span> },
-    { key: 'risks', label: 'Open Risks', sortValue: r => r.openRisks, className: 'text-center', headerClassName: 'text-center', render: r => <CountCell value={r.openRisks} /> },
-    { key: 'issues', label: 'Open Issues', sortValue: r => r.openIssues, className: 'text-center', headerClassName: 'text-center', render: r => <CountCell value={r.openIssues} /> },
     { key: 'owner', label: 'Program Owner(s)', sortValue: r => r.prog.owner, render: r => <PersonCell name={r.prog.owner} /> },
     { key: 'open', label: '', className: 'w-8', render: () => <DetailsChevron /> },
   ];
@@ -98,7 +96,7 @@ export default function ProgramsLanding({ programs = [], projects = [], portfoli
   return (
     <PageBody>
       <PageHeader
-        icon={LayoutGrid}
+        icon={FolderTree}
         title="Program Directory"
         subtitle="All programs across the organisation. Click a row to view the program detail."
         actions={<PrimaryButton icon={Plus} onClick={onNewProgram}>New Program</PrimaryButton>}

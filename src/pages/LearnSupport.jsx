@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { LifeBuoy, Ticket, ChevronLeft, Plus, Inbox, RotateCcw, Search, X } from 'lucide-react';
+import { Ticket, ChevronLeft, Plus, Inbox, RotateCcw, Search, X } from 'lucide-react';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import TicketForm from '@/components/support/TicketForm';
 import TicketConversation from '@/components/support/TicketConversation';
@@ -14,6 +14,7 @@ import { toast, toastError } from '@/components/ui/use-toast';
 import LearnHome from '@/components/learn/LearnHome';
 import TutorialLibrary, { TutorialCard } from '@/components/learn/TutorialLibrary';
 import TutorialView from '@/components/learn/TutorialView';
+import WhatsNew from '@/components/learn/WhatsNew';
 import { ALL_TUTORIALS, findTutorial } from '@/tutorials/content';
 
 const STATUS_STYLES = {
@@ -58,8 +59,9 @@ export default function LearnSupport() {
   const learn = searchParams.get('learn');
   const tutorial = learn ? findTutorial(learn) : null;
   const showLibrary = learn === 'library';
+  const showWhatsNew = learn === 'whats-new';
   const [search, setSearch] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef(/** @type {HTMLInputElement | null} */ (null));
   const openLearn = (id) => {
     setView('home');
     setSearch('');
@@ -71,7 +73,9 @@ export default function LearnSupport() {
   const searchResults = query
     ? ALL_TUTORIALS.filter(t => [t.title, t.summary, ...t.steps.map(step => `${step.title} ${step.body}`)].join(' ').toLowerCase().includes(query))
     : [];
-  const contactSupport = () => { openLearn(null); setView(tickets.length ? 'requests' : 'new'); };
+  const showSupport = (next) => { openLearn(null); setView(next); };
+  // The knowledge base is the searchable tutorials: put the cursor in the search box.
+  const focusSearch = () => { scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); searchRef.current?.focus(); };
 
   // Each lesson starts at the top.
   const scrollRef = useRef(/** @type {HTMLDivElement | null} */ (null));
@@ -107,32 +111,26 @@ export default function LearnSupport() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-3 flex-shrink-0">
-          <div className="w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center">
-            <LifeBuoy className="w-5 h-5 text-[#002046]" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-[#002046]">Learn & Support</h1>
-            <p className="text-xs text-slate-500">Everything you need to get started and grow with Row</p>
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            {searchOpen ? (
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                <input autoFocus value={search} onChange={e => { setSearch(e.target.value); setView('home'); }}
-                  placeholder="Search tutorials..." className="h-9 w-64 rounded-lg border border-slate-200 pl-8 pr-8 text-sm outline-none focus:border-slate-400" />
-                <button type="button" onClick={() => { setSearch(''); setSearchOpen(false); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" aria-label="Close search">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} title="Search tutorials" aria-label="Search tutorials">
-                <Search className="w-4 h-4 text-slate-600" />
-              </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={replayTours} disabled={resettingTours}>
+        <div className="bg-white border-b border-slate-200 px-8 pt-6 pb-5 flex-shrink-0 space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className="text-[32px] font-bold leading-tight text-[#002046]">Help Center</h1>
+              <p className="text-base text-slate-500 mt-1">Learn how to use Row or get help when you need it.</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={replayTours} disabled={resettingTours} className="text-slate-500">
               <RotateCcw className="w-4 h-4 mr-1.5" /> Show tours again
             </Button>
+          </div>
+          <div className="relative">
+            <Search className="w-5 h-5 text-[#002046] absolute left-4 top-1/2 -translate-y-1/2" />
+            <input ref={searchRef} value={search} onChange={e => { setSearch(e.target.value); setView('home'); }}
+              placeholder="Search tutorials, guides, and support articles..."
+              className="h-12 w-full rounded-lg border border-slate-200 pl-12 pr-10 text-[15px] outline-none focus:border-slate-400" />
+            {search && (
+              <button type="button" onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" aria-label="Clear search">
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -149,6 +147,8 @@ export default function LearnSupport() {
           ) : view === 'home' && tutorial ? (
             <TutorialView tutorial={tutorial} onOpen={openLearn} onLibrary={() => openLearn('library')}
               onBack={() => openLearn(tutorial.kind === 'lesson' ? null : 'library')} />
+          ) : view === 'home' && showWhatsNew ? (
+            <WhatsNew onBack={() => openLearn(null)} />
           ) : view === 'home' && showLibrary ? (
             <TutorialLibrary onOpen={openLearn} onBack={() => openLearn(null)} />
           ) : view === 'conversation' && activeTicket ? (
@@ -210,7 +210,9 @@ export default function LearnSupport() {
               </div>
             </div>
           ) : (
-            <LearnHome onOpen={openLearn} onLibrary={() => openLearn('library')} onContact={contactSupport}>
+            <LearnHome onOpen={openLearn} onLibrary={() => openLearn('library')}
+              onSubmitTicket={() => showSupport('new')} onViewTickets={() => showSupport('requests')}
+              onKnowledgeBase={focusSearch} onWhatsNew={() => openLearn('whats-new')}>
               {tickets.length > 0 && (
                 <div className="bg-white rounded-xl border border-slate-200">
                   <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">

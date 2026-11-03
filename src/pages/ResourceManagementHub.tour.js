@@ -4,7 +4,7 @@ export const RESOURCES_TOUR = {
     {
       target: 'module-tabs',
       title: 'People, capacity, availability and costs',
-      body: 'Overview is your people directory. Capacity shows who is over or under booked, Availability shows time off, and Costs compares budget with actuals.',
+      body: "Overview summarises how booked your people are. Capacity is the resource directory with everyone's allocation health, Availability shows time off, and Costs compares budget with actuals.",
     },
   ],
 };

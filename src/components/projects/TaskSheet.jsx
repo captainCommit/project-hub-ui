@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, min, max } from 'date-fns';
@@ -14,6 +14,10 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { tasksApi, getTaskPriorityLabel, normalizeTaskPriorityText, resolveTaskPriorityOption } from '@/api/tasks';
 import FormattingToolbar from './FormattingToolbar';
+import TaskCommentsPanel from './TaskCommentsPanel';
+import { Pill } from './DirectoryKit';
+import { Avatar } from '@/components/resources/ResourceKit';
+import { buildRelatedRecordIndex, resolveRelatedRecords, RELATED_RECORD_TYPES, RELATED_RECORD_ORDER } from '@/lib/relatedRecords';
 
 
 import { parseDate } from '@/lib/dateUtils';
@@ -74,30 +78,32 @@ const PriorityBadge = ({ option, label, className }) => {
 
 const DEFAULT_COL_WIDTHS = {
   row: 40, attachments: 48, task_type: 64, title: 260, status: 136, priority: 112,
-  duration: 56, start_date: 115, due_date: 115, predecessors: 56,
-  resources: 160, resources_planned: 160, progress: 90, raid: 176
+  duration: 80, start_date: 110, due_date: 110, predecessors: 96,
+  resources: 190, resources_planned: 160, progress: 140, raid: 180, comments: 48
 };
 
 // `row` and `title` are always shown and stay frozen while the sheet scrolls sideways.
 const columns = [
-  { key: 'row',          label: '',          align: 'center', required: true },
+  { key: 'row',          label: '#',         align: 'center', required: true },
   { key: 'title',        label: 'Task Name', align: 'left',   required: true },
   { key: 'status',       label: 'Status',    align: 'center' },
-  { key: 'resources',    label: 'Owner',     align: 'left' },
   { key: 'start_date',   label: 'Start',     align: 'center' },
-  { key: 'due_date',     label: 'Finish',    align: 'center' },
-  { key: 'progress',     label: '% Complete', align: 'center' },
+  { key: 'due_date',     label: 'End',       align: 'center' },
+  { key: 'duration',     label: 'Duration',  align: 'center' },
+  { key: 'predecessors', label: 'Predecessor', align: 'center' },
+  { key: 'progress',     label: '% Completion', align: 'center' },
+  { key: 'resources',    label: 'Assigned To', align: 'left' },
+  { key: 'raid',         label: 'Related Record', align: 'left' },
+  { key: 'comments',     label: '',          menuLabel: 'Comments', align: 'center', icon: MessageSquare },
   { key: 'task_type',    label: 'Type',      align: 'center' },
   { key: 'priority',     label: 'Priority',  align: 'center' },
-  { key: 'duration',     label: 'Dur.',      menuLabel: 'Duration', align: 'center' },
-  { key: 'predecessors', label: 'Pred.',     menuLabel: 'Predecessors', align: 'center' },
   { key: 'resources_planned', label: 'Planned Resources', align: 'left' },
   { key: 'attachments',  label: '',          menuLabel: 'Attachments', align: 'center' },
-  { key: 'raid',         label: 'Related Record', align: 'left' }
 ];
 
-const DEFAULT_VISIBLE_COLUMN_KEYS = ['status', 'resources', 'start_date', 'due_date', 'progress'];
-const VISIBLE_COLUMNS_STORAGE_KEY = 'task_sheet_visible_columns';
+const DEFAULT_VISIBLE_COLUMN_KEYS = ['status', 'start_date', 'due_date', 'duration', 'predecessors', 'progress', 'resources', 'raid', 'comments'];
+// v2: the sheet's default columns changed to the schedule layout above; older saved choices start over once.
+const VISIBLE_COLUMNS_STORAGE_KEY = 'task_sheet_visible_columns_v2';
 const FROZEN_COLUMN_KEYS = ['row', 'title'];
 const FROZEN_EDGE_CLASS = 'shadow-[inset_-1px_0_0_#cbd5e1,4px_0_6px_-4px_rgba(15,23,42,0.15)]';
 
@@ -160,7 +166,12 @@ export default function TaskSheet({
   hideProjectHeader = false,
   focusTaskId = null,
   focusMode = false,
-  onToggleFocusMode
+  onToggleFocusMode,
+  // API-backed project sheet: the records the Related Record column can link to, and how links are saved.
+  relatedRecordLists = null,
+  onUpdateRelatedRecords = undefined,
+  // Called after a comment is added in the comment sidebar, so the row counts refresh.
+  onCommentsChanged = undefined,
 }) {
   const queryClient = useQueryClient();
   const [colWidths, setColWidths] = useState(DEFAULT_COL_WIDTHS);
@@ -188,7 +199,10 @@ export default function TaskSheet({
   const [resourceAssignmentErrors, setResourceAssignmentErrors] = useState({});
   const [highlightedTaskId, setHighlightedTaskId] = useState(null);
   const [visibleColumnKeys, setVisibleColumnKeys] = useState(readStoredColumnKeys);
+  const [commentTaskId, setCommentTaskId] = useState(null);
+  const [newAssignmentHours, setNewAssignmentHours] = useState('');
   const focusedTaskRef = useRef(null);
+  const relatedIndex = useMemo(() => buildRelatedRecordIndex(relatedRecordLists || {}), [relatedRecordLists]);
 
   // Deep links (?task=) expand the task's ancestors, then scroll to and briefly highlight its row.
   useEffect(() => {
@@ -712,11 +726,15 @@ export default function TaskSheet({
     }
   };
 
-  const addResourceAssignmentSafe = (task, resource) => {
+  // hours: the estimate entered in the picker, saved on the new assignment straight away.
+  const addResourceAssignmentSafe = (task, resource, hours = null) => {
     const resourceId = resource?.id;
     if (!resourceId) return;
     if (getDisplayedAssignments(task).some(assigned => isSameAssignedResource(assigned, resource))) return;
-    return runResourceRequest(task?.id, `${task?.id}:add:${resourceId}`, () => tasksApi.createAssignment(task.id, resource, accountResources));
+    return runResourceRequest(task?.id, `${task?.id}:add:${resourceId}`, async () => {
+      const created = await tasksApi.createAssignment(task.id, resource, accountResources);
+      if (hours !== null && created?.assignment_id) await tasksApi.updateAssignment(created.assignment_id, { hours });
+    });
   };
 
   const removeResourceAssignmentSafe = (task, assignment) => {
@@ -791,16 +809,33 @@ export default function TaskSheet({
                 else setEditingHours(null);
               }}>
                 <PopoverTrigger asChild>
-                  <button type="button" onClick={e => e.stopPropagation()} title="Click to set hours"
-                    className={cn("inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs transition-colors", chipClassName)}>
-                    {shortName(entry.resource_name)}
-                    {hasHours(entry.hours) && <span className={cn("text-[10px] font-semibold", hoursClassName)}>·{Number(entry.hours)}h</span>}
-                    <span
-                      title="Remove"
-                      onClick={(e) => { e.stopPropagation(); if (!isPending) onRemove(entry); }}
-                      className="hover:text-red-500 leading-none"
-                    >×</span>
-                  </button>
+                  {kind === 'actual' ? (
+                    // Assigned To: avatar, name and the hours estimated for the task ("Nadia K. • 24h").
+                    <button type="button" onClick={e => e.stopPropagation()} title="Click to set the hours estimated for this task"
+                      className="group/chip inline-flex items-center gap-1.5 pr-1 rounded-full text-xs text-slate-700 hover:bg-slate-100">
+                      <Avatar name={entry.resource_name} size={20} />
+                      <span>{shortName(entry.resource_name)}</span>
+                      <span className={hasHours(entry.hours) ? 'text-slate-500' : 'text-amber-600 italic'}>
+                        • {hasHours(entry.hours) ? `${Number(entry.hours)}h` : 'set hrs'}
+                      </span>
+                      <span
+                        title="Remove"
+                        onClick={(e) => { e.stopPropagation(); if (!isPending) onRemove(entry); }}
+                        className="hover:text-red-500 leading-none opacity-0 group-hover/chip:opacity-100"
+                      >×</span>
+                    </button>
+                  ) : (
+                    <button type="button" onClick={e => e.stopPropagation()} title="Click to set hours"
+                      className={cn("inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs transition-colors", chipClassName)}>
+                      {shortName(entry.resource_name)}
+                      {hasHours(entry.hours) && <span className={cn("text-[10px] font-semibold", hoursClassName)}>·{Number(entry.hours)}h</span>}
+                      <span
+                        title="Remove"
+                        onClick={(e) => { e.stopPropagation(); if (!isPending) onRemove(entry); }}
+                        className="hover:text-red-500 leading-none"
+                      >×</span>
+                    </button>
+                  )}
                 </PopoverTrigger>
                 <PopoverContent className="w-44 p-2" onClick={e => e.stopPropagation()}>
                   <div className="space-y-1.5">
@@ -829,13 +864,20 @@ export default function TaskSheet({
               </Popover>
             );
           })}
-          <Popover open={resourcePicker === pickerKey} onOpenChange={open => setResourcePicker(open && !isPending ? pickerKey : null)}>
+          <Popover open={resourcePicker === pickerKey} onOpenChange={open => { setResourcePicker(open && !isPending ? pickerKey : null); setNewAssignmentHours(''); }}>
             <PopoverTrigger asChild>
               <button type="button" onClick={e => e.stopPropagation()} disabled={isPending} className="text-xs text-slate-400 hover:text-indigo-600 disabled:cursor-not-allowed">
                 {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : '+'}
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-56 p-1" onClick={e => e.stopPropagation()}>
+              {kind === 'actual' && (
+                <div className="px-2 pt-1.5 pb-2 border-b border-slate-100 mb-1">
+                  <Label className="text-[10px] text-slate-500">Estimated hours for this task</Label>
+                  <Input type="number" min="0" step="0.5" value={newAssignmentHours} onChange={e => setNewAssignmentHours(e.target.value)}
+                    placeholder="e.g. 16" className="h-7 text-xs mt-1" />
+                </div>
+              )}
               <div className="max-h-48 overflow-y-auto">
                 {accountResourcesState?.isLoading ? (
                   <p className="text-xs text-slate-400 px-2 py-1.5">Loading resources…</p>
@@ -847,7 +889,15 @@ export default function TaskSheet({
                   <button
                     key={resource.id}
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); setResourcePicker(null); onAdd(resource); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      let hours = null;
+                      if (kind === 'actual') {
+                        try { hours = parseHoursInput(newAssignmentHours); } catch (error) { toastError(error.message); return; }
+                      }
+                      setResourcePicker(null);
+                      onAdd(resource, hours);
+                    }}
                     className="w-full text-left px-2 py-1.5 text-xs hover:bg-indigo-50 rounded"
                   >
                     <span className="block text-slate-700">{getResourceName(resource)}</span>
@@ -1103,6 +1153,7 @@ export default function TaskSheet({
   };
 
   const { tasks: displayTasks, groups } = getDisplayData();
+  const commentTask = commentTaskId ? displayTasks.find(t => t.id === commentTaskId) || null : null;
 
   const getSelectedCellTaskId = () => {
     if (!selectedCell) return null;
@@ -1713,7 +1764,7 @@ export default function TaskSheet({
             entries: getAssignmentEntries(task),
             chipClassName: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200',
             hoursClassName: 'text-indigo-500',
-            onAdd: (resource) => addResourceAssignmentSafe(task, resource),
+            onAdd: (resource, hours) => addResourceAssignmentSafe(task, resource, hours),
             onRemove: (entry) => removeResourceAssignmentSafe(task, entry),
             onSaveHours: (entry, value) => updateAssignmentHoursSafe(task, entry, value),
           });
@@ -1876,7 +1927,72 @@ export default function TaskSheet({
           </td>
         );
 
+      case 'comments': {
+        const count = task.comment_count || 0;
+        const isOpen = commentTaskId === task.id;
+        return (
+          <td key={cellKey} className={cn(cellClass, isOpen && 'bg-blue-50')} style={{ ...cellStyle, ...cellStyles }}>
+            <button type="button" onClick={e => { e.stopPropagation(); setCommentTaskId(isOpen ? null : task.id); }}
+              title={count ? `${count} comment${count === 1 ? '' : 's'}` : 'Comment on this task'}
+              className="inline-flex items-center gap-1 px-1 py-0.5 rounded hover:bg-slate-100 text-slate-500">
+              <MessageSquare className="w-4 h-4" />
+              {count > 0 && <span className="text-xs font-semibold text-blue-600">{count}</span>}
+            </button>
+          </td>
+        );
+      }
+
       case 'raid': {
+        if (onUpdateRelatedRecords) {
+          const links = task.related_records || [];
+          const linked = resolveRelatedRecords(task, relatedIndex);
+          const linkedKeys = new Set(links.map(l => `${l.type}:${l.id}`));
+          const saveLinks = (next) => onUpdateRelatedRecords(task.id, next);
+          const available = RELATED_RECORD_ORDER.map(type => ({
+            type,
+            items: [...relatedIndex.values()].filter(r => r.type === type && !linkedKeys.has(`${type}:${r.id}`)),
+          })).filter(group => group.items.length > 0);
+          return (
+            <td key={cellKey} className={cn(cellClass, 'text-left')} style={{ ...cellStyle, ...cellStyles }}>
+              <div className="flex flex-wrap items-center gap-1 px-1">
+                {linked.map(r => (
+                  <span key={`${r.type}:${r.id}`} title={r.title} className="group/rec inline-flex">
+                    <Pill tone={RELATED_RECORD_TYPES[r.type].tone} className="px-2 rounded-md font-mono text-[11px]">
+                      {r.number}
+                      <button type="button" onClick={e => { e.stopPropagation(); saveLinks(links.filter(l => !(l.type === r.type && l.id === r.id))); }}
+                        className="hidden group-hover/rec:inline hover:text-red-600 ml-0.5" aria-label={`Unlink ${r.number}`}>×</button>
+                    </Pill>
+                  </span>
+                ))}
+                <Popover open={raidOpen === task.id} onOpenChange={v => setRaidOpen(v ? task.id : null)}>
+                  <PopoverTrigger asChild>
+                    <button type="button" onClick={e => e.stopPropagation()} className="text-xs text-slate-400 hover:text-[#002046] px-0.5" title="Link a RAID item, decision or change">
+                      {linked.length ? '+' : '— +'}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-2" onClick={e => e.stopPropagation()}>
+                    <p className="text-[11px] text-slate-500 px-1 pb-1.5">Link a RAID item, decision or change request</p>
+                    <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                      {available.length === 0 && <p className="text-xs text-slate-400 px-2 py-1">Nothing else in this project to link.</p>}
+                      {available.map(group => (
+                        <div key={group.type}>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase px-1 mb-0.5">{RELATED_RECORD_TYPES[group.type].label}</p>
+                          {group.items.map(r => (
+                            <button key={r.id} type="button" onClick={() => { saveLinks([...links, { type: r.type, id: r.id }]); setRaidOpen(null); }}
+                              className="w-full flex items-center gap-2 text-left px-2 py-1 text-xs hover:bg-slate-50 rounded">
+                              <span className="font-mono text-[#002046] flex-shrink-0">{r.number}</span>
+                              <span className="text-slate-500 truncate">{r.title}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </td>
+          );
+        }
         const raidIds = (() => { const v = task.raid_ids; if (!v) return []; try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {} return v ? [v] : []; })();
         const raidColor = (id) => { const p = id?.split('-')[0]; if (p === 'RL') return 'bg-orange-100 text-orange-700'; if (p === 'IL') return 'bg-red-100 text-red-700'; if (p === 'AL') return 'bg-teal-100 text-teal-700'; if (p === 'DL') return 'bg-[#002046]/10 text-[#002046]'; return 'bg-slate-100 text-slate-600'; };
         const saveRaid = (ids) => updateTaskSafe(task.id, { raid_ids: ids.length ? JSON.stringify(ids) : '' });
@@ -2147,6 +2263,7 @@ export default function TaskSheet({
         onToggleFocusMode={onToggleFocusMode}
       />
 
+      <div className="flex-1 flex gap-3 min-h-0">
       <div className="flex-1 overflow-auto bg-white border-x border-b border-slate-300 shadow-sm">
         <DragDropContext onDragEnd={handleDragEnd}>
           <table className="w-full border-collapse" style={{ minWidth: tableMinWidth }}>
@@ -2157,13 +2274,13 @@ export default function TaskSheet({
                     key={col.key}
                     style={{ width: colWidths[col.key], minWidth: colWidths[col.key], ...(FROZEN_COLUMN_KEYS.includes(col.key) ? { left: frozenColumnLeft[col.key] } : {}) }}
                     className={cn(
-                      "sticky top-0 z-10 bg-slate-100 py-2 px-2 text-xs font-semibold text-slate-700 border-r border-slate-300 select-none overflow-hidden whitespace-nowrap",
+                      "sticky top-0 z-10 bg-[#002046] py-2.5 px-2 text-xs font-semibold text-white border-r border-white/10 select-none overflow-hidden whitespace-nowrap",
                       FROZEN_COLUMN_KEYS.includes(col.key) && "z-20",
                       col.key === 'title' && FROZEN_EDGE_CLASS,
                       col.align === 'center' && "text-center"
                     )}
                   >
-                    {col.label}
+                    {col.icon ? <col.icon className="w-4 h-4 mx-auto" aria-label={col.menuLabel} /> : col.label}
                     <div
                       className="absolute top-0 right-0 h-full w-1 cursor-col-resize hover:bg-blue-400 opacity-0 hover:opacity-100"
                       onMouseDown={e => { e.preventDefault(); handleColResize(col.key, e.clientX, colWidths[col.key]); }}
@@ -2301,6 +2418,16 @@ export default function TaskSheet({
             </Droppable>
           </table>
         </DragDropContext>
+      </div>
+      {commentTask && (
+        <TaskCommentsPanel
+          key={commentTask.id}
+          task={commentTask}
+          rowNumber={getRowNumber(commentTask, displayTasks)}
+          onClose={() => setCommentTaskId(null)}
+          onChanged={onCommentsChanged}
+        />
+      )}
       </div>
 
       {/* Bulk Insert Dialog */}

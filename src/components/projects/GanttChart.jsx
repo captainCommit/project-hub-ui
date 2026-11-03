@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { format, differenceInDays, addDays, startOfDay, startOfWeek, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, isWeekend, isSameDay, isSameMonth, getWeekOfMonth } from 'date-fns';
 import { cn } from "@/lib/utils";
-import { ChevronRight, ChevronDown, Zap, Diamond, Circle, Package, Layers, Flag, Filter } from "lucide-react";
+import { ChevronRight, ChevronDown, Zap, Diamond, Circle, Package, Layers, Flag, AlertTriangle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -40,6 +40,8 @@ export default function GanttChart({
   dependencyPendingTaskIds = {},
   onAddDependency,
   onRemoveDependency,
+  // task -> how many critical-priority RAID items it is linked to (Related Record on the sheet); shown on critical bars.
+  getCriticalRaidCount = undefined,
 }) {
   const [showCriticalPath, setShowCriticalPath] = useState(false);
   const [viewScale, setViewScale] = useState('day');
@@ -82,13 +84,6 @@ export default function GanttChart({
       scrollRef.current.scrollLeft = Math.max(0, offset);
     }
   }, [columns]);
-
-  const criticalPath = useMemo(() => {
-    if (!showCriticalPath || tasks.length === 0) return new Set();
-    const getDur = t => (t.start_date && t.due_date) ? differenceInDays(parseApiDate(t.due_date), parseApiDate(t.start_date)) + 1 : (t.duration || 1);
-    const max = Math.max(...tasks.map(getDur));
-    return new Set(tasks.filter(t => getDur(t) === max).map(t => t.id));
-  }, [tasks, showCriticalPath]);
 
   const getColIndex = (date) => {
     if (viewScale === 'day') return differenceInDays(date, startDate);
@@ -308,6 +303,48 @@ export default function GanttChart({
     ));
   };
 
+  // Critical path: work tasks with no slack. Walking back from the project's last finish date through the
+  // predecessor links, a task is critical when the latest it could finish without moving that date is its
+  // planned finish. A summary row is critical when any task under it is.
+  const criticalPath = useMemo(() => {
+    if (!showCriticalPath || tasks.length === 0) return new Set();
+    const parentIdSet = new Set(tasks.map(t => t.parent_task_id).filter(Boolean));
+    const work = tasks.filter(t => !parentIdSet.has(t.id) && parseApiDate(t.start_date) && parseApiDate(t.due_date));
+    if (work.length === 0) return new Set();
+    const workById = new Map(work.map(t => [t.id, t]));
+    const successors = new Map();
+    work.forEach(t => predecessorIdsForTask(t).forEach(predId => {
+      if (!workById.has(predId)) return;
+      if (!successors.has(predId)) successors.set(predId, []);
+      successors.get(predId).push(t.id);
+    }));
+    const projectEnd = work.reduce((latest, t) => {
+      const due = parseApiDate(t.due_date);
+      return due > latest ? due : latest;
+    }, parseApiDate(work[0].due_date));
+    const lateFinish = new Map();
+    const latestFinish = (id, visiting = new Set()) => {
+      if (lateFinish.has(id)) return lateFinish.get(id);
+      if (visiting.has(id)) return projectEnd;
+      visiting.add(id);
+      let latest = projectEnd;
+      (successors.get(id) || []).forEach(succId => {
+        const succ = workById.get(succId);
+        const span = differenceInDays(parseApiDate(succ.due_date), parseApiDate(succ.start_date));
+        const mustFinishBy = addDays(latestFinish(succId, visiting), -span - 1);
+        if (mustFinishBy < latest) latest = mustFinishBy;
+      });
+      visiting.delete(id);
+      lateFinish.set(id, latest);
+      return latest;
+    };
+    const critical = new Set(work.filter(t => differenceInDays(latestFinish(t.id), parseApiDate(t.due_date)) <= 0).map(t => t.id));
+    parentIdSet.forEach(parentId => {
+      if ([...(descendantIdsByTaskId.get(parentId) || [])].some(id => critical.has(id))) critical.add(parentId);
+    });
+    return critical;
+  }, [tasks, showCriticalPath, descendantIdsByTaskId]);
+
   const dependencyLines = useMemo(() => {
     const rowIndexByTaskId = new Map(visibleRows.map((row, index) => [row.task.id, index]));
 
@@ -330,10 +367,11 @@ export default function GanttChart({
         return {
           id: `${predecessorTaskId}:${task.id}`,
           path: `M ${fromX} ${fromY} L ${midX} ${fromY} L ${midX} ${toY} L ${toX} ${toY}`,
+          critical: criticalPath.has(predecessorTaskId) && criticalPath.has(task.id),
         };
       })
       .filter(Boolean));
-  }, [cw, taskById, visibleRows, dragPreview]);
+  }, [cw, taskById, visibleRows, dragPreview, criticalPath]);
 
   const renderTask = (task, level = 0) => {
     const previewTask = getPreviewTask(task);
@@ -342,6 +380,7 @@ export default function GanttChart({
     const hasChildren = children.length > 0;
     const isExpanded = expandedTasks?.includes(task.id);
     const isCritical = criticalPath.has(task.id);
+    const raidCount = isCritical && showCriticalPath && getCriticalRaidCount ? getCriticalRaidCount(task) : 0;
     const totalRowWidth = TASK_NAME_COL_W + columns.length * cw;
     const isScheduleEditable = isTaskScheduleEditable(task);
     const isPending = Boolean(pendingTaskIds?.[task.id]);
@@ -433,7 +472,9 @@ export default function GanttChart({
                 className={cn("absolute rounded",
                   isScheduleEditable ? "cursor-grab active:cursor-grabbing" : "cursor-default",
                   isPending && "opacity-70 cursor-wait",
-                  isCritical && showCriticalPath ? "bg-red-500 ring-1 ring-red-300" : task.status === 'done' ? 'bg-green-500' : 'bg-indigo-500'
+                  showCriticalPath
+                    ? (isCritical ? "bg-red-50 border-2 border-red-500" : "bg-blue-200")
+                    : task.status === 'done' ? 'bg-green-500' : 'bg-indigo-500'
                 )}
                 style={{ top: 5, height: 26, left: `${position.left * cw + 2}px`, width: `${Math.max(position.width * cw - 6, 8)}px`, zIndex: 10 }}
                 onMouseDown={(e) => handleSchedulePointerDown(e, task, 'move')}
@@ -448,7 +489,13 @@ export default function GanttChart({
                     onMouseDown={(e) => handleSchedulePointerDown(e, task, 'resize-start')}
                   />
                 )}
-                <div className="px-1.5 py-0.5 text-[11px] text-white truncate font-medium select-none leading-tight">{task.title}</div>
+                <div className={cn("px-1.5 py-0.5 text-[11px] truncate font-medium select-none leading-tight", showCriticalPath ? (isCritical ? 'text-red-700' : 'text-slate-700') : 'text-white')}>{task.title}</div>
+                {raidCount > 0 && (
+                  <span className="absolute -right-2 top-1/2 -translate-y-1/2 translate-x-1/2 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold shadow"
+                    title={`${raidCount} critical RAID item${raidCount === 1 ? '' : 's'} linked to this task`}>
+                    <AlertTriangle className="w-3 h-3" />{raidCount}
+                  </span>
+                )}
                 {task.progress > 0 && (
                   <div className="absolute bottom-0 left-0 h-1 bg-white/30 rounded-b" style={{ width: `${task.progress}%` }} />
                 )}
@@ -482,9 +529,10 @@ export default function GanttChart({
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
                 allTypesSelected ? "border-slate-200 bg-white text-slate-600 hover:border-slate-300" : "border-indigo-300 bg-indigo-50 text-indigo-700"
               )}>
-                <Filter className="w-3.5 h-3.5" />
+                <Layers className="w-3.5 h-3.5" />
                 Task Types
-                {!allTypesSelected && <span className="bg-indigo-500 text-white rounded-full px-1.5 py-0 text-[10px] ml-0.5">{visibleTypes.size}</span>}
+                <span className="text-slate-400 font-normal ml-1">{allTypesSelected ? 'All' : `${visibleTypes.size} selected`}</span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-48 p-2" align="start">
@@ -512,9 +560,10 @@ export default function GanttChart({
             <Label htmlFor="critical-path" className="text-xs font-medium text-slate-600 cursor-pointer whitespace-nowrap">Critical Path</Label>
           </div>
           {showCriticalPath && (
-            <div className="flex items-center gap-1 text-xs text-slate-500">
-              <div className="w-2.5 h-2.5 bg-red-500 rounded" />
-              <span>{criticalPath.size} task{criticalPath.size !== 1 ? 's' : ''}</span>
+            <div className="flex items-center gap-4 text-xs text-slate-500">
+              <span className="flex items-center gap-1.5"><span className="w-4 h-2.5 rounded-sm bg-red-50 border-2 border-red-500" /> Critical path ({criticalPath.size})</span>
+              <span className="flex items-center gap-1.5"><span className="w-4 h-2.5 rounded-sm bg-blue-200" /> Non-critical task</span>
+              {getCriticalRaidCount && <span className="flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5 text-red-600" /> Critical RAID items linked</span>}
             </div>
           )}
         </div>
@@ -586,8 +635,8 @@ export default function GanttChart({
                     key={line.id}
                     d={line.path}
                     fill="none"
-                    stroke="#94a3b8"
-                    strokeWidth="1.25"
+                    stroke={line.critical && showCriticalPath ? '#dc2626' : '#94a3b8'}
+                    strokeWidth={line.critical && showCriticalPath ? 1.75 : 1.25}
                     strokeDasharray="4 3"
                     strokeLinecap="round"
                     strokeLinejoin="round"

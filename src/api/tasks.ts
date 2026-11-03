@@ -69,8 +69,16 @@ export type ProjectHubTaskRead = {
   predecessors?: TaskPredecessorRead[] | string[] | null;
   assignments?: TaskAssignmentRead[] | null;
   allocations?: TaskAllocationRead[] | null;
+  related_records?: TaskRelatedRecord[] | null;
+  comment_count?: number;
   children?: ProjectHubTaskRead[];
   [key: string]: unknown;
+};
+
+/** A RAID, decision or change request record a task is linked to (the sheet's Related Record column). */
+export type TaskRelatedRecord = {
+  type: 'RISK' | 'ISSUE' | 'ASSUMPTION' | 'DEPENDENCY' | 'DECISION' | 'CHANGE_REQUEST';
+  id: string;
 };
 
 export type TaskSheetRow = {
@@ -103,6 +111,8 @@ export type TaskSheetRow = {
   assignments?: TaskAssignmentRead[];
   allocations?: TaskAllocationRead[];
   resources?: string[];
+  related_records?: TaskRelatedRecord[];
+  comment_count?: number;
   indent_level?: number;
   children?: string[];
   [key: string]: unknown;
@@ -207,6 +217,9 @@ export type KanbanBoardColumn = {
   id: string;
   title: string;
   color?: string;
+  hex?: string | null;
+  status_id?: string | null;
+  is_uncategorized?: boolean;
 };
 
 export type KanbanBoardCard = {
@@ -534,6 +547,9 @@ export const mapTaskReadToTaskSheetRow = (task: ProjectHubTaskRead, depth = 0): 
     predecessor_links: Array.isArray(task.predecessors) ? task.predecessors : undefined,
     assignments: Array.isArray(task.assignments) ? task.assignments : undefined,
     allocations: Array.isArray(task.allocations) ? task.allocations : undefined,
+    related_records: Array.isArray(task.related_records) ? task.related_records : [],
+    comment_count: task.comment_count ?? 0,
+    updated_at: task.updated_at,
     indent_level: depth,
   };
 
@@ -1142,7 +1158,10 @@ export const mapProjectBoardToKanban = (boardResponse: unknown): KanbanBoardData
       ? column.color
       : BOARD_COLUMN_COLORS[index % BOARD_COLUMN_COLORS.length];
 
-    mappedColumns.push({ id, title, color });
+    // Account statuses carry a hex colour; the board tints the column header with it.
+    const hex = typeof column.color === 'string' && /^#[0-9a-f]{6}$/i.test(column.color) ? column.color : null;
+    const statusId = column.is_uncategorized ? null : (typeof column.status_id === 'string' ? column.status_id : id);
+    mappedColumns.push({ id, title, color, hex, status_id: statusId, is_uncategorized: Boolean(column.is_uncategorized) });
     getTaskListFromColumn(column).forEach((taskInput) => {
       const task = mapTaskToKanbanCard(taskInput, id);
       if (task) tasks.push(task);
@@ -1292,6 +1311,8 @@ export const tasksApi = {
   get: (taskId: string) => apiClient.get(`/api/v1/tasks/${taskId}`),
   getOverview: async (taskId: string) => mapTaskReadToTaskOverview(await apiClient.get(`/api/v1/tasks/${taskId}`)),
   update: (taskId: string, data: unknown) => apiClient.patch(`/api/v1/tasks/${taskId}`, data),
+  nudge: (taskId: string, note?: string) => apiClient.post(`/api/v1/tasks/${taskId}/nudge`, { note: note || null }) as Promise<{ notified: string[]; skipped: { name: string; reason: string }[] }>,
+  updateRelatedRecords: (taskId: string, records: TaskRelatedRecord[]) => apiClient.patch(`/api/v1/tasks/${taskId}`, { related_records: records }),
   updatePriority: (taskId: string, data: unknown) => apiClient.patch(`/api/v1/tasks/${taskId}`, mapTaskSheetInputToPriorityUpdatePayload(data)),
   updateTaskType: (taskId: string, data: unknown) => apiClient.patch(`/api/v1/tasks/${taskId}`, mapTaskSheetInputToTaskTypeUpdatePayload(data)),
   updateSchedule: (taskId: string, data: unknown) => apiClient.patch(`/api/v1/tasks/${taskId}`, mapTaskGanttDateUpdatePayload(data)),

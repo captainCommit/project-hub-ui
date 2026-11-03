@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  ArrowRight, BookOpen, CalendarCheck, Clock, Compass, FolderPlus, LifeBuoy, Network, PlayCircle, ShieldAlert, Sparkles,
+  ArrowRight, BookOpen, CalendarCheck, Clock, Compass, FolderPlus, Headphones, Ticket, Network, ShieldAlert, Sparkles, FileText, Megaphone,
 } from 'lucide-react';
 import { LESSONS } from '@/tutorials/content';
 
@@ -16,76 +16,106 @@ function LessonCard({ lesson, onOpen }) {
   return (
     <button type="button" onClick={() => onOpen(lesson.id)}
       className="group text-left bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md hover:border-slate-300 transition-all flex flex-col">
-      <div className="flex items-start justify-between">
-        <span className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center">
-          <Icon className="w-[18px] h-[18px]" style={{ color: NAVY }} />
+      <div className="flex items-start gap-4">
+        <span className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
+          <Icon className="w-6 h-6" style={{ color: NAVY }} />
         </span>
-        <span className="text-xs text-slate-400">{lesson.minutes} min</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-xs font-bold uppercase tracking-wide" style={{ color: ORANGE }}>{lessonLabel(lesson.number)}</p>
+            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 flex-shrink-0" style={{ color: NAVY }}>
+              <Clock className="w-3.5 h-3.5" /> {lesson.minutes} min
+            </span>
+          </div>
+          <h3 className="mt-1 text-base font-bold" style={{ color: NAVY }}>{lesson.title}</h3>
+          <p className="text-sm text-slate-500 mt-0.5">{lesson.summary}</p>
+        </div>
       </div>
-      <p className="mt-4 text-[11px] font-bold uppercase tracking-wider" style={{ color: ORANGE }}>{lessonLabel(lesson.number)}</p>
-      <h3 className="mt-1 text-[15px] font-semibold" style={{ color: NAVY }}>{lesson.title}</h3>
-      <p className="text-sm text-slate-500 mt-0.5">{lesson.summary}</p>
-      <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold group-hover:gap-2 transition-all" style={{ color: NAVY }}>
+      <span className="mt-3 self-end inline-flex items-center gap-1.5 text-sm font-semibold group-hover:gap-2.5 transition-all" style={{ color: NAVY }}>
         Start lesson <ArrowRight className="w-4 h-4" />
       </span>
     </button>
   );
 }
 
-function ExploreCard({ icon: Icon, title, sub, onClick }) {
+function SupportCard({ icon: Icon, tone, title, sub, action, onClick }) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col">
+      <div className="flex items-start gap-5">
+        <span className="w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: tone.bg }}>
+          <Icon className="w-8 h-8" style={{ color: tone.fg }} />
+        </span>
+        <div>
+          <h2 className="text-xl font-bold" style={{ color: NAVY }}>{title}</h2>
+          <p className="text-sm text-slate-500 mt-1">{sub}</p>
+        </div>
+      </div>
+      <button type="button" onClick={onClick} className="mt-4 self-start inline-flex items-center gap-2 text-base font-bold hover:gap-3 transition-all" style={{ color: NAVY }}>
+        {action} <ArrowRight className="w-5 h-5" />
+      </button>
+    </div>
+  );
+}
+
+function ResourceCard({ icon: Icon, title, sub, onClick, tone }) {
   return (
     <button type="button" onClick={onClick}
-      className="flex items-center gap-3 bg-white rounded-xl border border-slate-200 px-5 py-4 hover:shadow-md hover:border-slate-300 transition-all text-left">
-      <span className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
-        <Icon className="w-[18px] h-[18px]" style={{ color: ORANGE }} />
+      className="flex items-center gap-4 bg-white rounded-xl border border-slate-200 px-5 py-4 hover:shadow-md hover:border-slate-300 transition-all text-left">
+      <span className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: tone.bg }}>
+        <Icon className="w-6 h-6" style={{ color: tone.fg }} />
       </span>
       <span className="min-w-0">
-        <span className="block text-sm font-semibold" style={{ color: NAVY }}>{title}</span>
-        <span className="block text-xs text-slate-500">{sub}</span>
+        <span className="block text-base font-bold" style={{ color: NAVY }}>{title}</span>
+        <span className="block text-sm text-slate-500">{sub}</span>
       </span>
       <ArrowRight className="w-4 h-4 text-slate-400 ml-auto flex-shrink-0" />
     </button>
   );
 }
 
-/** The Help Center front page: the Getting Started lessons, then the Tutorial Library and support. */
-export default function LearnHome({ onOpen, onLibrary, onContact, children = null }) {
+/**
+ * The Help Center front page: support entry points, the Getting Started lessons and further resources.
+ * onSubmitTicket / onViewTickets open the support views; onKnowledgeBase / onWhatsNew the reference pages.
+ */
+export default function LearnHome({ onOpen, onLibrary, onSubmitTicket, onViewTickets, onKnowledgeBase, onWhatsNew, children = null }) {
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
-      <section className="relative overflow-hidden rounded-2xl px-8 py-7 text-white" style={{ background: `linear-gradient(135deg, ${NAVY} 0%, #00356F 100%)` }}>
+    <div className="max-w-6xl mx-auto space-y-7">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <SupportCard icon={Headphones} tone={{ bg: '#EDE9FE', fg: NAVY }} title="Get Support" sub="Report an issue, ask a question or request assistance."
+          action="Submit a Ticket" onClick={onSubmitTicket} />
+        <SupportCard icon={Ticket} tone={{ bg: '#DDF5E7', fg: '#0E9254' }} title="My Support Tickets" sub="Track requests, review responses and check resolution status."
+          action="View My Tickets" onClick={onViewTickets} />
+      </div>
+
+      <section className="relative overflow-hidden rounded-2xl px-8 py-7 text-white flex flex-wrap items-center justify-between gap-4" style={{ background: `linear-gradient(135deg, ${NAVY} 0%, #00356F 100%)` }}>
         <div className="absolute -right-10 -top-16 w-56 h-56 rounded-full bg-white/5" />
-        <span className="absolute right-6 top-6 text-xs font-medium px-3 py-1 rounded-full bg-white/10 text-white/90">Beginner friendly</span>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">Your learning journey</p>
-        <h2 className="mt-2 text-2xl font-bold">New to Row? Start here.</h2>
-        <p className="mt-1 text-sm text-white/75 max-w-xl">
-          Learn the essentials in {LESSONS.length} short lessons. Practice as you go and get ready to manage your first project.
-        </p>
-        <div className="mt-5 flex flex-wrap items-center gap-4">
-          <button type="button" onClick={() => onOpen(LESSONS[0].id)}
-            className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold hover:bg-white/90" style={{ color: NAVY }}>
-            <PlayCircle className="w-4 h-4" /> Start learning
-          </button>
-          <span className="inline-flex items-center gap-1.5 text-sm text-white/70">
-            <Clock className="w-4 h-4" /> ~{totalMinutes} minutes · {LESSONS.length} lessons
-          </span>
+        <div className="relative">
+          <p className="text-xs font-bold uppercase tracking-[0.12em]" style={{ color: '#F5B54A' }}>Your learning journey</p>
+          <h2 className="mt-1 text-2xl font-bold">New to Row? Start here.</h2>
+          <p className="mt-1 text-sm text-white/80">Learn the essentials in {LESSONS.length} short lessons — approximately {totalMinutes} minutes.</p>
         </div>
+        <button type="button" onClick={() => onOpen(LESSONS[0].id)}
+          className="relative inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-base font-bold hover:bg-white/90" style={{ color: NAVY }}>
+          Start Learning <ArrowRight className="w-5 h-5" />
+        </button>
       </section>
 
       <section>
         <div className="flex items-end justify-between mb-3">
-          <h2 className="text-lg font-bold" style={{ color: NAVY }}>Getting Started with Row</h2>
-          <span className="text-xs text-slate-400">Learn at your own pace</span>
+          <h2 className="text-xl font-bold" style={{ color: NAVY }}>Getting Started with Row</h2>
+          <span className="text-sm text-slate-500">{LESSONS.length} lessons · ~{totalMinutes} minutes</span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {LESSONS.map(lesson => <LessonCard key={lesson.id} lesson={lesson} onOpen={onOpen} />)}
         </div>
       </section>
 
       <section>
-        <h2 className="text-lg font-bold mb-3" style={{ color: NAVY }}>Explore more</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <ExploreCard icon={BookOpen} title="Tutorial Library" sub="Explore every Row feature" onClick={onLibrary} />
-          <ExploreCard icon={LifeBuoy} title="Contact Support" sub="We're here to help" onClick={onContact} />
+        <h2 className="text-xl font-bold mb-3" style={{ color: NAVY }}>Additional Resources</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <ResourceCard icon={BookOpen} tone={{ bg: '#FEF1DC', fg: ORANGE }} title="Tutorial Library" sub="Browse all tutorials and in-depth guides by module and topic." onClick={onLibrary} />
+          <ResourceCard icon={FileText} tone={{ bg: '#E1EDFE', fg: NAVY }} title="Knowledge Base" sub="Find answers to common questions." onClick={onKnowledgeBase} />
+          <ResourceCard icon={Megaphone} tone={{ bg: '#FEF1DC', fg: ORANGE }} title="What's New" sub="See recent updates and new features." onClick={onWhatsNew} />
         </div>
       </section>
 

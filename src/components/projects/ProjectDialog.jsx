@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { templatesApi } from '@/api/collaboration';
+import { getDefaultTemplateId } from '@/lib/projectTemplates';
 import { useAuth } from '@/lib/AuthContext';
 import { useAccountResources } from '@/hooks/useAccountLookups';
 import { confirmAction } from '@/components/ui/confirm-dialog';
@@ -85,7 +86,8 @@ export default function ProjectDialog({
         end_date: '',
         program_id: '',
         portfolio_id: '',
-        template_id: '',
+        // New projects start from the default template chosen on the Templates page.
+        template_id: type === 'project' ? getDefaultTemplateId() : '',
         default_view: 'sheet',
         budget: '',
         person: ''
@@ -185,7 +187,7 @@ export default function ProjectDialog({
           {type === 'project' && (
             <div className="space-y-2">
               <Label>Template</Label>
-              <Select value={formData.template_id || 'standard'} onValueChange={v => setFormData({ ...formData, template_id: v === 'standard' ? '' : v })}>
+              <Select value={projectTemplates.some(t => t.id === formData.template_id) ? formData.template_id : 'standard'} onValueChange={v => setFormData({ ...formData, template_id: v === 'standard' ? '' : v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="standard">Standard (default)</SelectItem>

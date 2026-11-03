@@ -121,7 +121,7 @@ const formatDay = (value) => {
 
 /**
  * The columns the RAID tabs use: the item (code, title, project), then priority, status, a person and a date.
- * dateLabel/dateField and person (label) vary by log; showPriority is off for assumptions.
+ * dateLabel/dateField and person (label) vary by log.
  * titleField/personField: where the title and the person live; extra: columns placed before Details.
  */
 export function raidColumns({

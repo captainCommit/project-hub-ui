@@ -4,7 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, X, Loader2, Send } from 'lucide-react';
+import { Upload, X, Loader2, Send, Info } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { attachmentsApi } from '@/api/attachments';
 import { supportTicketsApi } from '@/api/collaboration';
 import { useAuth } from '@/lib/AuthContext';
@@ -18,8 +19,20 @@ const CATEGORIES = [
   { value: 'account', label: 'Account Access' },
 ];
 
+// Dialling codes offered for the call-back number.
+const COUNTRY_CODES = [
+  { value: 'US+1', label: 'US +1', code: '+1' },
+  { value: 'CA+1', label: 'CA +1', code: '+1' },
+  { value: 'UK+44', label: 'UK +44', code: '+44' },
+  { value: 'IE+353', label: 'IE +353', code: '+353' },
+  { value: 'AU+61', label: 'AU +61', code: '+61' },
+  { value: 'IN+91', label: 'IN +91', code: '+91' },
+  { value: 'DE+49', label: 'DE +49', code: '+49' },
+  { value: 'FR+33', label: 'FR +33', code: '+33' },
+];
+
 export default function TicketForm({ onSubmitted, onCancel }) {
-  const [form, setForm] = useState({ category: 'general', subject: '', description: '', priority: 'medium', name: '', email: '' });
+  const [form, setForm] = useState({ category: 'general', subject: '', description: '', priority: 'medium', name: '', email: '', phone_call_ok: false, country: 'US+1', phone: '' });
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -49,10 +62,12 @@ export default function TicketForm({ onSubmitted, onCancel }) {
     setSubmitting(true);
     setError('');
     try {
+      const dialCode = COUNTRY_CODES.find(c => c.value === form.country)?.code || '';
       const created = await supportTicketsApi.create(selectedAccountId, {
         ...form,
         requester_name: form.name,
         requester_email: form.email,
+        phone_number: form.phone.trim() ? `${dialCode} ${form.phone.trim()}` : '',
       });
       if (attachments.length) {
         setUploading(true);
@@ -135,7 +150,28 @@ export default function TicketForm({ onSubmitted, onCancel }) {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="border-t border-slate-100 pt-4">
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <Checkbox checked={form.phone_call_ok} onCheckedChange={v => setForm(f => ({ ...f, phone_call_ok: v === true }))} />
+            <span className="text-sm font-semibold text-[#002046]">I'm open to a phone call if needed.</span>
+            <span title="Some issues are quicker to sort out on a call. We'll only call if it would help." className="text-slate-400"><Info className="w-4 h-4" /></span>
+          </label>
+          {form.phone_call_ok && (
+            <div className="mt-3 ml-7 space-y-1.5">
+              <Label className="text-xs font-medium text-slate-600 block">Preferred phone number (optional)</Label>
+              <div className="flex gap-2">
+                <Select value={form.country} onValueChange={v => setForm(f => ({ ...f, country: v }))}>
+                  <SelectTrigger className="h-9 w-[120px] text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>{COUNTRY_CODES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+                </Select>
+                <Input type="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="(555) 000-0000" className="h-9 text-sm flex-1" maxLength={30} />
+              </div>
+              <p className="text-xs text-slate-500">Our support team may contact you if a call would help resolve your issue.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
           <div>
             <Label className="text-xs font-medium text-slate-600 mb-1.5 block">Your Name</Label>
             <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="h-9 text-sm" placeholder="Full name" />

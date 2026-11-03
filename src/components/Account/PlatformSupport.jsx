@@ -89,7 +89,8 @@ function TicketDetail({ ticketId }) {
         </div>
         <p className="text-sm text-slate-800">{ticket.subject || ticket.description.slice(0, 120)}</p>
         <p className="text-xs text-slate-500">
-          {ticket.requester_name} · <a className="hover:underline" href={`mailto:${ticket.requester_email}`}>{ticket.requester_email}</a> · {ticket.account_name} · opened {new Date(ticket.created_at).toLocaleString()}
+          {ticket.requester_name} · <a className="hover:underline" href={`mailto:${ticket.requester_email}`}>{ticket.requester_email}</a>
+          {ticket.phone_call_ok && <> · Open to a call{ticket.phone_number ? <>: <a className="hover:underline" href={`tel:${ticket.phone_number.replace(/[^+\d]/g, '')}`}>{ticket.phone_number}</a></> : ''}</>} · {ticket.account_name} · opened {new Date(ticket.created_at).toLocaleString()}
         </p>
         <div className="flex items-center gap-2">
           <Select value={ticket.status} onValueChange={(status) => update.mutate({ status })}>

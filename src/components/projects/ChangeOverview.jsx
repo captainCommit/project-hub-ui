@@ -21,10 +21,13 @@ const STATUS_COLORS = {
 
 const DECISION_STATUSES = ['draft', 'in_review', 'approved', 'cancelled', 'deferred'];
 const CHANGE_STATUSES = ['draft', 'in_review', 'approved', 'implemented', 'cancelled', 'deferred'];
+// Never listed on the cards, even when older items still carry them.
+const HIDDEN_STATUSES = ['open', 'pending'];
 
-/** Counts for the usual statuses (always listed) plus any other status the items use. */
+/** Counts for the usual statuses (always listed) plus any other status the items use, except the hidden ones. */
 function statusCounts(items, base) {
-  const keys = [...base, ...new Set(items.map(i => i.status || 'draft').filter(k => !base.includes(k)))];
+  const extra = new Set(items.map(i => i.status || 'draft').filter(k => !base.includes(k) && !HIDDEN_STATUSES.includes(k)));
+  const keys = [...base, ...extra];
   return keys.map(key => ({
     key,
     label: raidStatusLabel(key),
@@ -36,6 +39,7 @@ function statusCounts(items, base) {
 function StatusBreakdown({ icon: Icon, title, items, statuses }) {
   const total = items.length;
   const segments = statusCounts(items, statuses);
+  const shown = segments.reduce((s, seg) => s + seg.count, 0);
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5">
       <div className="flex items-center gap-3 mb-4">
@@ -44,8 +48,8 @@ function StatusBreakdown({ icon: Icon, title, items, statuses }) {
         <span className="text-sm" style={{ color: MUTED }}>{total} total</span>
       </div>
       <div className="flex h-7 rounded-full overflow-hidden bg-slate-100 mb-5">
-        {total > 0 && segments.filter(s => s.count > 0).map(s => (
-          <div key={s.key} style={{ width: `${(s.count / total) * 100}%`, backgroundColor: s.color }} title={`${s.label}: ${s.count}`} />
+        {shown > 0 && segments.filter(s => s.count > 0).map(s => (
+          <div key={s.key} style={{ width: `${(s.count / shown) * 100}%`, backgroundColor: s.color }} title={`${s.label}: ${s.count}`} />
         ))}
       </div>
       <div className="space-y-2.5">

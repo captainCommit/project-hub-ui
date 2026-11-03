@@ -7,16 +7,84 @@ import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, Edit2, Users, Check, X, Download, BarChart2, ArrowUp, ArrowDown, ArrowUpDown, Search } from 'lucide-react';
+import {
+  Plus, Trash2, Edit2, Users, Check, X, ArrowUp, ArrowDown, ArrowUpDown, BarChart2, BarChart3, Lightbulb,
+  AlertTriangle, Info, ChevronRight, Search,
+} from 'lucide-react';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, ReferenceLine } from 'recharts';
-import { parseISO, isValid } from 'date-fns';
 import { useAccountHierarchy, useAccountTasks } from '@/hooks/useAccountLookups';
 import { useGlobalScope } from '@/lib/globalScope';
-import { PageFilterLabel } from '@/components/projects/DirectoryKit';
+import {
+  FilterBar, SearchInput, FilterSelect, optionsFrom, ExportButton, PrimaryButton, DataTable, DetailsChevron, StatGrid, Pill,
+  NAVY, MUTED, TONES,
+} from '@/components/projects/DirectoryKit';
+import {
+  computeResourceWeekly, allocationPct, healthOf, HEALTH, HEALTH_ORDER, HEALTH_OPTIONS, EMPTY_RESOURCE_SCOPE,
+  scopedProjectIds, namesInProjects, ResourceScopeSelects, PersonLine,
+} from '@/components/resources/ResourceKit';
 
-// section: 'overview' (summary + utilization dashboard), 'capacity' (resource directory) or 'all'.
-export default function ProjectResources({ embedded = false, section = 'all' }) {
+const CARD = 'bg-white rounded-xl border border-[#E6ECF4]';
+const PROJECT_TONES = ['blue', 'amber', 'green', 'purple'];
+
+/** Overview stat card: a tinted round icon, the label, the number and a muted line. */
+function ToneStat({ icon: Icon, tone, label, value, sub, valueColor = NAVY }) {
+  const t = TONES[tone];
+  return (
+    <div className={`${CARD} px-5 py-4 flex items-start gap-4 min-w-0`}>
+      <span className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: t.bg }}>
+        <Icon className="w-5 h-5" style={{ color: t.fg }} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[13px] font-semibold" style={{ color: NAVY }}>{label}</p>
+        <p className="text-[28px] font-bold leading-tight" style={{ color: valueColor }}>{value}</p>
+        <p className="text-xs" style={{ color: MUTED }}>{sub}</p>
+      </div>
+    </div>
+  );
+}
+
+function InsightRow({ icon: Icon, tone, title, sub, onClick }) {
+  const t = TONES[tone];
+  return (
+    <button type="button" onClick={onClick} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 border-t border-slate-100 first:border-t-0">
+      <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: t.bg }}>
+        <Icon className="w-4 h-4" style={{ color: t.fg }} />
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold" style={{ color: NAVY }}>{title}</p>
+        <p className="text-xs" style={{ color: MUTED }}>{sub}</p>
+      </div>
+      <ChevronRight className="w-4 h-4 text-slate-400" />
+    </button>
+  );
+}
+
+function AllocationCell({ pct }) {
+  const health = healthOf(pct);
+  if (pct === null) return <span className="text-xs" style={{ color: MUTED }}>No capacity</span>;
+  return (
+    <div className="flex items-center gap-3 min-w-[170px]">
+      <span className="text-sm font-semibold w-11" style={{ color: health.color }}>{pct}%</span>
+      <div className="w-[110px] h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#EAF0F6' }}>
+        <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: health.color }} />
+      </div>
+    </div>
+  );
+}
+
+function HealthBadge({ pct }) {
+  const h = healthOf(pct);
+  return <Pill tone={h.tone} dot>{h.label}</Pill>;
+}
+
+// section: 'overview' (allocation summary), 'capacity' (resource directory) or 'all'.
+// scope / onScopeChange: the page filters, kept by the Resources page so they carry across its tabs.
+// onOpenCapacity({ health?, search? }): the Overview's way into the Capacity tab, pre-filtered.
+// initialHealth / initialSearch: what the Capacity tab opens filtered to.
+export default function ProjectResources({
+  embedded = false, section = 'all', scope: scopeProp = undefined, onScopeChange = undefined, onOpenCapacity = undefined,
+  initialHealth = '', initialSearch = '',
+}) {
   const showOverview = section !== 'capacity';
   const showCapacity = section !== 'overview';
   const queryClient = useQueryClient();
@@ -27,30 +95,25 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
   const [customColumns, setCustomColumns] = useState(() => {
     try { return JSON.parse(localStorage.getItem('resource_custom_columns') || '[]'); } catch { return []; }
   });
-  const [addingColumn, setAddingColumn] = useState(false);
-  const [newColName, setNewColName] = useState('');
 
-  // Chart filters
-  const [filterAssignee, setFilterAssignee] = useState('all');
-  const [filterDepartment, setFilterDepartment] = useState('all');
-  const [filterPortfolio, setFilterPortfolio] = useState('all');
-  const [filterProgram, setFilterProgram] = useState('all');
-  const [filterProject, setFilterProject] = useState('all');
-  // Directory name filter
-  const [nameFilter, setNameFilter] = useState('');
-  // Directory filters + sorting
-  const [dirDept, setDirDept] = useState('all');
+  const [ownScope, setOwnScope] = useState(EMPTY_RESOURCE_SCOPE);
+  const scope = scopeProp || ownScope;
+  const setScope = onScopeChange || setOwnScope;
+  const [department, setDepartment] = useState('');
+  // Overview table
+  const [overviewSearch, setOverviewSearch] = useState('');
+  const [overviewShow, setOverviewShow] = useState('');
+  // Capacity directory
+  const [nameFilter, setNameFilter] = useState(initialSearch);
+  const [healthFilter, setHealthFilter] = useState(initialHealth);
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
 
-  const saveCustomColumns = (cols) => { setCustomColumns(cols); localStorage.setItem('resource_custom_columns', JSON.stringify(cols)); };
-  const handleAddColumn = () => {
-    if (!newColName.trim()) return;
-    const key = 'custom_' + newColName.trim().toLowerCase().replace(/\s+/g, '_');
-    if (!customColumns.find(c => c.key === key)) saveCustomColumns([...customColumns, { key, label: newColName.trim() }]);
-    setNewColName(''); setAddingColumn(false);
+  const removeColumn = (key) => {
+    const cols = customColumns.filter(c => c.key !== key);
+    setCustomColumns(cols);
+    try { localStorage.setItem('resource_custom_columns', JSON.stringify(cols)); } catch {}
   };
-  const removeColumn = (key) => saveCustomColumns(customColumns.filter(c => c.key !== key));
   const getEditableResourceData = (resource) => {
     const extra = {};
     customColumns.forEach(c => { extra[c.key] = resource[c.key] || ''; });
@@ -83,7 +146,7 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
     queryFn: () => resourcesApi.getResource(editingId),
     enabled: Boolean(editingId),
   });
-  // A person's load counts all their work (projects); the global scope narrows who is listed and the filter options.
+  // A person's load counts all their work (projects); the global scope and page filters narrow who is listed.
   const hierarchy = useAccountHierarchy();
   const { projects } = hierarchy;
   const { active: scopeActive, scopeHierarchy } = useGlobalScope();
@@ -117,18 +180,19 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
     queryFn: () => accountsApi.listMembers(selectedAccountId),
     enabled: Boolean(selectedAccountId) && showCapacity,
   });
-  const userById = useMemo(() => Object.fromEntries(accountUsers.map(u => [u.id, u])), [accountUsers]);
   const userLabel = (user) => user?.full_name || user?.email || 'Unknown user';
-  const LinkedUserSelect = ({ value, resourceId, onChange }) => {
+  const LinkedUserSelect = ({ value, resourceId = undefined, onChange }) => {
     // People already linked to another resource can't be picked again.
     const taken = new Set(resources.filter(r => r.id !== resourceId && r.user_id).map(r => r.user_id));
     return (
       <Select value={value || 'none'} onValueChange={v => onChange(v === 'none' ? '' : v)}>
-        <SelectTrigger className="h-7 text-xs bg-white"><SelectValue placeholder="Not linked" /></SelectTrigger>
+        <SelectTrigger className="h-7 text-xs bg-white" title="The login this resource belongs to; work assigned to the resource counts as theirs">
+          <SelectValue placeholder="Not linked" />
+        </SelectTrigger>
         <SelectContent>
-          <SelectItem value="none">Not linked</SelectItem>
+          <SelectItem value="none">Login: not linked</SelectItem>
           {accountUsers.filter(u => !taken.has(u.id) || u.id === value).map(u => (
-            <SelectItem key={u.id} value={u.id}>{userLabel(u)}</SelectItem>
+            <SelectItem key={u.id} value={u.id}>Login: {userLabel(u)}</SelectItem>
           ))}
         </SelectContent>
       </Select>
@@ -143,143 +207,67 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
     if (resourceDetail && editingId) setEditData(getEditableResourceData(resourceDetail));
   }, [resourceDetail, editingId]);
 
-  // A task involves a resource through assignments or planned resource allocations.
-  const taskResourceNames = (t) => [
-    ...(t.assignee ? [t.assignee] : []),
-    ...(Array.isArray(t.resources) ? t.resources : []),
-    ...(Array.isArray(t.resources_planned) ? t.resources_planned : []),
-  ];
-  // Planned allocation hours win; assignment hours are the fallback so a task is never counted twice.
-  const taskHoursFor = (t, name) => {
-    const sumFor = (entries) => (Array.isArray(entries) ? entries : [])
-      .filter(h => h && h.resource === name)
-      .reduce((s, h) => s + (Number(h.hours) || 0), 0);
-    return sumFor(t.resource_hours_planned) || sumFor(t.resource_hours);
-  };
+  const resourceWeekly = useMemo(() => computeResourceWeekly(resources, allTasks, projects), [resources, allTasks, projects]);
+  const pctOf = (r) => allocationPct(resourceWeekly[r.full_name]?.weekly, r.weekly_capacity);
 
-  // Compute projects assigned to each resource
-  const getProjectsAssigned = (resourceName) => {
-    const pids = new Set();
-    allTasks.forEach(t => {
-      if (taskResourceNames(t).includes(resourceName)) {
-        if (t.project_id) pids.add(t.project_id);
-      }
-    });
-    return [...pids].map(pid => projects.find(p => p.id === pid)?.name).filter(Boolean);
-  };
-
-  // Per-project weekly allocation hours + average weekly allocation per resource
-  const resourceWeekly = useMemo(() => {
-    const map = {};
-    resources.forEach(r => {
-      const name = r.full_name;
-      const byProject = {};
-      allTasks.forEach(t => {
-        if (!t.project_id || !taskResourceNames(t).includes(name)) return;
-        byProject[t.project_id] = (byProject[t.project_id] || 0) + taskHoursFor(t, name);
-      });
-      const projectsList = Object.entries(byProject).map(([pid, hours]) => {
-        const proj = projects.find(p => p.id === pid);
-        let weeks = 1;
-        if (proj && proj.start_date && proj.end_date) {
-          const start = parseISO(proj.start_date);
-          const end = parseISO(proj.end_date);
-          if (isValid(start) && isValid(end)) {
-            const days = Math.max(1, (end - start) / (1000 * 60 * 60 * 24));
-            weeks = days / 7;
-          }
-        }
-        const weekly = hours / weeks;
-        return { name: proj?.name || '—', weekly };
-      }).filter(p => p.name !== '—');
-      const nonProject = Number(r.non_project_hours) || 0;
-      const weekly = projectsList.reduce((s, p) => s + p.weekly, 0) + nonProject; // assigned projects + non-project hours
-      map[name] = { projects: projectsList, weekly, nonProject };
-    });
-    return map;
-  }, [resources, allTasks, projects]);
-
-  const resourceNames = resources.map(r => r.full_name);
-
-  // Utilization dashboard scope filters (portfolio → program → project)
-  const scopedProjectIds = useMemo(() => {
-    if (filterProject !== 'all') return new Set([filterProject]);
-    if (filterProgram !== 'all') return new Set(inScopeProjects.filter(p => p.program_id === filterProgram).map(p => p.id));
-    if (filterPortfolio !== 'all') return new Set(inScopeProjects.filter(p => p.portfolio_id === filterPortfolio).map(p => p.id));
-    return scopeActive ? new Set(inScopeProjects.map(p => p.id)) : null;
-  }, [inScopeProjects, scopeActive, filterProject, filterProgram, filterPortfolio]);
-
-  const resourcesInScope = useMemo(() => {
-    if (!scopedProjectIds) return null;
-    const names = new Set();
-    allTasks.forEach(t => {
-      if (t.project_id && scopedProjectIds.has(t.project_id)) {
-        taskResourceNames(t).forEach(rn => names.add(rn));
-      }
-    });
-    return names;
-  }, [allTasks, scopedProjectIds]);
-
-  const filteredResources = resourceNames.filter(n => {
-    if (filterAssignee !== 'all' && n !== filterAssignee) return false;
-    const res = resources.find(r => r.full_name === n);
-    if (filterDepartment !== 'all' && (res?.department || '—') !== filterDepartment) return false;
-    if (resourcesInScope && !resourcesInScope.has(n)) return false;
+  // Page filters: who has work in the chosen portfolio / program / project, and their department.
+  const namesInScope = useMemo(
+    () => namesInProjects(allTasks, scopedProjectIds(scope, inScopeProjects, scopeActive)),
+    [allTasks, scope, inScopeProjects, scopeActive],
+  );
+  const scopedResources = useMemo(() => resources.filter(r => {
+    if (namesInScope && !namesInScope.has(r.full_name)) return false;
+    if (department && (r.department || '') !== department) return false;
     return true;
-  });
-  const departments = [...new Set(resources.map(r => r.department).filter(Boolean))].sort();
-  const scopePrograms = programs.filter(p => filterPortfolio === 'all' || p.portfolio_id === filterPortfolio);
-  const scopeProjects = inScopeProjects.filter(p => {
-    if (filterProgram !== 'all') return p.program_id === filterProgram;
-    if (filterPortfolio !== 'all') return p.portfolio_id === filterPortfolio;
-    return true;
-  });
+  }), [resources, namesInScope, department]);
+  const departments = optionsFrom(resources.map(r => r.department));
+
+  const stats = useMemo(() => {
+    const counts = { over: 0, under: 0, optimal: 0, unassigned: 0 };
+    let sum = 0, withCapacity = 0;
+    scopedResources.forEach(r => {
+      const pct = pctOf(r);
+      counts[healthOf(pct).key]++;
+      if (pct !== null) { sum += pct; withCapacity++; }
+    });
+    return { total: scopedResources.length, counts, avg: withCapacity ? Math.round(sum / withCapacity) : 0 };
+  }, [scopedResources, resourceWeekly]);
+
+  const overviewRows = useMemo(() => {
+    const q = overviewSearch.trim().toLowerCase();
+    return scopedResources.filter(r => {
+      if (q && !(r.full_name || '').toLowerCase().includes(q) && !(r.role || '').toLowerCase().includes(q)) return false;
+      if (overviewShow && healthOf(pctOf(r)).key !== overviewShow) return false;
+      return true;
+    });
+  }, [scopedResources, overviewSearch, overviewShow, resourceWeekly]);
 
   const dirResources = useMemo(() => {
     const q = nameFilter.trim().toLowerCase();
-    let list = resources.filter(r => {
+    let list = scopedResources.filter(r => {
       if (q && !(r.full_name || '').toLowerCase().includes(q) && !(r.role || '').toLowerCase().includes(q)) return false;
-      if (dirDept !== 'all' && (r.department || '') !== dirDept) return false;
+      if (healthFilter && healthOf(pctOf(r)).key !== healthFilter) return false;
       return true;
     });
     if (sortKey) {
       list = [...list].sort((a, b) => {
         let av, bv;
-        const pctOf = (res) => {
-          const w = resourceWeekly[res.full_name]?.weekly ?? 0;
-          const c = Number(res.weekly_capacity) || 0;
-          return c > 0 ? (w / c) * 100 : 0;
-        };
         if (sortKey === 'weekly_allocation') {
           av = resourceWeekly[a.full_name]?.weekly ?? 0;
           bv = resourceWeekly[b.full_name]?.weekly ?? 0;
         } else if (sortKey === 'allocation') {
-          av = pctOf(a); bv = pctOf(b);
+          av = pctOf(a) ?? -1; bv = pctOf(b) ?? -1;
+        } else if (sortKey === 'health') {
+          av = HEALTH_ORDER.indexOf(healthOf(pctOf(a)).key); bv = HEALTH_ORDER.indexOf(healthOf(pctOf(b)).key);
         } else {
-          av = a[sortKey]; bv = b[sortKey];
-          if (av == null) av = '';
-          if (bv == null) bv = '';
+          av = a[sortKey] ?? ''; bv = b[sortKey] ?? '';
         }
         if (typeof av === 'number' && typeof bv === 'number') return sortDir === 'asc' ? av - bv : bv - av;
         return sortDir === 'asc' ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
       });
     }
     return list;
-  }, [resources, nameFilter, dirDept, sortKey, sortDir, resourceWeekly]);
-
-  const allocStats = useMemo(() => {
-    let over = 0, under = 0, sum = 0, count = 0;
-    resources.forEach(r => {
-      const w = resourceWeekly[r.full_name]?.weekly ?? 0;
-      const c = Number(r.weekly_capacity) || 0;
-      if (c <= 0) return;
-      const pct = (w / c) * 100;
-      sum += pct; count++;
-      if (pct > 100) over++;
-      else if (pct < 100) under++;
-    });
-    return { total: resources.length, over, under, avg: count > 0 ? Math.round(sum / count) : 0 };
-  }, [resources, resourceWeekly]);
+  }, [scopedResources, nameFilter, healthFilter, sortKey, sortDir, resourceWeekly]);
 
   const toggleSort = (key) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -288,57 +276,16 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
   const SortIcon = ({ col }) => {
     if (sortKey !== col) return <ArrowUpDown className="w-3 h-3 text-slate-300 cursor-pointer" onClick={() => toggleSort(col)} />;
     return sortDir === 'asc'
-      ? <ArrowUp className="w-3 h-3 text-emerald-300 cursor-pointer" onClick={() => toggleSort(col)} />
-      : <ArrowDown className="w-3 h-3 text-emerald-300 cursor-pointer" onClick={() => toggleSort(col)} />;
+      ? <ArrowUp className="w-3 h-3 text-white cursor-pointer" onClick={() => toggleSort(col)} />
+      : <ArrowDown className="w-3 h-3 text-white cursor-pointer" onClick={() => toggleSort(col)} />;
   };
 
-  // Allocation chart data — mirrors the Resource Directory (weekly allocation, capacity, % allocation)
-  const STATUS_COLORS = { over: '#ef4444', under: '#eab308', optimal: '#10b981' };
-
-  const allocChartData = useMemo(() => {
-    return filteredResources.map(name => {
-      const r = resources.find(x => x.full_name === name);
-      const w = resourceWeekly[name]?.weekly ?? 0;
-      const c = Number(r?.weekly_capacity) || 0;
-      const pct = c > 0 ? Math.round((w / c) * 100) : 0;
-      const status = pct > 100 ? 'over' : pct === 100 ? 'optimal' : 'under';
-      return { name: name.split(' ')[0], fullName: name, allocated: Math.round(w * 10) / 10, capacity: c, pct, status };
-    }).filter(d => d.capacity > 0).sort((a, b) => b.pct - a.pct);
-  }, [filteredResources, resources, resourceWeekly]);
-
-  const deptAllocData = useMemo(() => {
-    const map = {};
-    const scoped = resources.filter(r => filteredResources.includes(r.full_name));
-    scoped.forEach(r => {
-      const dept = r.department || 'Unassigned';
-      const w = resourceWeekly[r.full_name]?.weekly ?? 0;
-      const c = Number(r.weekly_capacity) || 0;
-      if (c <= 0) return;
-      if (!map[dept]) map[dept] = { dept, sumPct: 0, count: 0, allocated: 0, capacity: 0 };
-      map[dept].sumPct += (w / c) * 100;
-      map[dept].count++;
-      map[dept].allocated += w;
-      map[dept].capacity += c;
-    });
-    return Object.values(map).map(d => {
-      const avg = d.sumPct / d.count;
-      return {
-        dept: d.dept,
-        avgPct: Math.round(avg),
-        allocated: Math.round(d.allocated * 10) / 10,
-        capacity: d.capacity,
-        resources: d.count,
-        status: avg > 100 ? 'over' : avg < 100 ? 'under' : 'optimal',
-      };
-    }).sort((a, b) => b.avgPct - a.avgPct);
-  }, [resources, resourceWeekly, filteredResources]);
-
-  const exportToCSV = () => {
-    const rows = [['Full Name', 'Weekly Capacity', 'Weekly Allocation', 'Role', 'Department', '% Allocation', 'Assigned Projects', 'Non Project work'], ...resources.map(r => {
+  const exportToCSV = (list) => {
+    const rows = [['Full Name', 'Role', 'Department', 'Weekly Capacity', 'Weekly Allocation', '% Allocation', 'Health', 'Assigned Projects', 'Non Project work'], ...list.map(r => {
       const rw = resourceWeekly[r.full_name] || { projects: [], weekly: 0 };
       const ap = rw.projects.map(p => `${p.name} [${p.weekly.toFixed(1)}h/wk]`).join('; ');
-      const pct = r.weekly_capacity ? Math.round((rw.weekly / r.weekly_capacity) * 100) : null;
-      return [r.full_name, r.weekly_capacity != null ? `${r.weekly_capacity} hrs` : '', rw.weekly > 0 ? `${rw.weekly.toFixed(1)} hrs` : '', r.role || '', r.department || '', pct != null ? `${pct}%` : '', ap, r.non_project_hours != null ? `${r.non_project_hours} hrs` : ''];
+      const pct = pctOf(r);
+      return [r.full_name, r.role || '', r.department || '', r.weekly_capacity != null ? `${r.weekly_capacity} hrs` : '', rw.weekly > 0 ? `${rw.weekly.toFixed(1)} hrs` : '', pct != null ? `${pct}%` : '', healthOf(pct).label, ap, r.non_project_hours != null ? `${r.non_project_hours} hrs` : ''];
     })];
     const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -355,6 +302,44 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
     if ((r.non_project_hours ?? null) === num) return;
     update.mutate({ id: r.id, data: { non_project_hours: num } });
   };
+  const openCapacity = (filter) => {
+    if (onOpenCapacity) onOpenCapacity(filter);
+  };
+
+  const overviewColumns = [
+    { key: 'name', label: 'Resource', sortValue: r => r.full_name, render: r => <PersonLine name={r.full_name} /> },
+    { key: 'role', label: 'Role', sortValue: r => r.role, render: r => <span className="text-sm text-slate-600">{r.role || '—'}</span> },
+    { key: 'department', label: 'Department', sortValue: r => r.department, render: r => <span className="text-sm text-slate-600">{r.department || '—'}</span> },
+    { key: 'total', label: 'Total Allocation', sortValue: r => pctOf(r) ?? -1, render: r => <AllocationCell pct={pctOf(r)} /> },
+    {
+      key: 'projects', label: 'Project Allocation', render: r => {
+        const rw = resourceWeekly[r.full_name] || { projects: [] };
+        const cap = Number(r.weekly_capacity) || 0;
+        if (!rw.projects.length) return <span className="text-xs" style={{ color: MUTED }}>No project work</span>;
+        return (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            {rw.projects.slice(0, 3).map((p, i) => (
+              <span key={p.id} className="flex items-center gap-1.5 text-xs text-slate-600">
+                <Pill tone={PROJECT_TONES[i % PROJECT_TONES.length]} className="px-2">{cap ? `${Math.round(p.weekly / cap * 100)}%` : `${p.weekly.toFixed(1)}h`}</Pill>
+                {p.name}
+              </span>
+            ))}
+            {rw.projects.length > 3 && <span className="text-xs" style={{ color: MUTED }}>+{rw.projects.length - 3} more</span>}
+          </div>
+        );
+      },
+    },
+    { key: 'open', label: '', className: 'w-8', render: () => <DetailsChevron /> },
+  ];
+
+  const scopeFilters = (
+    <>
+      <ResourceScopeSelects scope={scope} onChange={setScope} portfolios={portfolios} programs={programs} projects={inScopeProjects} />
+      <FilterSelect value={department} onChange={setDepartment} allLabel="All Departments" options={departments} />
+    </>
+  );
+
+  const shareOf = (key) => (stats.total ? Math.round(stats.counts[key] / stats.total * 100) : 0);
 
   return (
     <div className={`flex bg-slate-50 ${embedded ? 'flex-1 overflow-hidden' : 'h-screen'}`} style={{ fontFamily: 'Segoe UI, sans-serif' }}>
@@ -369,252 +354,162 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {!embedded && (
-        <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-emerald-100 rounded-lg flex items-center justify-center">
-              <Users className="w-5 h-5 text-emerald-600" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold text-slate-800">Utilization</h1>
-              <p className="text-xs text-slate-400">{resources.length} resources tracked</p>
-            </div>
-          </div>
+        <div className="bg-white px-6 pt-5 pb-4 border-b border-slate-200 flex-shrink-0">
+          <h1 className="text-2xl font-bold text-[#002046]">Resources</h1>
+          <p className="text-sm text-slate-500 mt-1">Monitor capacity, allocation, availability and costs across your delivery teams</p>
         </div>
         )}
 
-        <div className="flex-1 overflow-auto p-6 space-y-6">
+        <div className="flex-1 overflow-auto px-6 py-5 space-y-4" style={{ backgroundColor: '#F7F9FC' }}>
           {showOverview && (<>
-          {/* Summary tiles */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center"><Users className="w-4 h-4 text-emerald-600" /></div>
-                <span className="text-xs font-medium text-slate-500">Total Resources</span>
+          <FilterBar right={<ExportButton onClick={() => exportToCSV(scopedResources)} disabled={scopedResources.length === 0} />}>
+            {scopeFilters}
+          </FilterBar>
+
+          <StatGrid className="lg:grid-cols-4">
+            <ToneStat icon={Users} tone="blue" label="Total Resources" value={stats.total} sub="Across selected scope" />
+            <ToneStat icon={ArrowUp} tone="red" label="Overallocated" value={stats.counts.over} sub="Above 100% capacity" valueColor={TONES.red.fg} />
+            <ToneStat icon={ArrowDown} tone="amber" label="Underallocated" value={stats.counts.under} sub="Below target allocation" valueColor={TONES.amber.fg} />
+            <ToneStat icon={BarChart2} tone="blue" label="Average Utilization" value={`${stats.avg}%`} sub="Across selected resources" />
+          </StatGrid>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className={`${CARD} p-5 lg:col-span-2`}>
+              <div className="flex items-center gap-3 mb-5">
+                <BarChart3 className="w-5 h-5" style={{ color: NAVY }} />
+                <h2 className="text-base font-bold flex-1" style={{ color: NAVY }}>Overall Resource Allocation</h2>
+                <span className="text-xs" style={{ color: MUTED }}>Total resources: {stats.total}</span>
               </div>
-              <p className="text-2xl font-bold text-slate-800 ml-10">{allocStats.total}</p>
+              <div className="flex h-5 rounded-full overflow-hidden bg-slate-100">
+                {stats.total > 0 && HEALTH_ORDER.filter(k => stats.counts[k] > 0).map(k => (
+                  <div key={k} style={{ width: `${stats.counts[k] / stats.total * 100}%`, backgroundColor: HEALTH[k].color }} title={`${HEALTH[k].label}: ${stats.counts[k]}`} />
+                ))}
+              </div>
+              <div className="flex mt-2">
+                {stats.total > 0 && HEALTH_ORDER.filter(k => stats.counts[k] > 0).map(k => (
+                  <span key={k} className="text-xs text-center" style={{ width: `${stats.counts[k] / stats.total * 100}%`, color: MUTED }}>{shareOf(k)}%</span>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-x-6 gap-y-2 mt-5 text-xs" style={{ color: MUTED }}>
+                {HEALTH_ORDER.map(k => (
+                  <span key={k} className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: HEALTH[k].color }} />{HEALTH[k].legend}
+                  </span>
+                ))}
+              </div>
             </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center"><ArrowUp className="w-4 h-4 text-red-600" /></div>
-                <span className="text-xs font-medium text-slate-500">Over Allocated</span>
+
+            <div className={`${CARD} overflow-hidden`}>
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
+                <Lightbulb className="w-5 h-5" style={{ color: NAVY }} />
+                <h2 className="text-base font-bold" style={{ color: NAVY }}>Key Insights</h2>
               </div>
-              <p className="text-2xl font-bold text-red-600 ml-10">{allocStats.over}</p>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center"><ArrowDown className="w-4 h-4 text-yellow-600" /></div>
-                <span className="text-xs font-medium text-slate-500">Under Allocated</span>
-              </div>
-              <p className="text-2xl font-bold text-yellow-600 ml-10">{allocStats.under}</p>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center"><BarChart2 className="w-4 h-4 text-indigo-600" /></div>
-                <span className="text-xs font-medium text-slate-500">Average Utilization</span>
-              </div>
-              <p className="text-2xl font-bold text-slate-800 ml-10">{allocStats.avg}%</p>
+              <InsightRow icon={AlertTriangle} tone="red"
+                title={`${stats.counts.over} resource${stats.counts.over === 1 ? ' is' : 's are'} overallocated`}
+                sub="Review assignments exceeding capacity." onClick={() => openCapacity({ health: 'over' })} />
+              <InsightRow icon={AlertTriangle} tone="amber"
+                title={`${stats.counts.under} resource${stats.counts.under === 1 ? ' is' : 's are'} underallocated`}
+                sub="Check if capacity can be reassigned." onClick={() => openCapacity({ health: 'under' })} />
+              <InsightRow icon={Info} tone="blue"
+                title={`Average utilization is ${stats.avg}%`}
+                sub="Across selected resources." onClick={() => openCapacity({})} />
             </div>
           </div>
 
-          {/* Utilization Dashboard */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <BarChart2 className="w-5 h-5 text-emerald-600" />
-              <h2 className="text-sm font-semibold text-slate-700">Utilization Dashboard</h2>
-            </div>
-
-            {/* Filters */}
-            <div className="px-3 py-2 bg-slate-50 rounded-lg mb-5 border border-slate-100 space-y-2">
-              <div className="flex flex-wrap items-center gap-3">
-                <PageFilterLabel />
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-slate-500">Portfolio:</span>
-                  <Select value={filterPortfolio} onValueChange={(v) => { setFilterPortfolio(v); setFilterProgram('all'); setFilterProject('all'); }}>
-                    <SelectTrigger className="h-7 w-40 text-xs bg-white"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Portfolios</SelectItem>
-                      {portfolios.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-slate-500">Program:</span>
-                  <Select value={filterProgram} onValueChange={(v) => { setFilterProgram(v); setFilterProject('all'); }}>
-                    <SelectTrigger className="h-7 w-40 text-xs bg-white"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Programs</SelectItem>
-                      {scopePrograms.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-slate-500">Project:</span>
-                  <Select value={filterProject} onValueChange={setFilterProject}>
-                    <SelectTrigger className="h-7 w-44 text-xs bg-white"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Projects</SelectItem>
-                      {scopeProjects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+          <div className={`${CARD} p-5 space-y-4`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <Users className="w-5 h-5 mt-0.5" style={{ color: NAVY }} />
+                <div>
+                  <h2 className="text-base font-bold" style={{ color: NAVY }}>Resource Allocation by Resource</h2>
+                  <p className="text-xs" style={{ color: MUTED }}>See how each resource is allocated across projects.</p>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-slate-500">Resource:</span>
-                  <Select value={filterAssignee} onValueChange={setFilterAssignee}>
-                    <SelectTrigger className="h-7 w-40 text-xs bg-white"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Resources</SelectItem>
-                      {resources.map(r => <SelectItem key={r.id} value={r.full_name}>{r.full_name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-slate-500">Department:</span>
-                  <Select value={filterDepartment} onValueChange={setFilterDepartment}>
-                    <SelectTrigger className="h-7 w-40 text-xs bg-white"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Departments</SelectItem>
-                      {departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-2 ml-auto">
-                  <Button size="sm" variant="outline" onClick={exportToCSV} className="h-9"><Download className="w-3.5 h-3.5 mr-1.5" /> Export</Button>
-                </div>
+              <div className="flex items-center gap-2">
+                <SearchInput value={overviewSearch} onChange={setOverviewSearch} placeholder="Search resources..." className="min-w-[200px]" />
+                <span className="text-sm" style={{ color: MUTED }}>Show</span>
+                <FilterSelect value={overviewShow} onChange={setOverviewShow} allLabel="All resources" options={HEALTH_OPTIONS} />
               </div>
             </div>
-
-            {/* Status legend */}
-            <div className="flex items-center gap-4 mb-4 text-xs text-slate-600">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: STATUS_COLORS.over }}></span>Over allocated (&gt;100%)</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: STATUS_COLORS.optimal }}></span>Optimal (=100%)</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: STATUS_COLORS.under }}></span>Under allocated (&lt;100%)</span>
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              {/* Chart 1: % Allocation by Resource */}
-              <div className="xl:col-span-2">
-                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">% Allocation by Resource</h3>
-                {allocChartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={Math.max(260, allocChartData.length * 36)}>
-                    <BarChart data={allocChartData} layout="vertical" margin={{ top: 0, right: 30, bottom: 0, left: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                      <XAxis type="number" tick={{ fontSize: 10 }} unit="%" domain={[0, max => Math.max(100, Math.ceil((max + 20) / 25) * 25)]} />
-                      <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={90} />
-                      <Tooltip formatter={(v) => [`${v}%`, 'Allocation']} labelFormatter={(l) => allocChartData.find(d => d.name === l)?.fullName || l} />
-                      <ReferenceLine x={100} stroke="#ef4444" strokeDasharray="4 4" />
-                      <Bar dataKey="pct" radius={[0, 4, 4, 0]} name="% Allocation">
-                        {allocChartData.map((d, i) => <Cell key={i} fill={STATUS_COLORS[d.status]} />)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : <div className="h-[260px] flex items-center justify-center text-slate-300 text-xs">No allocation data available</div>}
-              </div>
-
-              {/* Chart 3: Average % Allocation by Department */}
-              <div className="xl:col-span-2">
-                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Average % Allocation by Department</h3>
-                {deptAllocData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={deptAllocData} margin={{ top: 0, right: 10, bottom: 0, left: -10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis dataKey="dept" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" height={60} interval={0} />
-                      <YAxis tick={{ fontSize: 10 }} unit="%" domain={[0, max => Math.max(100, Math.ceil(max / 25) * 25)]} />
-                      <Tooltip formatter={(v) => [`${v}%`, 'Avg Allocation']} />
-                      <ReferenceLine y={100} stroke="#ef4444" strokeDasharray="4 4" />
-                      <Bar dataKey="avgPct" name="Avg Allocation" radius={[3, 3, 0, 0]}>
-                        {deptAllocData.map((d, i) => <Cell key={i} fill={STATUS_COLORS[d.status]} />)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : <div className="h-[280px] flex items-center justify-center text-slate-300 text-xs">No department data available</div>}
-              </div>
-            </div>
+            <DataTable
+              columns={overviewColumns}
+              rows={overviewRows}
+              onRowClick={r => openCapacity({ search: r.full_name })}
+              noun="resources"
+              empty={resources.length ? 'No resources match your filters.' : 'No resources yet. Add people on the Capacity tab.'}
+              dense
+            />
           </div>
-
           </>)}
 
-          {showCapacity && (
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3">
-              <span className="text-sm font-semibold text-slate-700">Resource Directory</span>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={exportToCSV} className="h-9"><Download className="w-3.5 h-3.5 mr-1.5" /> Export</Button>
-                <Button size="sm" disabled={!selectedAccountId} onClick={() => setNewRow({ full_name: '', rate: '', weekly_capacity: '', role: '', department: '', allocation: '', non_project_hours: '' })} className="h-9 bg-[#c87b14] hover:bg-[#a86610] text-white">
-                  <Plus className="w-3.5 h-3.5 mr-1.5" /> New Resource
-                </Button>
-              </div>
-            </div>
-              <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100 bg-slate-50/50 flex-wrap">
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input value={nameFilter} onChange={e => setNameFilter(e.target.value)} placeholder="Search name or role…" className="h-8 pl-8 pr-3 w-56 text-xs rounded-md border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400" />
-                </div>
-                <Select value={dirDept} onValueChange={setDirDept}>
-                  <SelectTrigger className="h-8 w-44 text-xs bg-white"><SelectValue placeholder="All Departments" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Departments</SelectItem>
-                    {departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                {(nameFilter || dirDept !== 'all') && (
-                  <button onClick={() => { setNameFilter(''); setDirDept('all'); }} className="h-8 px-2 text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1"><X className="w-3 h-3" /> Clear</button>
-                )}
-                <span className="ml-auto text-xs text-slate-400">{dirResources.length} of {resources.length}</span>
-              </div>
-              <table className="w-full text-sm border-t border-slate-100" style={{ minWidth: '1000px' }}>
+          {showCapacity && (<>
+          <FilterBar right={<>
+            <ExportButton onClick={() => exportToCSV(dirResources)} disabled={dirResources.length === 0} />
+            <PrimaryButton icon={Plus} disabled={!selectedAccountId} onClick={() => setNewRow({ full_name: '', rate: '', weekly_capacity: '', role: '', department: '', allocation: '', non_project_hours: '' })}>
+              New Resource
+            </PrimaryButton>
+          </>}>
+            <SearchInput value={nameFilter} onChange={setNameFilter} placeholder="Search name or role..." />
+            {scopeFilters}
+            <FilterSelect value={healthFilter} onChange={setHealthFilter} allLabel="All Health" options={HEALTH_OPTIONS} />
+          </FilterBar>
+
+          <div className={`${CARD} overflow-x-auto`}>
+              <table className="w-full text-sm" style={{ minWidth: '1000px' }}>
                 <thead className="bg-[#002046] [&_th]:text-white">
                   <tr>
-                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">
-                      <span className="flex items-center gap-1">Full Name <SortIcon col="full_name" /></span>
+                    <th className="text-left px-4 py-3 text-[13px] font-semibold">
+                      <span className="flex items-center gap-1">Resource <SortIcon col="full_name" /></span>
                     </th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500" title="The login this resource belongs to; work assigned to the resource counts as theirs">Linked User</th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">
-                      <span className="flex items-center gap-1">Weekly Capacity <SortIcon col="weekly_capacity" /></span>
-                    </th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">
-                      <span className="flex items-center gap-1">Weekly Allocation <SortIcon col="weekly_allocation" /></span>
-                    </th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">
-                      <span className="flex items-center gap-1">Role <SortIcon col="role" /></span>
-                    </th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">
+                    <th className="text-left px-3 py-3 text-[13px] font-semibold">
                       <span className="flex items-center gap-1">Department <SortIcon col="department" /></span>
                     </th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">
+                    <th className="text-left px-3 py-3 text-[13px] font-semibold">
+                      <span className="flex items-center gap-1">Weekly Capacity <SortIcon col="weekly_capacity" /></span>
+                    </th>
+                    <th className="text-left px-3 py-3 text-[13px] font-semibold">
+                      <span className="flex items-center gap-1">Weekly Allocation <SortIcon col="weekly_allocation" /></span>
+                    </th>
+                    <th className="text-left px-3 py-3 text-[13px] font-semibold">
                       <span className="flex items-center gap-1">% Allocation <SortIcon col="allocation" /></span>
                     </th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Assigned Projects</th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Non Project work</th>
+                    <th className="text-left px-3 py-3 text-[13px] font-semibold">
+                      <span className="flex items-center gap-1">Health <SortIcon col="health" /></span>
+                    </th>
+                    <th className="text-left px-3 py-3 text-[13px] font-semibold">Assigned Projects</th>
+                    <th className="text-left px-3 py-3 text-[13px] font-semibold">Non Project Work</th>
                     {customColumns.map(col => (
-                      <th key={col.key} className="text-left px-3 py-2 text-xs font-semibold text-slate-500 group">
+                      <th key={col.key} className="text-left px-3 py-3 text-[13px] font-semibold group">
                         <span className="flex items-center gap-1">{col.label}
                           <button onClick={() => removeColumn(col.key)} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400"><X className="w-3 h-3" /></button>
                         </span>
                       </th>
                     ))}
-                    <th className="px-2 py-2.5 w-16"></th>
+                    <th className="px-2 py-3 w-16"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {!selectedAccountId && <tr><td colSpan={10 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">Select an account to view resources.</td></tr>}
-                  {selectedAccountId && isLoading && <tr><td colSpan={10 + customColumns.length} className="text-center py-8 text-slate-400 text-xs">Loading resources...</td></tr>}
-                  {selectedAccountId && isError && <tr><td colSpan={10 + customColumns.length} className="text-center py-8 text-xs"><div className="flex flex-col items-center gap-2 text-slate-500"><span>{error?.message || 'Unable to load resources.'}</span><Button size="sm" variant="outline" onClick={() => refetch()}>Retry</Button></div></td></tr>}
-                  {selectedAccountId && !isLoading && !isError && resources.length === 0 && !newRow && <tr><td colSpan={10 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">No resources yet. Click "New Resource" to get started.</td></tr>}
+                  {!selectedAccountId && <tr><td colSpan={9 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">Select an account to view resources.</td></tr>}
+                  {selectedAccountId && isLoading && <tr><td colSpan={9 + customColumns.length} className="text-center py-8 text-slate-400 text-xs">Loading resources...</td></tr>}
+                  {selectedAccountId && isError && <tr><td colSpan={9 + customColumns.length} className="text-center py-8 text-xs"><div className="flex flex-col items-center gap-2 text-slate-500"><span>{error?.message || 'Unable to load resources.'}</span><Button size="sm" variant="outline" onClick={() => refetch()}>Retry</Button></div></td></tr>}
+                  {selectedAccountId && !isLoading && !isError && resources.length === 0 && !newRow && <tr><td colSpan={9 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">No resources yet. Click "New Resource" to get started.</td></tr>}
+                  {selectedAccountId && !isLoading && resources.length > 0 && dirResources.length === 0 && <tr><td colSpan={9 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">No resources match your filters.</td></tr>}
                   {dirResources.map(r => {
                     const rw = resourceWeekly[r.full_name] || { projects: [], weekly: 0 };
-                    const pctAlloc = r.weekly_capacity ? Math.round((rw.weekly / r.weekly_capacity) * 100) : null;
+                    const pctAlloc = pctOf(r);
                     return (
-                      <tr key={r.id} className="group border-b border-slate-50 hover:bg-slate-50">
+                      <tr key={r.id} className="group border-b border-slate-100 hover:bg-slate-50">
                         {editingId === r.id ? (
                           <>
-                            <td className="px-3 py-2"><Input value={editData.full_name} onChange={e => setEditData(p => ({ ...p, full_name: e.target.value }))} className="h-7 text-sm" autoFocus /></td>
-                            <td className="px-3 py-2"><LinkedUserSelect value={editData.user_id} resourceId={r.id} onChange={v => setEditData(p => ({ ...p, user_id: v }))} /></td>
+                            <td className="px-4 py-2 space-y-1 min-w-[220px]">
+                              <Input value={editData.full_name} onChange={e => setEditData(p => ({ ...p, full_name: e.target.value }))} className="h-7 text-sm" placeholder="Full name*" autoFocus />
+                              <Input value={editData.role} onChange={e => setEditData(p => ({ ...p, role: e.target.value }))} className="h-7 text-xs" placeholder="Role, e.g. Developer" />
+                              <LinkedUserSelect value={editData.user_id} resourceId={r.id} onChange={v => setEditData(p => ({ ...p, user_id: v }))} />
+                            </td>
+                            <td className="px-3 py-2"><Input value={editData.department} onChange={e => setEditData(p => ({ ...p, department: e.target.value }))} className="h-7 text-sm" placeholder="e.g. Engineering" /></td>
                             <td className="px-3 py-2"><Select value={editData.weekly_capacity != null ? String(editData.weekly_capacity) : ''} onValueChange={v => setEditData(p => ({ ...p, weekly_capacity: Number(v) }))}><SelectTrigger className="h-7 text-xs bg-white"><SelectValue placeholder="—" /></SelectTrigger><SelectContent><SelectItem value="20">20 hrs</SelectItem><SelectItem value="40">40 hrs</SelectItem></SelectContent></Select></td>
                             <td className="px-3 py-2 text-xs text-slate-400 italic">Auto-computed</td>
-                            <td className="px-3 py-2"><Input value={editData.role} onChange={e => setEditData(p => ({ ...p, role: e.target.value }))} className="h-7 text-sm" placeholder="e.g. Developer" /></td>
-                            <td className="px-3 py-2"><Input value={editData.department} onChange={e => setEditData(p => ({ ...p, department: e.target.value }))} className="h-7 text-sm" placeholder="e.g. Engineering" /></td>
+                            <td className="px-3 py-2 text-xs text-slate-400 italic">Auto-computed</td>
                             <td className="px-3 py-2 text-xs text-slate-400 italic">Auto-computed</td>
                             <td className="px-3 py-2 text-xs text-slate-400 italic">Auto-computed</td>
                             <td className="px-3 py-2"><Input type="number" value={editData.non_project_hours ?? ''} onChange={e => setEditData(p => ({ ...p, non_project_hours: e.target.value === '' ? '' : Number(e.target.value) }))} className="h-7 text-sm" placeholder="0" /></td>
@@ -628,37 +523,35 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
                           </>
                         ) : (
                           <>
-                            <td className="px-3 py-2 font-medium text-slate-800">{r.full_name}</td>
-                            <td className="px-3 py-2 text-xs text-slate-500">{r.user_id ? userLabel(userById[r.user_id]) : <span className="text-slate-300">Not linked</span>}</td>
-                            <td className="px-3 py-2 text-slate-500">{r.weekly_capacity != null ? `${r.weekly_capacity} hrs` : '—'}</td>
-                            <td className="px-3 py-2 text-slate-500">{rw.weekly > 0 ? `${rw.weekly.toFixed(1)} hrs` : '—'}</td>
-                            <td className="px-3 py-2 text-slate-500">{r.role || '—'}</td>
-                            <td className="px-3 py-2 text-slate-500">{r.department || '—'}</td>
-                            <td className="px-3 py-2">
-                              {pctAlloc != null ? (() => {
-                                const color = pctAlloc > 100 ? 'text-red-600' : pctAlloc === 100 ? 'text-emerald-600' : 'text-yellow-600';
-                                const title = pctAlloc > 100 ? 'Over allocated' : pctAlloc === 100 ? 'Optimal' : 'Under allocated';
-                                return <span className={`font-semibold ${color}`} title={title}>{pctAlloc}%</span>;
-                              })() : '—'}
+                            <td className="px-4 py-2.5">
+                              <p className="font-semibold" style={{ color: NAVY }}>{r.full_name}</p>
+                              <p className="text-xs text-slate-400">{r.role || 'No role set'}</p>
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="px-3 py-2.5 text-slate-600">{r.department || '—'}</td>
+                            <td className="px-3 py-2.5 text-slate-600">{r.weekly_capacity != null ? `${r.weekly_capacity} hrs` : '—'}</td>
+                            <td className="px-3 py-2.5 text-slate-600">{rw.weekly > 0 ? `${rw.weekly.toFixed(1)} hrs` : '—'}</td>
+                            <td className="px-3 py-2.5">
+                              {pctAlloc != null ? <span className="font-semibold" style={{ color: healthOf(pctAlloc).color }}>{pctAlloc}%</span> : '—'}
+                            </td>
+                            <td className="px-3 py-2.5"><HealthBadge pct={pctAlloc} /></td>
+                            <td className="px-3 py-2.5">
                               {rw.projects.length > 0 ? (
                                 <div className="flex flex-wrap gap-1">
-                                  {rw.projects.map(p => <span key={p.name} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded text-xs">{p.name} <span className="text-emerald-500 font-medium">[{p.weekly.toFixed(1)}h/wk]</span></span>)}
+                                  {rw.projects.map(p => <span key={p.id} className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-xs">{p.name} <span className="text-slate-500 font-medium">[{p.weekly.toFixed(1)}h/wk]</span></span>)}
                                 </div>
                               ) : <span className="text-slate-300 text-xs">—</span>}
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="px-3 py-2.5">
                               <input
                                 type="number"
                                 defaultValue={r.non_project_hours ?? ''}
                                 onBlur={(e) => saveNonProjectHours(r, e.target.value)}
-                                className="h-7 w-20 text-xs rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                                className="h-7 w-20 text-xs rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-1 focus:ring-slate-400"
                                 placeholder="0"
                               />
                             </td>
-                            {customColumns.map(col => <td key={col.key} className="px-3 py-2 text-slate-500">{r[col.key] || '—'}</td>)}
-                            <td className="px-3 py-2">
+                            {customColumns.map(col => <td key={col.key} className="px-3 py-2.5 text-slate-500">{r[col.key] || '—'}</td>)}
+                            <td className="px-3 py-2.5">
                               <div className="flex gap-1 opacity-0 group-hover:opacity-100 justify-end">
                                 <button onClick={() => handleStartEdit(r)} className="p-1.5 text-slate-300 hover:text-slate-500 hover:bg-slate-100 rounded"><Edit2 className="w-3 h-3" /></button>
                                 <button onClick={() => remove.mutate(r.id)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded"><Trash2 className="w-3 h-3" /></button>
@@ -670,16 +563,20 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
                     );
                   })}
                   {newRow && (
-                    <tr className="border-b border-slate-50 bg-emerald-50/30">
-                      <td className="px-3 py-2"><Input value={newRow.full_name} onChange={e => setNewRow(p => ({ ...p, full_name: e.target.value }))} className="h-7 text-sm" placeholder="Full name*" autoFocus onKeyDown={e => e.key === 'Enter' && handleSaveNew()} /></td>
-                      <td className="px-3 py-2"><LinkedUserSelect value={newRow.user_id} onChange={v => setNewRow(p => ({ ...p, user_id: v }))} /></td>
+                    <tr className="border-b border-slate-100 bg-slate-50/60">
+                      <td className="px-4 py-2 space-y-1 min-w-[220px]">
+                        <Input value={newRow.full_name} onChange={e => setNewRow(p => ({ ...p, full_name: e.target.value }))} className="h-7 text-sm" placeholder="Full name*" autoFocus onKeyDown={e => e.key === 'Enter' && handleSaveNew()} />
+                        <Input value={newRow.role} onChange={e => setNewRow(p => ({ ...p, role: e.target.value }))} className="h-7 text-xs" placeholder="Role, e.g. Developer" />
+                        <LinkedUserSelect value={newRow.user_id} onChange={v => setNewRow(p => ({ ...p, user_id: v }))} />
+                      </td>
+                      <td className="px-3 py-2"><Input value={newRow.department} onChange={e => setNewRow(p => ({ ...p, department: e.target.value }))} className="h-7 text-sm" placeholder="e.g. Engineering" /></td>
                       <td className="px-3 py-2"><Select value={newRow.weekly_capacity != null ? String(newRow.weekly_capacity) : ''} onValueChange={v => setNewRow(p => ({ ...p, weekly_capacity: Number(v) }))}><SelectTrigger className="h-7 text-xs bg-white"><SelectValue placeholder="—" /></SelectTrigger><SelectContent><SelectItem value="20">20 hrs</SelectItem><SelectItem value="40">40 hrs</SelectItem></SelectContent></Select></td>
                       <td className="px-3 py-2 text-xs text-slate-300 italic">—</td>
-                      <td className="px-3 py-2"><Input value={newRow.role} onChange={e => setNewRow(p => ({ ...p, role: e.target.value }))} className="h-7 text-sm" placeholder="e.g. Developer" /></td>
-                      <td className="px-3 py-2"><Input value={newRow.department} onChange={e => setNewRow(p => ({ ...p, department: e.target.value }))} className="h-7 text-sm" placeholder="e.g. Engineering" /></td>
+                      <td className="px-3 py-2 text-xs text-slate-300 italic">—</td>
                       <td className="px-3 py-2 text-xs text-slate-300 italic">—</td>
                       <td className="px-3 py-2 text-xs text-slate-300 italic">—</td>
                       <td className="px-3 py-2"><Input type="number" value={newRow.non_project_hours ?? ''} onChange={e => setNewRow(p => ({ ...p, non_project_hours: e.target.value === '' ? '' : Number(e.target.value) }))} className="h-7 text-sm" placeholder="0" /></td>
+                      {customColumns.map(col => <td key={col.key} className="px-3 py-2" />)}
                       <td className="px-3 py-2">
                         <div className="flex gap-1">
                           <button onClick={handleSaveNew} className="p-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded"><Check className="w-3 h-3" /></button>
@@ -691,7 +588,10 @@ export default function ProjectResources({ embedded = false, section = 'all' }) 
                 </tbody>
               </table>
           </div>
-          )}
+          <p className="text-xs" style={{ color: MUTED }}>
+            <Search className="w-3 h-3 inline mr-1" />Showing {dirResources.length} of {resources.length} resources. Health: {HEALTH_ORDER.map(k => HEALTH[k].legend).join(' · ')}.
+          </p>
+          </>)}
 
         </div>
       </div>

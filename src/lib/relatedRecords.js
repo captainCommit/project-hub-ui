@@ -30,6 +30,9 @@ export function buildRelatedRecordIndex(lists = {}) {
         title: item.title || item.decision || item.description || '',
         priority: item.priority || '',
         status: item.status || '',
+        owner: item.assigned_to || '',
+        target_date: item.target_date || '',
+        project_id: item.project_id || '',
       });
     });
   });

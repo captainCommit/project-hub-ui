@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { lookupsApi } from '@/api/lookups';
@@ -36,6 +37,22 @@ export function useAccountResources() {
     enabled: !!selectedAccountId,
   });
   return query.data ?? EMPTY;
+}
+
+export const ALLOCATION_OVERRIDES_KEY = 'resource-allocation-overrides';
+
+/** Weekly-hour overrides set on the Capacity tab, as a Map of `${resourceId}:${projectId}` -> hours. */
+export function useAllocationOverrides() {
+  const { selectedAccountId } = useAuth();
+  const query = useQuery({
+    queryKey: [ALLOCATION_OVERRIDES_KEY, selectedAccountId],
+    queryFn: () => resourcesApi.listProjectAllocationOverrides(selectedAccountId),
+    enabled: !!selectedAccountId,
+  });
+  return useMemo(
+    () => new Map((query.data ?? EMPTY).map(o => [`${o.resource_id}:${o.project_id}`, Number(o.weekly_hours)])),
+    [query.data],
+  );
 }
 
 /** Invalidate everything derived from the portfolio/program/project tree. */

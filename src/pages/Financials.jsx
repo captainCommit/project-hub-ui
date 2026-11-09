@@ -143,7 +143,7 @@ export default function Financials({ embedded = false }) {
   const varianceColor = (v) => v < 0 ? 'text-red-600' : 'text-emerald-600';
 
   const tiles = [
-    { label: 'Total Budget', value: fmtMoney(totals.budget), icon: Wallet, color: 'text-indigo-600', bg: 'bg-indigo-100', formula: 'Total Budget = Sum(project allocated budget)' },
+    { label: 'Total Budget', value: fmtMoney(totals.budget), icon: Wallet, color: 'text-[#002046]', bg: 'bg-indigo-100', formula: 'Total Budget = Sum(project allocated budget)' },
     { label: 'Planned Cost', value: fmtMoney(totals.planned), icon: PiggyBank, color: 'text-violet-600', bg: 'bg-violet-100', formula: 'Planned Cost = Sum(planned hours × hourly rate)' },
     { label: 'Actual Cost', value: fmtMoney(totals.actual), icon: DollarSign, color: 'text-blue-600', bg: 'bg-blue-100', formula: 'Actual Cost = Sum(actual hours × hourly rate)' },
     { label: 'Remaining Budget', value: fmtMoney(totals.remaining), icon: totals.remaining >= 0 ? TrendingUp : TrendingDown, color: totals.remaining >= 0 ? 'text-emerald-600' : 'text-red-600', bg: totals.remaining >= 0 ? 'bg-emerald-100' : 'bg-red-100', formula: 'Remaining Budget = Total Budget − Actual Cost' },
@@ -246,7 +246,7 @@ export default function Financials({ embedded = false }) {
                   {/* Project header */}
                   <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                      <span className="w-2 h-2 rounded-full bg-[#002046]" />
                       <h3 className="text-sm font-semibold text-slate-800">{g.project.name}</h3>
                       <span className="text-xs text-slate-400">Allocated Budget: {g.projectBudget > 0 ? fmtMoney(g.projectBudget) : '—'}</span>
                     </div>

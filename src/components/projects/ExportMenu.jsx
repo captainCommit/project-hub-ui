@@ -53,9 +53,9 @@ export default function ExportMenu({ tasks, project, viewType = 'sheet' }) {
         <head>
           <style>
             body { font-family: Arial, sans-serif; }
-            h1 { color: #4f46e5; }
+            h1 { color: #002046; }
             table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-            th { background: #4f46e5; color: white; padding: 10px; text-align: left; }
+            th { background: #002046; color: white; padding: 10px; text-align: left; }
             td { border: 1px solid #e2e8f0; padding: 8px; }
             tr:nth-child(even) { background: #f8fafc; }
             .milestone { color: #7c3aed; font-weight: bold; }

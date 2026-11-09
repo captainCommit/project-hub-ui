@@ -5,7 +5,7 @@ import { Edit2, Check, X, ChevronRight, ChevronDown, AlertTriangle, AlertCircle,
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { useAccountResources, useAccountTasks } from '@/hooks/useAccountLookups';
+import { useAccountResources, useAccountTasks, useAllocationOverrides } from '@/hooks/useAccountLookups';
 import StarButton from './StarButton';
 import { RAG } from './HealthIndicator';
 import { Pill, NAVY, MUTED, TONES, isOpenRaid, isHighOrCritical } from './DirectoryKit';
@@ -335,7 +335,7 @@ export function TimelineCard({ title, rowLabel, rows }) {
           {ms && (
             <div className="absolute top-1/2 -translate-y-1/2 flex items-center gap-1.5 whitespace-nowrap" style={{ left: `calc(${at(ms.date)}% - 7px)` }}
               title={`${ms.name} · ${format(ms.date, 'MMM d, yyyy')}`}>
-              <span className="w-3.5 h-3.5 rotate-45 bg-[#E8740C] rounded-[2px] flex-shrink-0" />
+              <span className="w-3.5 h-3.5 rotate-45 bg-[#c87b14] rounded-[2px] flex-shrink-0" />
               <span className="text-xs font-medium" style={{ color: '#C2410C' }}>{ms.name}</span>
             </div>
           )}
@@ -354,7 +354,7 @@ export function TimelineCard({ title, rowLabel, rows }) {
       )}>
       <div className="flex items-center gap-5 -mt-2 mb-3 text-xs" style={{ color: MUTED }}>
         <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#0B2A6F]" />{rowLabel}</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rotate-45 bg-[#E8740C]" />Key milestone</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rotate-45 bg-[#c87b14]" />Key milestone</span>
       </div>
       <div className="overflow-x-auto">
         <div className="min-w-[760px] border border-slate-100 rounded-lg">
@@ -421,13 +421,14 @@ export function BudgetCard({ totalBudget, projectIds }) {
 export function ResourceCard({ title, projectIds, projects }) {
   const { tasks } = useAccountTasks();
   const resources = useAccountResources();
+  const allocationOverrides = useAllocationOverrides();
   const { assigned, avg, over } = useMemo(() => {
     const scope = new Set(projectIds);
     const scopedTasks = tasks.filter(t => scope.has(t.project_id));
-    const weekly = computeResourceWeekly(resources, scopedTasks, projects);
+    const weekly = computeResourceWeekly(resources, scopedTasks, projects, allocationOverrides);
     const involved = resources.filter(r => (weekly[r.full_name]?.projects.length || 0) > 0);
     // Overallocation looks at each person's whole week, not just this scope.
-    const allWeekly = computeResourceWeekly(involved, tasks, projects);
+    const allWeekly = computeResourceWeekly(involved, tasks, projects, allocationOverrides);
     const pcts = involved.map(r => allocationPct(allWeekly[r.full_name]?.weekly, r.weekly_capacity)).filter(p => p !== null);
     return {
       assigned: involved.length,

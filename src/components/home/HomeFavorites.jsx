@@ -75,7 +75,7 @@ export default function HomeFavorites({ query = '' }) {
                   title="Remove from favorites"
                   className="p-0.5 rounded flex-shrink-0"
                 >
-                  <Star className="w-3.5 h-3.5" fill="currentColor" style={{ color: '#FF8A00' }} />
+                  <Star className="w-3.5 h-3.5" fill="currentColor" style={{ color: '#c87b14' }} />
                 </button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

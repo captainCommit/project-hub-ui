@@ -126,7 +126,7 @@ export default function ProgramDetailView({ program, projects, portfolios = [], 
             ]}
           />
         </SectionCard>
-        <SectionCard icon={ListChecks} title="Critical & High RAID Items" badge={attention.length} className="xl:col-span-2">
+        <SectionCard icon={ListChecks} title="Requires Attention" badge={attention.length} className="xl:col-span-2">
           <AttentionList items={attention} />
         </SectionCard>
       </div>

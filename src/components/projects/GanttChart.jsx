@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import ExportMenu from './ExportMenu';
 
 const taskTypeIcons = { milestone: Diamond, activity: Circle, deliverable: Package, work_package: Layers, phase: Flag };
-const taskTypeColors = { milestone: 'text-purple-600', activity: 'text-blue-600', deliverable: 'text-green-600', work_package: 'text-orange-600', phase: 'text-cyan-600' };
+const taskTypeColors = { milestone: 'text-purple-600', activity: 'text-blue-600', deliverable: 'text-green-600', work_package: 'text-[#c87b14]', phase: 'text-cyan-600' };
 const ALL_TASK_TYPES = ['phase', 'activity', 'milestone', 'deliverable', 'work_package'];
 const TASK_TYPE_LABELS = { phase: 'Phase', activity: 'Activity', milestone: 'Milestone', deliverable: 'Deliverable', work_package: 'Work Package' };
 
@@ -474,7 +474,7 @@ export default function GanttChart({
                   isPending && "opacity-70 cursor-wait",
                   showCriticalPath
                     ? (isCritical ? "bg-red-50 border-2 border-red-500" : "bg-blue-200")
-                    : task.status === 'done' ? 'bg-green-500' : 'bg-indigo-500'
+                    : task.status === 'done' ? 'bg-green-500' : 'bg-[#002046]'
                 )}
                 style={{ top: 5, height: 26, left: `${position.left * cw + 2}px`, width: `${Math.max(position.width * cw - 6, 8)}px`, zIndex: 10 }}
                 onMouseDown={(e) => handleSchedulePointerDown(e, task, 'move')}
@@ -527,7 +527,7 @@ export default function GanttChart({
             <PopoverTrigger asChild>
               <button className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
-                allTypesSelected ? "border-slate-200 bg-white text-slate-600 hover:border-slate-300" : "border-indigo-300 bg-indigo-50 text-indigo-700"
+                allTypesSelected ? "border-slate-200 bg-white text-slate-600 hover:border-slate-300" : "border-indigo-300 bg-indigo-50 text-[#002046]"
               )}>
                 <Layers className="w-3.5 h-3.5" />
                 Task Types
@@ -543,7 +543,7 @@ export default function GanttChart({
                   <button key={type} onClick={() => toggleType(type)}
                     className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 transition-colors">
                     <div className={cn("w-4 h-4 rounded border flex items-center justify-center flex-shrink-0",
-                      visibleTypes.has(type) ? "bg-indigo-500 border-indigo-500" : "border-slate-300 bg-white")}>
+                      visibleTypes.has(type) ? "bg-[#002046] border-[#002046]" : "border-slate-300 bg-white")}>
                       {visibleTypes.has(type) && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                     </div>
                     <TI className={cn("w-3.5 h-3.5 flex-shrink-0", taskTypeColors[type])} />
@@ -614,7 +614,7 @@ export default function GanttChart({
                     style={{ width: cw, minWidth: cw, height: 26 }}
                     className={cn("flex-shrink-0 flex items-center justify-center border-r border-slate-100 text-[10px]",
                       viewScale === 'day' && isWeekend(col.date) && "bg-slate-100",
-                      i === todayColIndex ? "bg-indigo-100 font-bold text-indigo-700" : "text-slate-400"
+                      i === todayColIndex ? "bg-indigo-100 font-bold text-[#002046]" : "text-slate-400"
                     )}>
                     {colLabel(col, i)}
                   </div>

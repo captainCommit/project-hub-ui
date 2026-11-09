@@ -17,6 +17,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
 import { confirmAction } from '@/components/ui/confirm-dialog';
+import InfoTip from '@/components/projects/InfoTip';
+import ResourceTeamsInput from '@/components/projects/ResourceTeamsInput';
+import { WORK_EFFORT_HELP, WORK_EFFORT_UNITS, formatWorkEffort } from '@/lib/workEffort';
 import { useGlobalScope } from '@/lib/globalScope';
 
 
@@ -109,6 +112,7 @@ export default function DecisionLog({ embedded = false, filters: sharedFilters =
 
   const getProject = (id) => projects.find(p => p.id === id)?.name || '—';
   const getProgram = (id) => programs.find(p => p.id === id)?.name || '—';
+  const effortOf = (d) => formatWorkEffort(d.work_effort_value, d.work_effort_unit, d.work_effort);
 
   const exportColumns = [
     { label: 'Decision ID', key: 'decision_id' },
@@ -117,6 +121,7 @@ export default function DecisionLog({ embedded = false, filters: sharedFilters =
     { label: 'Project', value: (d) => getProject(d.project_id) },
     { label: 'Priority', key: 'priority' },
     { label: 'Title', key: 'decision' },
+    { label: 'Work Effort', value: effortOf },
     { label: 'Proposed By', key: 'proposed_by' },
     { label: 'Proposed Date', key: 'proposed_date' },
     { label: 'Related Record', key: 'related_record' },
@@ -160,13 +165,17 @@ export default function DecisionLog({ embedded = false, filters: sharedFilters =
     </div>
   ) : (
     <div className="h-screen flex items-center justify-center bg-slate-50" style={{ fontFamily: 'Segoe UI, sans-serif' }}>
-      <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      <Loader2 className="w-8 h-8 animate-spin text-[#002046]" />
     </div>
   );
 
   const columns = raidColumns({
     noun: 'Decision', idField: 'decision_id', getProjectName: getProject, titleField: 'decision',
     person: 'Proposed By', personField: 'proposed_by', dateLabel: 'Proposed Date', dateField: 'proposed_date',
+    beforePerson: [{
+      key: 'effort', label: 'Work Effort', info: WORK_EFFORT_HELP, sortValue: d => Number(d.work_effort_value ?? -1),
+      render: d => <span className="text-sm whitespace-nowrap" style={{ color: '#002046' }}>{effortOf(d) || <span className="text-slate-300">—</span>}</span>,
+    }],
     extra: [{
       key: 'related', label: 'Related Record', sortValue: d => d.related_record,
       render: d => (d.related_record ? (
@@ -265,7 +274,11 @@ function DetailPanel({ decision, resources = [], statusOptions, onUpdate, onClos
     enabled: !!decision?.id,
   });
 
-  const invalidateOptions = () => queryClient.invalidateQueries({ queryKey: ['decision-options', decision.id] });
+  const invalidateOptions = () => {
+    queryClient.invalidateQueries({ queryKey: ['decision-options', decision.id] });
+    // The log's Work Effort column comes from the options.
+    queryClient.invalidateQueries({ queryKey: ['account-decisions'] });
+  };
   const createOptionMutation = useMutation({
     mutationFn: async (data) => mapDecisionOptionFromApi(await raidApi.createDecisionOption(decision.id, mapDecisionOptionInputToPayload(data))),
     onSuccess: invalidateOptions,
@@ -300,6 +313,15 @@ function DetailPanel({ decision, resources = [], statusOptions, onUpdate, onClos
     const option = options[idx];
     if (!option?.id) return;
     updateOptionMutation.mutate({ optionId: option.id, data: { ...option, [key]: val } });
+  };
+  const saveEffortValue = (idx, text) => {
+    const option = options[idx];
+    if (!option?.id) return;
+    const value = text.trim() === '' ? null : Number(text);
+    if (value !== null && (!Number.isFinite(value) || value < 0)) return;
+    if (value === (option.effort_value === null ? null : Number(option.effort_value))) return;
+    // The number replaces any older free-text effort.
+    updateOptionMutation.mutate({ optionId: option.id, data: { ...option, effort_value: value, effort_unit: option.effort_unit || 'HOURS', effort: value === null ? option.effort : '' } });
   };
   const addOption = () => { if (options.length < 5) createOptionMutation.mutate({ title: `Option ${options.length + 1}`, pros: '', cons: '', effort: '' }); };
   const removeOption = (idx) => {
@@ -342,7 +364,7 @@ function DetailPanel({ decision, resources = [], statusOptions, onUpdate, onClos
           <Field label="Approved By">
             <div className="flex flex-wrap gap-1 mb-1">
               {approvedBy.map(name => (
-                <span key={name} className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs">
+                <span key={name} className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-[#002046] rounded text-xs">
                   {name}<button onClick={() => removeApprovedBy(name)} className="hover:text-red-500">&times;</button>
                 </span>
               ))}
@@ -385,7 +407,7 @@ function DetailPanel({ decision, resources = [], statusOptions, onUpdate, onClos
                 <div key={i} className="bg-slate-50 rounded-lg p-2">
                   <p className="text-xs text-slate-800 whitespace-pre-wrap">
                     {c.text.split(/(@\w+)/g).map((part, j) =>
-                      part.startsWith('@') ? <span key={j} className="text-indigo-600 font-medium">{part}</span> : part
+                      part.startsWith('@') ? <span key={j} className="text-[#002046] font-medium">{part}</span> : part
                     )}
                   </p>
                   <p className="text-[10px] text-slate-400 mt-1">{c.author} · {new Date(c.date).toLocaleDateString()}</p>
@@ -407,7 +429,7 @@ function DetailPanel({ decision, resources = [], statusOptions, onUpdate, onClos
 
           {/* Decision Information - expanded by default */}
           <div className="border-t pt-4">
-            <button className="flex items-center gap-2 w-full text-sm font-medium text-slate-700 hover:text-indigo-600" onClick={() => setTemplateOpen(p => !p)}>
+            <button className="flex items-center gap-2 w-full text-sm font-medium text-slate-700 hover:text-[#002046]" onClick={() => setTemplateOpen(p => !p)}>
               <span>Decision Information</span>
               {templateOpen ? <ChevronDown className="w-4 h-4 ml-auto" /> : <ChevronRight className="w-4 h-4 ml-auto" />}
             </button>
@@ -422,7 +444,7 @@ function DetailPanel({ decision, resources = [], statusOptions, onUpdate, onClos
                 {options.map((opt, idx) => {
                   const col = OPTION_COLORS[idx % OPTION_COLORS.length];
                   return (
-                    <div key={idx} className={`${col.bg} rounded p-2 space-y-2`}>
+                    <div key={opt.id} className={`${col.bg} rounded p-2 space-y-2`}>
                       <div className="flex items-center justify-between">
                         <p className={`text-xs font-semibold ${col.title}`}>Option {idx + 1}</p>
                         {options.length > 1 && <button className="text-slate-400 hover:text-red-500 text-xs" onClick={() => removeOption(idx)}><X className="w-3 h-3" /></button>}
@@ -430,13 +452,25 @@ function DetailPanel({ decision, resources = [], statusOptions, onUpdate, onClos
                       <TmplField label="Title"><Input defaultValue={opt.title} onBlur={e => updateOption(idx, 'title', e.target.value)} className="h-7 text-xs" placeholder="Option title..." /></TmplField>
                       <TmplField label="Pros"><Textarea defaultValue={opt.pros} onBlur={e => updateOption(idx, 'pros', e.target.value)} className="text-xs min-h-[36px]" placeholder="List pros..." /></TmplField>
                       <TmplField label="Cons"><Textarea defaultValue={opt.cons} onBlur={e => updateOption(idx, 'cons', e.target.value)} className="text-xs min-h-[36px]" placeholder="List cons..." /></TmplField>
-                      <TmplField label="Work Effort"><Input defaultValue={opt.effort} onBlur={e => updateOption(idx, 'effort', e.target.value)} className="h-7 text-xs" placeholder="e.g. 2 weeks" /></TmplField>
+                      <div className="space-y-0.5">
+                        <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide flex items-center gap-1">Work Effort <InfoTip className="w-3 h-3 text-slate-500">{WORK_EFFORT_HELP}</InfoTip></p>
+                        <div className="flex items-center gap-2">
+                          <Input type="number" min={0} step="any" defaultValue={opt.effort_value ?? ''} onBlur={e => saveEffortValue(idx, e.target.value)} className="h-7 text-xs flex-1" placeholder={opt.effort || '0'} />
+                          <Select value={opt.effort_unit || 'HOURS'} onValueChange={v => updateOption(idx, 'effort_unit', v)}>
+                            <SelectTrigger className="h-7 text-xs w-28 bg-white"><SelectValue /></SelectTrigger>
+                            <SelectContent>{WORK_EFFORT_UNITS.map(u => <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <TmplField label="Implementation Resources & Teams">
+                        <ResourceTeamsInput value={opt.implementation_resources} resources={resources} onChange={list => updateOption(idx, 'implementation_resources', list)} />
+                      </TmplField>
                     </div>
                   );
                 })}
                 {options.length === 0 && <p className="text-xs text-slate-400 text-center py-2">No decision options yet.</p>}
                 {options.length < 5 && (
-                  <button onClick={addOption} className="w-full flex items-center justify-center gap-1 py-1.5 text-xs text-indigo-600 hover:bg-indigo-50 rounded border border-dashed border-indigo-300">
+                  <button onClick={addOption} className="w-full flex items-center justify-center gap-1 py-1.5 text-xs text-[#002046] hover:bg-indigo-50 rounded border border-dashed border-indigo-300">
                     <Plus className="w-3 h-3" /> Add Option
                   </button>
                 )}

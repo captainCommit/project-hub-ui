@@ -22,6 +22,7 @@ export type HomeApiProject = {
   is_completed: boolean;
   at_risk: boolean;
   percent_complete: number;
+  pinned?: boolean;
   next_milestone: { id: string; name: string; finish_date: string } | null;
   target_end_date: string | null;
 };
@@ -79,6 +80,7 @@ export type HomeProject = {
   completed: boolean;
   nextMilestone: string;
   dueDate: string;
+  pinned: boolean;
 };
 
 export type HomeActivity = {
@@ -163,6 +165,7 @@ export const mapHomeFromApi = (data: HomeApiRead): HomeData => ({
     completed: project.is_completed,
     nextMilestone: project.next_milestone?.name || '',
     dueDate: project.target_end_date || '',
+    pinned: Boolean(project.pinned),
   })),
   activity: (data.recent_activity || []).map(mapHomeActivity),
   notifications: (data.notifications || []).map((item) => ({
@@ -179,6 +182,8 @@ export const mapHomeFromApi = (data: HomeApiRead): HomeData => ({
 });
 
 export const homeApi = {
+  pinProject: (accountId: string, projectId: string) => apiClient.put(`/api/v1/accounts/${accountId}/me/home/projects/${projectId}`),
+  unpinProject: (accountId: string, projectId: string) => apiClient.delete(`/api/v1/accounts/${accountId}/me/home/projects/${projectId}`),
   get: async (accountId: string): Promise<HomeData> =>
     mapHomeFromApi(await apiClient.get(`/api/v1/accounts/${accountId}/me/home`) as HomeApiRead),
   markNotificationsRead: (accountId: string) =>

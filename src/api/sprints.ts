@@ -130,6 +130,8 @@ const mapSprintBoardTask = (task: ApiRecord = {}) => {
   }
   if (hasOwn(task, 'story_points')) mapped.story_points = task.story_points;
   if (hasOwn(task, 'story_number')) mapped.story_number = task.story_number;
+  if (hasOwn(task, 'requirement_id')) mapped.requirement_id = task.requirement_id;
+  mapped.related_records = Array.isArray(task.related_records) ? task.related_records : [];
   if (hasOwn(task, 'percent_complete')) mapped.percent_complete = task.percent_complete;
   if (hasOwn(task, 'finish_date')) mapped.finish_date = task.finish_date;
   if (hasOwn(task, 'due_date')) mapped.due_date = task.due_date;

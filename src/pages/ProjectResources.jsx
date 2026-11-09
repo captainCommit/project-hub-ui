@@ -9,10 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Plus, Trash2, Edit2, Users, Check, X, ArrowUp, ArrowDown, ArrowUpDown, BarChart2, BarChart3, Lightbulb,
-  AlertTriangle, Info, ChevronRight, Search,
+  AlertTriangle, Info, ChevronRight, Search, RotateCcw,
 } from 'lucide-react';
+import InfoTip from '@/components/projects/InfoTip';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
-import { useAccountHierarchy, useAccountTasks } from '@/hooks/useAccountLookups';
+import { ALLOCATION_OVERRIDES_KEY, useAccountHierarchy, useAccountTasks, useAllocationOverrides } from '@/hooks/useAccountLookups';
 import { useGlobalScope } from '@/lib/globalScope';
 import {
   FilterBar, SearchInput, FilterSelect, optionsFrom, ExportButton, PrimaryButton, DataTable, DetailsChevron, StatGrid, Pill,
@@ -72,9 +73,107 @@ function AllocationCell({ pct }) {
   );
 }
 
-function HealthBadge({ pct }) {
-  const h = healthOf(pct);
-  return <Pill tone={h.tone} dot>{h.label}</Pill>;
+const hrs = (hours) => `${(Number(hours) || 0).toFixed(1)} hrs`;
+
+/** Right-hand panel on the Capacity tab: one person's weekly hours per project, which can be overridden for planning. */
+function AllocationPanel({ resource, weekly, onSet, onReset, onClose }) {
+  const [tab, setTab] = useState('projects');
+  const capacity = Number(resource.weekly_capacity) || 0;
+  const derivedTotal = weekly.projects.reduce((s, p) => s + p.derived, 0);
+  const anyOverride = weekly.projects.some(p => p.overridden);
+  const utilization = allocationPct(weekly.weekly, capacity);
+  const commit = (project, text) => {
+    const value = text.trim() === '' ? null : Number(text);
+    if (value !== null && (!Number.isFinite(value) || value < 0)) return;
+    // Typing the task-derived figure (or clearing the box) removes the override.
+    const backToDerived = value === null || Math.abs(value - project.derived) < 0.05;
+    if (backToDerived) { if (project.overridden) onSet(project.id, null); return; }
+    if (Math.abs(value - project.weekly) >= 0.05) onSet(project.id, value);
+  };
+  const tabClass = (key) => `px-5 py-2.5 text-sm font-semibold border-b-2 -mb-px ${tab === key ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700'}`;
+  const summary = [
+    ['Weekly Capacity', capacity ? hrs(capacity) : '—'],
+    ['Project Allocation', hrs(weekly.projectWeekly)],
+    ['Non-Project Allocation', hrs(weekly.nonProject)],
+    ['Total Allocated', hrs(weekly.weekly)],
+    ['Remaining Capacity', capacity ? hrs(capacity - weekly.weekly) : '—'],
+    ['Utilization', utilization === null ? '—' : `${utilization}%`],
+  ];
+  return (
+    <aside className="w-[460px] flex-shrink-0 bg-white border-l border-slate-200 flex flex-col overflow-hidden">
+      <div className="flex items-start gap-3 px-5 pt-5 pb-3">
+        <div className="flex-1 min-w-0">
+          <h2 className="text-xl font-bold truncate" style={{ color: NAVY }}>{resource.full_name}</h2>
+          <p className="text-sm font-semibold" style={{ color: MUTED }}>Project Allocation · Weekly</p>
+        </div>
+        {capacity > 0 && <Pill tone="blue" className="flex-shrink-0">{capacity} hrs capacity</Pill>}
+        <button type="button" onClick={onClose} aria-label="Close" className="p-1 rounded hover:bg-slate-100"><X className="w-4 h-4" style={{ color: NAVY }} /></button>
+      </div>
+      <div className="flex-1 overflow-y-auto px-5 pb-5 space-y-4">
+        <div className="flex items-start gap-2 rounded-lg bg-blue-50 px-3 py-2.5 text-[13px]" style={{ color: NAVY }}>
+          <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <span>Project allocation is calculated from task assignments. You can set a planning override here without changing task estimates.</span>
+        </div>
+        <div className="flex border-b border-slate-200">
+          <button type="button" className={tabClass('projects')} onClick={() => setTab('projects')}>Project Allocation</button>
+          <button type="button" className={tabClass('summary')} onClick={() => setTab('summary')}>Allocation Summary</button>
+        </div>
+        {tab === 'projects' ? (
+          <>
+            <div className="rounded-lg border border-slate-200 overflow-hidden">
+              <table className="w-full text-[13px]">
+                <thead className="bg-[#002046] [&_th]:text-white">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-semibold">Project ({weekly.projects.length})</th>
+                    <th className="text-left px-2 py-2 font-semibold whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1">Task-Derived (hrs/wk) <InfoTip className="w-3.5 h-3.5 text-white/80">Task hours spread evenly over the length of the project.</InfoTip></span>
+                    </th>
+                    <th className="text-left px-2 py-2 font-semibold whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1">Allocation (hrs/wk) <InfoTip className="w-3.5 h-3.5 text-white/80">The hours to plan with. Starts at the task-derived figure; change it to override.</InfoTip></span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {weekly.projects.length === 0 && <tr><td colSpan={3} className="px-3 py-6 text-center text-xs" style={{ color: MUTED }}>No project work assigned.</td></tr>}
+                  {weekly.projects.map(p => (
+                    <tr key={p.id} className="border-t border-slate-100">
+                      <td className="px-3 py-2" style={{ color: NAVY }}>{p.name}</td>
+                      <td className="px-2 py-2 whitespace-nowrap" style={{ color: NAVY }}>{hrs(p.derived)}</td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <input key={`${p.id}-${p.weekly.toFixed(2)}`} type="number" min={0} step="0.1" defaultValue={p.weekly.toFixed(1)} aria-label={`Allocation for ${p.name}`}
+                          onBlur={e => commit(p, e.target.value)}
+                          className={`h-7 w-16 text-xs rounded-md border px-2 focus:outline-none focus:ring-1 focus:ring-slate-400 ${p.overridden ? 'border-[#c87b14]' : 'border-slate-200'}`} />
+                        <span className="ml-1.5 text-xs" style={{ color: MUTED }}>hrs</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-slate-200 bg-slate-50 font-bold" style={{ color: NAVY }}>
+                    <td className="px-3 py-2.5">Total Project Allocation</td>
+                    <td className="px-2 py-2.5 whitespace-nowrap">{hrs(derivedTotal)}</td>
+                    <td className="px-2 py-2.5 whitespace-nowrap">{hrs(weekly.projectWeekly)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <button type="button" disabled={!anyOverride} onClick={onReset}
+              className="inline-flex items-center gap-1.5 text-[13px] font-medium disabled:opacity-40 enabled:hover:underline" style={{ color: NAVY }}>
+              <RotateCcw className="w-3.5 h-3.5" /> Reset to task-derived allocation ({hrs(derivedTotal)})
+            </button>
+          </>
+        ) : (
+          <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
+            {summary.map(([label, value]) => (
+              <div key={label} className="flex items-center justify-between px-3 py-2.5 text-[13px]">
+                <span style={{ color: MUTED }}>{label}</span><span className="font-semibold" style={{ color: NAVY }}>{value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </aside>
+  );
 }
 
 // section: 'overview' (allocation summary), 'capacity' (resource directory) or 'all'.
@@ -108,6 +207,9 @@ export default function ProjectResources({
   const [healthFilter, setHealthFilter] = useState(initialHealth);
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
+  // The Capacity table shows allocation as hours or as a share of the person's week.
+  const [allocationMode, setAllocationMode] = useState('hours');
+  const [panelResourceId, setPanelResourceId] = useState(null);
 
   const removeColumn = (key) => {
     const cols = customColumns.filter(c => c.key !== key);
@@ -207,7 +309,19 @@ export default function ProjectResources({
     if (resourceDetail && editingId) setEditData(getEditableResourceData(resourceDetail));
   }, [resourceDetail, editingId]);
 
-  const resourceWeekly = useMemo(() => computeResourceWeekly(resources, allTasks, projects), [resources, allTasks, projects]);
+  const allocationOverrides = useAllocationOverrides();
+  const resourceWeekly = useMemo(() => computeResourceWeekly(resources, allTasks, projects, allocationOverrides), [resources, allTasks, projects, allocationOverrides]);
+  const refreshOverrides = () => queryClient.invalidateQueries({ queryKey: [ALLOCATION_OVERRIDES_KEY, selectedAccountId] });
+  const setProjectAllocation = useMutation({
+    mutationFn: ({ resourceId, projectId, hours }) => resourcesApi.setProjectAllocation(resourceId, projectId, hours),
+    onSuccess: refreshOverrides,
+    onError: (error) => toastError(error.message),
+  });
+  const resetProjectAllocations = useMutation({
+    mutationFn: (resourceId) => resourcesApi.resetProjectAllocations(resourceId),
+    onSuccess: refreshOverrides,
+    onError: (error) => toastError(error.message),
+  });
   const pctOf = (r) => allocationPct(resourceWeekly[r.full_name]?.weekly, r.weekly_capacity);
 
   // Page filters: who has work in the chosen portfolio / program / project, and their department.
@@ -255,6 +369,9 @@ export default function ProjectResources({
         if (sortKey === 'weekly_allocation') {
           av = resourceWeekly[a.full_name]?.weekly ?? 0;
           bv = resourceWeekly[b.full_name]?.weekly ?? 0;
+        } else if (sortKey === 'project_allocation') {
+          av = resourceWeekly[a.full_name]?.projectWeekly ?? 0;
+          bv = resourceWeekly[b.full_name]?.projectWeekly ?? 0;
         } else if (sortKey === 'allocation') {
           av = pctOf(a) ?? -1; bv = pctOf(b) ?? -1;
         } else if (sortKey === 'health') {
@@ -297,10 +414,26 @@ export default function ProjectResources({
   const handleSaveNew = () => { if (!selectedAccountId || !newRow?.full_name?.trim()) return; create.mutate(newRow); };
   const handleStartEdit = (r) => { setEditingId(r.id); setEditData(getEditableResourceData(r)); };
   const handleSaveEdit = () => { if (!editData.full_name?.trim()) return; update.mutate({ id: editingId, data: editData }); };
+  const shownAllocation = (hours, capacity) => {
+    if (allocationMode === 'hours') return hrs(hours);
+    const cap = Number(capacity) || 0;
+    return cap ? `${Math.round((Number(hours) || 0) / cap * 100)}%` : '—';
+  };
+  // Non-project time is entered in the table's current unit and always stored as hours.
+  const nonProjectInput = (r) => {
+    const stored = Number(r.non_project_hours) || 0;
+    if (allocationMode === 'hours') return stored ? stored.toFixed(1) : '';
+    const cap = Number(r.weekly_capacity) || 0;
+    return cap && stored ? String(Math.round(stored / cap * 100)) : '';
+  };
   const saveNonProjectHours = (r, val) => {
-    const num = val === '' ? null : Number(val);
-    if ((r.non_project_hours ?? null) === num) return;
-    update.mutate({ id: r.id, data: { non_project_hours: num } });
+    const entered = val === '' ? 0 : Number(val);
+    if (!Number.isFinite(entered) || entered < 0) return;
+    const cap = Number(r.weekly_capacity) || 0;
+    if (allocationMode === 'percent' && !cap) return;
+    const hours = allocationMode === 'percent' ? Math.round(entered / 100 * cap * 100) / 100 : entered;
+    if (Math.abs((Number(r.non_project_hours) || 0) - hours) < 0.005) return;
+    update.mutate({ id: r.id, data: { non_project_hours: hours } });
   };
   const openCapacity = (filter) => {
     if (onOpenCapacity) onOpenCapacity(filter);
@@ -339,6 +472,7 @@ export default function ProjectResources({
     </>
   );
 
+  const panelResource = panelResourceId ? resources.find(r => r.id === panelResourceId) : null;
   const shareOf = (key) => (stats.total ? Math.round(stats.counts[key] / stats.total * 100) : 0);
 
   return (
@@ -352,7 +486,7 @@ export default function ProjectResources({
       />
       )}
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         {!embedded && (
         <div className="bg-white px-6 pt-5 pb-4 border-b border-slate-200 flex-shrink-0">
           <h1 className="text-2xl font-bold text-[#002046]">Resources</h1>
@@ -421,7 +555,7 @@ export default function ProjectResources({
               <div className="flex items-start gap-3">
                 <Users className="w-5 h-5 mt-0.5" style={{ color: NAVY }} />
                 <div>
-                  <h2 className="text-base font-bold" style={{ color: NAVY }}>Resource Allocation by Resource</h2>
+                  <h2 className="text-base font-bold" style={{ color: NAVY }}>Resource Allocation</h2>
                   <p className="text-xs" style={{ color: MUTED }}>See how each resource is allocated across projects.</p>
                 </div>
               </div>
@@ -443,16 +577,29 @@ export default function ProjectResources({
           </>)}
 
           {showCapacity && (<>
-          <FilterBar right={<>
-            <ExportButton onClick={() => exportToCSV(dirResources)} disabled={dirResources.length === 0} />
-            <PrimaryButton icon={Plus} disabled={!selectedAccountId} onClick={() => setNewRow({ full_name: '', rate: '', weekly_capacity: '', role: '', department: '', allocation: '', non_project_hours: '' })}>
-              New Resource
-            </PrimaryButton>
-          </>}>
+          <FilterBar>
             <SearchInput value={nameFilter} onChange={setNameFilter} placeholder="Search name or role..." />
             {scopeFilters}
             <FilterSelect value={healthFilter} onChange={setHealthFilter} allLabel="All Health" options={HEALTH_OPTIONS} />
           </FilterBar>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-sm" style={{ color: MUTED }}>Allocation by</span>
+              <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+                {[['hours', 'Hours'], ['percent', 'Percentage']].map(([key, label]) => (
+                  <button key={key} type="button" onClick={() => setAllocationMode(key)}
+                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${allocationMode === key ? 'bg-[#002046] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>{label}</button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <ExportButton onClick={() => exportToCSV(dirResources)} disabled={dirResources.length === 0} />
+              <PrimaryButton icon={Plus} disabled={!selectedAccountId} onClick={() => setNewRow({ full_name: '', rate: '', weekly_capacity: '', role: '', department: '', allocation: '', non_project_hours: '' })}>
+                New Resource
+              </PrimaryButton>
+            </div>
+          </div>
 
           <div className={`${CARD} overflow-x-auto`}>
               <table className="w-full text-sm" style={{ minWidth: '1000px' }}>
@@ -468,16 +615,19 @@ export default function ProjectResources({
                       <span className="flex items-center gap-1">Weekly Capacity <SortIcon col="weekly_capacity" /></span>
                     </th>
                     <th className="text-left px-3 py-3 text-[13px] font-semibold">
-                      <span className="flex items-center gap-1">Weekly Allocation <SortIcon col="weekly_allocation" /></span>
+                      <span className="flex items-center gap-1">Project Allocation <InfoTip className="w-3.5 h-3.5 text-white/80">Worked out from the person's task hours, unless overridden in the panel.</InfoTip> <SortIcon col="project_allocation" /></span>
+                      <span className="block text-[11px] font-normal text-white/80">Calculated from tasks</span>
                     </th>
                     <th className="text-left px-3 py-3 text-[13px] font-semibold">
-                      <span className="flex items-center gap-1">% Allocation <SortIcon col="allocation" /></span>
+                      <span className="flex items-center gap-1">Non-Project Allocation <InfoTip className="w-3.5 h-3.5 text-white/80">Time outside projects, such as meetings, support and admin.</InfoTip> <SortIcon col="non_project_hours" /></span>
+                      <span className="block text-[11px] font-normal text-white/80">Manually entered</span>
                     </th>
                     <th className="text-left px-3 py-3 text-[13px] font-semibold">
-                      <span className="flex items-center gap-1">Health <SortIcon col="health" /></span>
+                      <span className="flex items-center gap-1">Total Allocated <SortIcon col="weekly_allocation" /></span>
                     </th>
-                    <th className="text-left px-3 py-3 text-[13px] font-semibold">Assigned Projects</th>
-                    <th className="text-left px-3 py-3 text-[13px] font-semibold">Non Project Work</th>
+                    <th className="text-left px-3 py-3 text-[13px] font-semibold">
+                      <span className="flex items-center gap-1">Utilization <SortIcon col="allocation" /></span>
+                    </th>
                     {customColumns.map(col => (
                       <th key={col.key} className="text-left px-3 py-3 text-[13px] font-semibold group">
                         <span className="flex items-center gap-1">{col.label}
@@ -485,20 +635,20 @@ export default function ProjectResources({
                         </span>
                       </th>
                     ))}
-                    <th className="px-2 py-3 w-16"></th>
+                    <th className="px-2 py-3 w-24"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {!selectedAccountId && <tr><td colSpan={9 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">Select an account to view resources.</td></tr>}
-                  {selectedAccountId && isLoading && <tr><td colSpan={9 + customColumns.length} className="text-center py-8 text-slate-400 text-xs">Loading resources...</td></tr>}
-                  {selectedAccountId && isError && <tr><td colSpan={9 + customColumns.length} className="text-center py-8 text-xs"><div className="flex flex-col items-center gap-2 text-slate-500"><span>{error?.message || 'Unable to load resources.'}</span><Button size="sm" variant="outline" onClick={() => refetch()}>Retry</Button></div></td></tr>}
-                  {selectedAccountId && !isLoading && !isError && resources.length === 0 && !newRow && <tr><td colSpan={9 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">No resources yet. Click "New Resource" to get started.</td></tr>}
-                  {selectedAccountId && !isLoading && resources.length > 0 && dirResources.length === 0 && <tr><td colSpan={9 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">No resources match your filters.</td></tr>}
+                  {!selectedAccountId && <tr><td colSpan={8 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">Select an account to view resources.</td></tr>}
+                  {selectedAccountId && isLoading && <tr><td colSpan={8 + customColumns.length} className="text-center py-8 text-slate-400 text-xs">Loading resources...</td></tr>}
+                  {selectedAccountId && isError && <tr><td colSpan={8 + customColumns.length} className="text-center py-8 text-xs"><div className="flex flex-col items-center gap-2 text-slate-500"><span>{error?.message || 'Unable to load resources.'}</span><Button size="sm" variant="outline" onClick={() => refetch()}>Retry</Button></div></td></tr>}
+                  {selectedAccountId && !isLoading && !isError && resources.length === 0 && !newRow && <tr><td colSpan={8 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">No resources yet. Click "New Resource" to get started.</td></tr>}
+                  {selectedAccountId && !isLoading && resources.length > 0 && dirResources.length === 0 && <tr><td colSpan={8 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">No resources match your filters.</td></tr>}
                   {dirResources.map(r => {
                     const rw = resourceWeekly[r.full_name] || { projects: [], weekly: 0 };
                     const pctAlloc = pctOf(r);
                     return (
-                      <tr key={r.id} className="group border-b border-slate-100 hover:bg-slate-50">
+                      <tr key={r.id} className={`group border-b border-slate-100 ${panelResourceId === r.id ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
                         {editingId === r.id ? (
                           <>
                             <td className="px-4 py-2 space-y-1 min-w-[220px]">
@@ -509,10 +659,9 @@ export default function ProjectResources({
                             <td className="px-3 py-2"><Input value={editData.department} onChange={e => setEditData(p => ({ ...p, department: e.target.value }))} className="h-7 text-sm" placeholder="e.g. Engineering" /></td>
                             <td className="px-3 py-2"><Select value={editData.weekly_capacity != null ? String(editData.weekly_capacity) : ''} onValueChange={v => setEditData(p => ({ ...p, weekly_capacity: Number(v) }))}><SelectTrigger className="h-7 text-xs bg-white"><SelectValue placeholder="—" /></SelectTrigger><SelectContent><SelectItem value="20">20 hrs</SelectItem><SelectItem value="40">40 hrs</SelectItem></SelectContent></Select></td>
                             <td className="px-3 py-2 text-xs text-slate-400 italic">Auto-computed</td>
-                            <td className="px-3 py-2 text-xs text-slate-400 italic">Auto-computed</td>
-                            <td className="px-3 py-2 text-xs text-slate-400 italic">Auto-computed</td>
-                            <td className="px-3 py-2 text-xs text-slate-400 italic">Auto-computed</td>
                             <td className="px-3 py-2"><Input type="number" value={editData.non_project_hours ?? ''} onChange={e => setEditData(p => ({ ...p, non_project_hours: e.target.value === '' ? '' : Number(e.target.value) }))} className="h-7 text-sm" placeholder="0" /></td>
+                            <td className="px-3 py-2 text-xs text-slate-400 italic">Auto-computed</td>
+                            <td className="px-3 py-2 text-xs text-slate-400 italic">Auto-computed</td>
                             {customColumns.map(col => <td key={col.key} className="px-3 py-2"><Input value={editData[col.key] || ''} onChange={e => setEditData(p => ({ ...p, [col.key]: e.target.value }))} className="h-7 text-sm" /></td>)}
                             <td className="px-3 py-2">
                               <div className="flex gap-1">
@@ -529,32 +678,46 @@ export default function ProjectResources({
                             </td>
                             <td className="px-3 py-2.5 text-slate-600">{r.department || '—'}</td>
                             <td className="px-3 py-2.5 text-slate-600">{r.weekly_capacity != null ? `${r.weekly_capacity} hrs` : '—'}</td>
-                            <td className="px-3 py-2.5 text-slate-600">{rw.weekly > 0 ? `${rw.weekly.toFixed(1)} hrs` : '—'}</td>
                             <td className="px-3 py-2.5">
-                              {pctAlloc != null ? <span className="font-semibold" style={{ color: healthOf(pctAlloc).color }}>{pctAlloc}%</span> : '—'}
+                              <button type="button" onClick={() => setPanelResourceId(r.id)} className="flex items-center gap-2 text-left">
+                                <span>
+                                  <span className="block font-medium underline" style={{ color: NAVY }}>{shownAllocation(rw.projectWeekly, r.weekly_capacity)}</span>
+                                  <span className="block text-xs text-slate-400">({rw.projects.length} project{rw.projects.length === 1 ? '' : 's'})</span>
+                                </span>
+                                <ChevronRight className="w-4 h-4 text-slate-400" />
+                              </button>
                             </td>
-                            <td className="px-3 py-2.5"><HealthBadge pct={pctAlloc} /></td>
-                            <td className="px-3 py-2.5">
-                              {rw.projects.length > 0 ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {rw.projects.map(p => <span key={p.id} className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-xs">{p.name} <span className="text-slate-500 font-medium">[{p.weekly.toFixed(1)}h/wk]</span></span>)}
-                                </div>
-                              ) : <span className="text-slate-300 text-xs">—</span>}
-                            </td>
-                            <td className="px-3 py-2.5">
+                            <td className="px-3 py-2.5 whitespace-nowrap">
                               <input
+                                key={`${r.id}-${allocationMode}-${r.non_project_hours}`}
                                 type="number"
-                                defaultValue={r.non_project_hours ?? ''}
+                                min={0}
+                                step="any"
+                                defaultValue={nonProjectInput(r)}
                                 onBlur={(e) => saveNonProjectHours(r, e.target.value)}
-                                className="h-7 w-20 text-xs rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-1 focus:ring-slate-400"
+                                aria-label={`Non-project allocation for ${r.full_name}`}
+                                className="h-7 w-16 text-xs rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-1 focus:ring-slate-400"
                                 placeholder="0"
                               />
+                              <span className="ml-1.5 text-xs text-slate-500">{allocationMode === 'hours' ? 'hrs' : '%'}</span>
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">{shownAllocation(rw.weekly, r.weekly_capacity)}</td>
+                            <td className="px-3 py-2.5 min-w-[120px]">
+                              {pctAlloc != null ? (
+                                <>
+                                  <span className="block font-semibold" style={{ color: healthOf(pctAlloc).color }}>{pctAlloc}%</span>
+                                  <span className="block w-full h-1.5 mt-1 rounded-full overflow-hidden" style={{ backgroundColor: '#EAF0F6' }}>
+                                    <span className="block h-full rounded-full" style={{ width: `${Math.min(100, pctAlloc)}%`, backgroundColor: healthOf(pctAlloc).color }} />
+                                  </span>
+                                </>
+                              ) : '—'}
                             </td>
                             {customColumns.map(col => <td key={col.key} className="px-3 py-2.5 text-slate-500">{r[col.key] || '—'}</td>)}
                             <td className="px-3 py-2.5">
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 justify-end">
-                                <button onClick={() => handleStartEdit(r)} className="p-1.5 text-slate-300 hover:text-slate-500 hover:bg-slate-100 rounded"><Edit2 className="w-3 h-3" /></button>
-                                <button onClick={() => remove.mutate(r.id)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded"><Trash2 className="w-3 h-3" /></button>
+                              <div className="flex items-center gap-1 justify-end">
+                                <button onClick={() => handleStartEdit(r)} aria-label={`Edit ${r.full_name}`} className="p-1.5 text-slate-300 hover:text-slate-500 hover:bg-slate-100 rounded opacity-0 group-hover:opacity-100"><Edit2 className="w-3 h-3" /></button>
+                                <button onClick={() => remove.mutate(r.id)} aria-label={`Delete ${r.full_name}`} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100"><Trash2 className="w-3 h-3" /></button>
+                                <button onClick={() => setPanelResourceId(r.id)} aria-label={`Open allocation for ${r.full_name}`} className="p-1 rounded hover:bg-slate-100"><ChevronRight className="w-4 h-4" style={{ color: NAVY }} /></button>
                               </div>
                             </td>
                           </>
@@ -572,10 +735,9 @@ export default function ProjectResources({
                       <td className="px-3 py-2"><Input value={newRow.department} onChange={e => setNewRow(p => ({ ...p, department: e.target.value }))} className="h-7 text-sm" placeholder="e.g. Engineering" /></td>
                       <td className="px-3 py-2"><Select value={newRow.weekly_capacity != null ? String(newRow.weekly_capacity) : ''} onValueChange={v => setNewRow(p => ({ ...p, weekly_capacity: Number(v) }))}><SelectTrigger className="h-7 text-xs bg-white"><SelectValue placeholder="—" /></SelectTrigger><SelectContent><SelectItem value="20">20 hrs</SelectItem><SelectItem value="40">40 hrs</SelectItem></SelectContent></Select></td>
                       <td className="px-3 py-2 text-xs text-slate-300 italic">—</td>
-                      <td className="px-3 py-2 text-xs text-slate-300 italic">—</td>
-                      <td className="px-3 py-2 text-xs text-slate-300 italic">—</td>
-                      <td className="px-3 py-2 text-xs text-slate-300 italic">—</td>
                       <td className="px-3 py-2"><Input type="number" value={newRow.non_project_hours ?? ''} onChange={e => setNewRow(p => ({ ...p, non_project_hours: e.target.value === '' ? '' : Number(e.target.value) }))} className="h-7 text-sm" placeholder="0" /></td>
+                      <td className="px-3 py-2 text-xs text-slate-300 italic">—</td>
+                      <td className="px-3 py-2 text-xs text-slate-300 italic">—</td>
                       {customColumns.map(col => <td key={col.key} className="px-3 py-2" />)}
                       <td className="px-3 py-2">
                         <div className="flex gap-1">
@@ -595,6 +757,16 @@ export default function ProjectResources({
 
         </div>
       </div>
+      {showCapacity && panelResource && (
+        <AllocationPanel
+          key={panelResource.id}
+          resource={panelResource}
+          weekly={resourceWeekly[panelResource.full_name] || { projects: [], projectWeekly: 0, weekly: 0, nonProject: 0 }}
+          onSet={(projectId, hours) => setProjectAllocation.mutate({ resourceId: panelResource.id, projectId, hours })}
+          onReset={() => resetProjectAllocations.mutate(panelResource.id)}
+          onClose={() => setPanelResourceId(null)}
+        />
+      )}
     </div>
   );
 }

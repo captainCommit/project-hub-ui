@@ -12,7 +12,7 @@ import { formatDate } from '@/lib/dateUtils';
 import { cn } from "@/lib/utils";
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import { mapTaskToUserStory, vacationsApi } from '@/api/accountData';
-import { useAccountHierarchy, useAccountResources, useAccountSprints, useAccountTasks, useAccountVacations } from '@/hooks/useAccountLookups';
+import { useAccountHierarchy, useAccountResources, useAccountSprints, useAccountTasks, useAccountVacations, useAllocationOverrides } from '@/hooks/useAccountLookups';
 import { useGlobalScope } from '@/lib/globalScope';
 import {
   FilterBar, SearchInput, FilterSelect, optionsFrom, ExportButton, PrimaryButton, DataTable, DetailsChevron, Pill,
@@ -169,7 +169,8 @@ export default function ResourceCalendarPage({ embedded = false, scope: scopePro
     return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
   }, [rows]);
 
-  const resourceWeekly = useMemo(() => computeResourceWeekly(resourceRecords, tasks, projects), [resourceRecords, tasks, projects]);
+  const allocationOverrides = useAllocationOverrides();
+  const resourceWeekly = useMemo(() => computeResourceWeekly(resourceRecords, tasks, projects, allocationOverrides), [resourceRecords, tasks, projects, allocationOverrides]);
   const selected = rows.find(r => r.name === selectedName) || null;
 
   const nextUnavailable = (row) => {

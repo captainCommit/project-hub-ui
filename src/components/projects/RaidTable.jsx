@@ -126,7 +126,7 @@ const formatDay = (value) => {
  */
 export function raidColumns({
   noun, idField, getProjectName, showPriority = true, person = undefined, dateLabel = 'Target Date', dateField = 'target_date',
-  titleField = 'title', personField = 'assigned_to', extra = [],
+  titleField = 'title', personField = 'assigned_to', extra = [], beforePerson = [],
 }) {
   return [
     {
@@ -135,6 +135,7 @@ export function raidColumns({
     },
     ...(showPriority ? [{ key: 'priority', label: 'Priority', sortValue: r => PRIORITY_RANK[r.priority || 'medium'], render: r => <PriorityPill priority={r.priority} className={RAID_PILL} /> }] : []),
     { key: 'status', label: 'Status', sortValue: r => raidStatusLabel(r.status), render: r => <RaidStatusPill status={r.status} openTone={noun === 'Dependency' ? 'blue' : 'grey'} /> },
+    ...beforePerson,
     ...(person ? [{ key: 'person', label: person, sortValue: r => r[personField], render: r => <PersonCell name={r[personField]} /> }] : []),
     { key: 'date', label: dateLabel, sortValue: r => r[dateField], render: r => <span className="text-sm whitespace-nowrap" style={{ color: SOFT }}>{formatDay(r[dateField])}</span> },
     ...extra,

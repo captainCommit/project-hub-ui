@@ -6,7 +6,7 @@ import { parseISO, isValid, formatDistanceToNow } from 'date-fns';
 import DashboardCard, { TEXT, MUTED, BORDER } from '@/components/home/DashboardCard';
 
 const KIND_META = {
-  project: { icon: Pencil, bg: '#FF8A00' },
+  project: { icon: Pencil, bg: '#c87b14' },
   task: { icon: Check, bg: '#00B66A' },
   issue: { icon: MessageSquare, bg: '#2196F3' },
   risk: { icon: Plus, bg: '#9C27B0' },

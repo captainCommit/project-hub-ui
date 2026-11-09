@@ -89,6 +89,13 @@ export default function Home() {
 
   const refreshHome = () => queryClient.invalidateQueries({ queryKey: ['my-home'] });
 
+  const { projects: visibleProjects } = useAccountHierarchy();
+  const setPinned = useMutation({
+    mutationFn: ({ projectId, pinned }) => (pinned ? homeApi.pinProject(selectedAccountId, projectId) : homeApi.unpinProject(selectedAccountId, projectId)),
+    onSuccess: refreshHome,
+    onError: (error) => toastError(error.message),
+  });
+
   const createProject = useMutation({
     mutationFn: (data) => {
       // Projects always live under a program in Project Hub.
@@ -304,7 +311,13 @@ export default function Home() {
                     onOpen={openPriority}
                     onComplete={(item) => completeItem.mutate(item)}
                   />
-                  <MyProjects projects={data?.myProjects || []} onOpen={openProject} />
+                  <MyProjects
+                    projects={data?.myProjects || []}
+                    onOpen={openProject}
+                    allProjects={visibleProjects}
+                    onAdd={(projectId) => setPinned.mutate({ projectId, pinned: true })}
+                    onRemove={(projectId) => setPinned.mutate({ projectId, pinned: false })}
+                  />
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-[68fr_32fr] gap-4 items-stretch flex-shrink-0 mt-auto">
                   <HomeFavorites />

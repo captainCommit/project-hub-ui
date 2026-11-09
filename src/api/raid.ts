@@ -141,6 +141,9 @@ export const mapDecisionFromApi = (decision: ApiRecord = {}) => ({
   proposed_by: decision.proposed_by_name || '',
   approved_date: dateOnly(decision.approved_date),
   related_record: decision.related_record || '',
+  work_effort: decision.work_effort || '',
+  work_effort_value: decision.work_effort_value ?? null,
+  work_effort_unit: decision.work_effort_unit || '',
 });
 
 export const mapDecisionListFromApi = (response: any) => asArray(response).map(mapDecisionFromApi);
@@ -168,6 +171,9 @@ export const mapDecisionOptionFromApi = (option: ApiRecord = {}) => ({
   pros: option.pros || '',
   cons: option.cons || '',
   effort: option.work_effort || '',
+  effort_value: option.work_effort_value ?? null,
+  effort_unit: option.work_effort_unit || '',
+  implementation_resources: Array.isArray(option.implementation_resources) ? option.implementation_resources : [],
   sort_order: option.sort_order,
   created_at: option.created_at,
   updated_at: option.updated_at,
@@ -181,6 +187,9 @@ export const mapDecisionOptionInputToPayload = (input: ApiRecord = {}) => buildP
   pros: 'pros',
   cons: 'cons',
   effort: 'work_effort',
+  effort_value: 'work_effort_value',
+  effort_unit: 'work_effort_unit',
+  implementation_resources: 'implementation_resources',
   sort_order: 'sort_order',
 });
 

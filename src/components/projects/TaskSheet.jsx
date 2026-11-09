@@ -35,7 +35,7 @@ const taskTypeOptions = [
   { value: 'milestone', label: 'Milestone', icon: Diamond, color: 'text-purple-600' },
   { value: 'activity', label: 'Activity', icon: Circle, color: 'text-blue-600' },
   { value: 'deliverable', label: 'Deliverable', icon: Package, color: 'text-green-600' },
-  { value: 'work_package', label: 'Work Package', icon: Layers, color: 'text-orange-600' },
+  { value: 'work_package', label: 'Work Package', icon: Layers, color: 'text-[#c87b14]' },
   { value: 'phase', label: 'Phase', icon: Flag, color: 'text-cyan-600' }
 ];
 
@@ -866,7 +866,7 @@ export default function TaskSheet({
           })}
           <Popover open={resourcePicker === pickerKey} onOpenChange={open => { setResourcePicker(open && !isPending ? pickerKey : null); setNewAssignmentHours(''); }}>
             <PopoverTrigger asChild>
-              <button type="button" onClick={e => e.stopPropagation()} disabled={isPending} className="text-xs text-slate-400 hover:text-indigo-600 disabled:cursor-not-allowed">
+              <button type="button" onClick={e => e.stopPropagation()} disabled={isPending} className="text-xs text-slate-400 hover:text-[#002046] disabled:cursor-not-allowed">
                 {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : '+'}
               </button>
             </PopoverTrigger>
@@ -1049,7 +1049,7 @@ export default function TaskSheet({
         <button
           type="button"
           onClick={(event) => { event.stopPropagation(); onRetry(); }}
-          className="text-indigo-600 hover:text-indigo-700 font-medium"
+          className="text-[#002046] hover:text-[#002046] font-medium"
         >
           Retry
         </button>
@@ -1238,7 +1238,7 @@ export default function TaskSheet({
             <div className="flex items-center justify-center">
               <span className="group-hover:hidden">{getRowNumber(task, allTasks)}</span>
               <div className="hidden group-hover:flex items-center gap-0.5">
-                <button title="Copy (Ctrl+C)" onClick={e => { e.stopPropagation(); handleCopyTask(task); }} className="hover:text-indigo-600 p-0.5"><Copy className="w-3 h-3" /></button>
+                <button title="Copy (Ctrl+C)" onClick={e => { e.stopPropagation(); handleCopyTask(task); }} className="hover:text-[#002046] p-0.5"><Copy className="w-3 h-3" /></button>
                 {canDeleteTask && <button title={isDeletingTask ? 'Deleting task…' : 'Delete row'} disabled={isDeletingTask} onClick={e => { e.stopPropagation(); deleteTaskSafe(task.id); }} className={cn("p-0.5", isDeletingTask ? "text-slate-300 cursor-not-allowed" : "hover:text-red-500")}>
                   {isDeletingTask ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                 </button>}
@@ -1448,7 +1448,7 @@ export default function TaskSheet({
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <User className="w-3 h-3 text-orange-500 flex-shrink-0 cursor-help" />
+                      <User className="w-3 h-3 text-[#c87b14] flex-shrink-0 cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent>
                       <p className="text-xs">Resource unavailable: {vacationResources.join(', ')}</p>
@@ -1762,8 +1762,8 @@ export default function TaskSheet({
           return renderApiResourceCell({
             task, kind: 'actual', cellKey, cellClass, style: { ...cellStyle, ...cellStyles },
             entries: getAssignmentEntries(task),
-            chipClassName: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200',
-            hoursClassName: 'text-indigo-500',
+            chipClassName: 'bg-indigo-100 text-[#002046] hover:bg-indigo-200',
+            hoursClassName: 'text-[#002046]',
             onAdd: (resource, hours) => addResourceAssignmentSafe(task, resource, hours),
             onRemove: (entry) => removeResourceAssignmentSafe(task, entry),
             onSaveHours: (entry, value) => updateAssignmentHoursSafe(task, entry, value),
@@ -1782,10 +1782,10 @@ export default function TaskSheet({
                       <button
                         onClick={(e) => { e.stopPropagation(); if (isReadOnly) return; setEditingHours(`${task.id}|${resource}`); setHoursInput(hrs !== '' ? String(hrs) : ''); }}
                         title="Click to set hours allocated"
-                        className={cn("inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs transition-colors", !isReadOnly && "hover:bg-indigo-200")}
+                        className={cn("inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-indigo-100 text-[#002046] rounded text-xs transition-colors", !isReadOnly && "hover:bg-indigo-200")}
                       >
                         {shortName(resource)}
-                        {hrs !== '' && <span className="text-[10px] font-semibold text-indigo-500">·{hrs}h</span>}
+                        {hrs !== '' && <span className="text-[10px] font-semibold text-[#002046]">·{hrs}h</span>}
                         {!isReadOnly && <span
                           onClick={(e) => { e.stopPropagation(); handleResourceRemove(task.id, resource); }}
                           className="hover:text-red-500 leading-none"
@@ -1827,7 +1827,7 @@ export default function TaskSheet({
                   return (
                     <Popover open onOpenChange={v => { if (!v) setEditingResources(null); }}>
                       <PopoverTrigger asChild>
-                        <span className="text-xs text-indigo-600 px-1">+</span>
+                        <span className="text-xs text-[#002046] px-1">+</span>
                       </PopoverTrigger>
                       <PopoverContent className="w-48 p-1" onClick={e => e.stopPropagation()}>
                         <div className="max-h-48 overflow-y-auto">
@@ -1854,7 +1854,7 @@ export default function TaskSheet({
               ) : !isReadOnly ? (
                 <button
                   onClick={(e) => { e.stopPropagation(); setEditingResources(task.id); }}
-                  className="text-xs text-slate-400 hover:text-indigo-600"
+                  className="text-xs text-slate-400 hover:text-[#002046]"
                 >
                   +
                 </button>
@@ -2014,7 +2014,7 @@ export default function TaskSheet({
                 </PopoverTrigger>
                 <PopoverContent className="w-64 p-2" onClick={e => e.stopPropagation()}>
                   <div className="space-y-1 max-h-60 overflow-y-auto">
-                    {pRisks.length > 0 && <div><p className="text-[10px] font-bold text-orange-500 uppercase px-1 mb-0.5">Risks</p>{pRisks.slice(0,15).map(r => <button key={r.id} onClick={() => { saveRaid([...raidIds, r.risk_id]); setRaidOpen(null); }} className="w-full text-left px-2 py-1 text-xs hover:bg-orange-50 rounded"><span className="font-mono text-orange-600">{r.risk_id}</span> <span className="text-slate-500">{r.title?.slice(0,25)}</span></button>)}</div>}
+                    {pRisks.length > 0 && <div><p className="text-[10px] font-bold text-[#c87b14] uppercase px-1 mb-0.5">Risks</p>{pRisks.slice(0,15).map(r => <button key={r.id} onClick={() => { saveRaid([...raidIds, r.risk_id]); setRaidOpen(null); }} className="w-full text-left px-2 py-1 text-xs hover:bg-orange-50 rounded"><span className="font-mono text-[#c87b14]">{r.risk_id}</span> <span className="text-slate-500">{r.title?.slice(0,25)}</span></button>)}</div>}
                     {pIssues.length > 0 && <div><p className="text-[10px] font-bold text-red-500 uppercase px-1 mb-0.5">Issues</p>{pIssues.slice(0,15).map(i => <button key={i.id} onClick={() => { saveRaid([...raidIds, i.issue_id]); setRaidOpen(null); }} className="w-full text-left px-2 py-1 text-xs hover:bg-red-50 rounded"><span className="font-mono text-red-600">{i.issue_id}</span> <span className="text-slate-500">{i.title?.slice(0,25)}</span></button>)}</div>}
                     {pAssumptions.length > 0 && <div><p className="text-[10px] font-bold text-teal-500 uppercase px-1 mb-0.5">Assumptions</p>{pAssumptions.slice(0,15).map(a => <button key={a.id} onClick={() => { saveRaid([...raidIds, a.assumption_id]); setRaidOpen(null); }} className="w-full text-left px-2 py-1 text-xs hover:bg-teal-50 rounded"><span className="font-mono text-teal-600">{a.assumption_id}</span> <span className="text-slate-500">{a.description?.slice(0,25)}</span></button>)}</div>}
                     {pDecisions.length > 0 && <div><p className="text-[10px] font-bold text-[#002046] uppercase px-1 mb-0.5">Decisions</p>{pDecisions.slice(0,15).map(d => <button key={d.id} onClick={() => { saveRaid([...raidIds, d.decision_id]); setRaidOpen(null); }} className="w-full text-left px-2 py-1 text-xs hover:bg-blue-50 rounded"><span className="font-mono text-[#002046]">{d.decision_id}</span> <span className="text-slate-500">{d.decision?.slice(0,25)}</span></button>)}</div>}
@@ -2136,7 +2136,7 @@ export default function TaskSheet({
             <p className="text-xs text-slate-500">Active</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-indigo-600">{totalTasks}</p>
+            <p className="text-2xl font-bold text-[#002046]">{totalTasks}</p>
             <p className="text-xs text-slate-500">Total Tasks</p>
           </div>
           <div className="text-center">
@@ -2191,9 +2191,9 @@ export default function TaskSheet({
                   {(() => {
                     const prog = programs.find(p => p.id === project?.program_id);
                     return prog && onGoBack ? (
-                      <button onClick={onGoBack} className="flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-600 group transition-colors mt-0.5">
+                      <button onClick={onGoBack} className="flex items-center gap-1 text-xs text-slate-400 hover:text-[#002046] group transition-colors mt-0.5">
                         <ArrowLeft className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform flex-shrink-0" />
-                        <span>Back to: <span className="text-indigo-500 font-medium">{prog.name}</span></span>
+                        <span>Back to: <span className="text-[#002046] font-medium">{prog.name}</span></span>
                       </button>
                     ) : null;
                   })()}

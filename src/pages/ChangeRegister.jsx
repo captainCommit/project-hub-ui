@@ -17,6 +17,7 @@ import { useStatusOptions } from '@/hooks/useStatusOptions';
 import { changeRequestsApi, mapChangeRequestFromApi, mapChangeRequestInputToPayload } from '@/api/projectLogs';
 import { raidApi } from '@/api/raid';
 import { confirmAction } from '@/components/ui/confirm-dialog';
+import ResourceTeamsInput from '@/components/projects/ResourceTeamsInput';
 import { useGlobalScope } from '@/lib/globalScope';
 
 const today = () => new Date().toISOString().split('T')[0];
@@ -113,7 +114,7 @@ export default function ChangeRegister({ embedded = false, filters: sharedFilter
     </div>
   ) : (
     <div className="h-screen flex items-center justify-center bg-slate-50" style={{ fontFamily: 'Segoe UI, sans-serif' }}>
-      <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      <Loader2 className="w-8 h-8 animate-spin text-[#002046]" />
     </div>
   );
 
@@ -266,9 +267,9 @@ function CRDetailPanel({ cr, resources = [], decisions = [], statusOptions, getR
             <Label className="text-xs text-slate-500">Title</Label>
             <Input value={local.title || ''} onChange={e => setLocal(p => ({ ...p, title: e.target.value }))} onBlur={e => save('title', e.target.value)} className="h-8 text-sm" />
           </div>
-          {/* Description */}
+          {/* Change details */}
           <div className="space-y-1">
-            <Label className="text-xs text-slate-500">Description</Label>
+            <Label className="text-xs text-slate-500">Change details</Label>
             <Textarea value={local.description || ''} onChange={e => setLocal(p => ({ ...p, description: e.target.value }))} onBlur={e => save('description', e.target.value)} className="text-sm min-h-[80px]" />
           </div>
           {/* Proposed By */}
@@ -293,6 +294,16 @@ function CRDetailPanel({ cr, resources = [], decisions = [], statusOptions, getR
           <div className="space-y-1">
             <Label className="text-xs text-slate-500">Proposed Date</Label>
             <Input type="date" value={local.proposed_date || ''} onChange={e => setLocal(p => ({ ...p, proposed_date: e.target.value }))} onBlur={e => save('proposed_date', e.target.value)} className="h-8 text-sm" />
+          </div>
+          {/* Implementation Resources/Teams */}
+          <div className="space-y-1">
+            <Label className="text-xs text-slate-500">Implementation Resources/Teams</Label>
+            <ResourceTeamsInput value={local.implementation_resources || []} resources={resources} onChange={list => save('implementation_resources', list)} />
+          </div>
+          {/* Completion Date */}
+          <div className="space-y-1">
+            <Label className="text-xs text-slate-500">Completion Date</Label>
+            <Input type="date" value={local.completion_date || ''} onChange={e => setLocal(p => ({ ...p, completion_date: e.target.value }))} onBlur={e => save('completion_date', e.target.value)} className="h-8 text-sm" />
           </div>
           {/* Related Record */}
           <div className="space-y-1">

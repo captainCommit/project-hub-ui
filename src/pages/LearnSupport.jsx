@@ -20,7 +20,7 @@ import { ALL_TUTORIALS, findTutorial } from '@/tutorials/content';
 const STATUS_STYLES = {
   open: 'bg-blue-50 text-blue-700 border-blue-200',
   awaiting_response: 'bg-amber-50 text-amber-700 border-amber-200',
-  in_progress: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  in_progress: 'bg-indigo-50 text-[#002046] border-indigo-200',
   resolved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   closed: 'bg-slate-100 text-slate-500 border-slate-200',
 };
@@ -217,7 +217,7 @@ export default function LearnSupport() {
                 <div className="bg-white rounded-xl border border-slate-200">
                   <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
                     <h3 className="text-sm font-semibold text-slate-700">Recent Requests</h3>
-                    <button onClick={() => setView('requests')} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">View all →</button>
+                    <button onClick={() => setView('requests')} className="text-xs text-[#002046] hover:text-[#002046] font-medium">View all →</button>
                   </div>
                   <div className="divide-y divide-slate-50">
                     {tickets.slice(0, 3).map(t => (

@@ -57,7 +57,7 @@ export function PageHeader({ icon: Icon = undefined, iconBox = true, title, subt
 export function PrimaryButton({ icon: Icon = undefined, children, className = undefined, ...props }) {
   return (
     <Button {...props} className={cn('h-11 px-5 rounded-lg text-[15px] font-semibold text-white border-0 shadow-sm hover:opacity-90', className)}
-      style={{ background: 'linear-gradient(180deg, #D27D14 0%, #C66E0C 100%)' }}>
+      style={{ background: ORANGE }}>
       {Icon && <Icon className="w-5 h-5 mr-2" />}{children}
     </Button>
   );

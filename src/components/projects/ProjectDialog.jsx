@@ -297,7 +297,7 @@ export default function ProjectDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSave} className="bg-indigo-600 hover:bg-indigo-700">
+          <Button onClick={handleSave} className="bg-[#002046] hover:bg-[#003070]">
             {project?.id ? 'Update' : 'Create'} {typeLabel}
           </Button>
         </div>

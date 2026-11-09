@@ -13,7 +13,7 @@ const TABS = [
 
 const BADGE_TONE = {
   urgent: { background: '#FDE8EA', color: '#F5222D' },
-  warn: { background: '#FFF0D8', color: '#F28C00' },
+  warn: { background: '#FFF0D8', color: '#c87b14' },
   muted: { background: '#F0F4F9', color: '#6882A7' },
 };
 

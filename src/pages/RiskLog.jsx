@@ -181,7 +181,7 @@ export default function RiskLog() {
   if ((showRiskState && loadingRisks) || loadingIssues || loadingAssumptions || loadingDependencies) {
     return (
       <div className="h-screen flex items-center justify-center bg-slate-50" style={{ fontFamily: 'Segoe UI, sans-serif' }}>
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-[#002046]" />
       </div>
     );
   }
@@ -286,9 +286,9 @@ export default function RiskLog() {
           <SimpleRaidSheet
             entityType="Dependency"
             queryKey={['dependencies']}
-            idPrefix="DY"
+            idPrefix="D"
             idField="dependency_id"
-            idStart={101}
+            idStart={1}
             noun="Dependency"
             descriptionLabel="Description"
             projects={projects}

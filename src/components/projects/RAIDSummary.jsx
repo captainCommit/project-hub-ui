@@ -64,10 +64,10 @@ export default function RAIDSummary({ risks = [], issues = [], assumptions = [],
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <StatCard icon={AlertTriangle} label="Risks" count={risks.length} open={openRisks.length} href={createPageUrl('RiskLog')} colorClass="bg-orange-100 text-orange-600" />
+        <StatCard icon={AlertTriangle} label="Risks" count={risks.length} open={openRisks.length} href={createPageUrl('RiskLog')} colorClass="bg-orange-100 text-[#c87b14]" />
         <StatCard icon={BookOpen} label="Assumptions" count={assumptions.length} open={openAssumptions.length} href={createPageUrl('AssumptionLog')} colorClass="bg-teal-100 text-teal-600" />
         <StatCard icon={AlertCircle} label="Issues" count={issues.length} open={openIssues.length} href={createPageUrl('IssueLog')} colorClass="bg-red-100 text-red-600" />
-        <StatCard icon={CheckSquare} label="Decisions" count={decisions.length} open={pendingDecisions.length} href={createPageUrl('DecisionLog')} colorClass="bg-indigo-100 text-indigo-600" />
+        <StatCard icon={CheckSquare} label="Decisions" count={decisions.length} open={pendingDecisions.length} href={createPageUrl('DecisionLog')} colorClass="bg-indigo-100 text-[#002046]" />
       </div>
 
       {recentItems.length > 0 && (
@@ -80,7 +80,7 @@ export default function RAIDSummary({ risks = [], issues = [], assumptions = [],
               return (
                 <div key={item.id} className="bg-white rounded-xl border border-slate-200 p-3 flex items-start gap-3">
                   <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0', isRisk ? 'bg-orange-100' : 'bg-red-100')}>
-                    {isRisk ? <AlertTriangle className="w-3.5 h-3.5 text-orange-600" /> : <AlertCircle className="w-3.5 h-3.5 text-red-600" />}
+                    {isRisk ? <AlertTriangle className="w-3.5 h-3.5 text-[#c87b14]" /> : <AlertCircle className="w-3.5 h-3.5 text-red-600" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-800 truncate">{item.title}</p>

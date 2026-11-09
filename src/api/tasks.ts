@@ -1312,6 +1312,7 @@ export const tasksApi = {
   getOverview: async (taskId: string) => mapTaskReadToTaskOverview(await apiClient.get(`/api/v1/tasks/${taskId}`)),
   update: (taskId: string, data: unknown) => apiClient.patch(`/api/v1/tasks/${taskId}`, data),
   nudge: (taskId: string, note?: string) => apiClient.post(`/api/v1/tasks/${taskId}/nudge`, { note: note || null }) as Promise<{ notified: string[]; skipped: { name: string; reason: string }[] }>,
+  updateRequirement: (taskId: string, requirementId: string | null) => apiClient.patch(`/api/v1/tasks/${taskId}`, { requirement_id: requirementId }),
   updateRelatedRecords: (taskId: string, records: TaskRelatedRecord[]) => apiClient.patch(`/api/v1/tasks/${taskId}`, { related_records: records }),
   updatePriority: (taskId: string, data: unknown) => apiClient.patch(`/api/v1/tasks/${taskId}`, mapTaskSheetInputToPriorityUpdatePayload(data)),
   updateTaskType: (taskId: string, data: unknown) => apiClient.patch(`/api/v1/tasks/${taskId}`, mapTaskSheetInputToTaskTypeUpdatePayload(data)),

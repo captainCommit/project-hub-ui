@@ -88,7 +88,7 @@ export default function IssueLog() {
   if (isLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-slate-50" style={{ fontFamily: 'Segoe UI, sans-serif' }}>
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-[#002046]" />
       </div>
     );
   }

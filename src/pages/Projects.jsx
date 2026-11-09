@@ -57,7 +57,7 @@ function ProjectSheetState({ title, message, onRetry, isLoading = false }) {
   return (
     <div className="flex-1 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-center p-8">
       <div className="max-w-md">
-        {isLoading && <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mx-auto mb-4" />}
+        {isLoading && <Loader2 className="w-8 h-8 animate-spin text-[#002046] mx-auto mb-4" />}
         <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
         <p className="mt-2 text-sm text-slate-500">{message}</p>
         {onRetry && (
@@ -74,7 +74,7 @@ function ProjectBoardState({ title, message, onRetry, isLoading = false }) {
   return (
     <div className="flex-1 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-center p-8">
       <div className="max-w-md">
-        {isLoading && <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mx-auto mb-4" />}
+        {isLoading && <Loader2 className="w-8 h-8 animate-spin text-[#002046] mx-auto mb-4" />}
         <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
         <p className="mt-2 text-sm text-slate-500">{message}</p>
         {onRetry && (
@@ -91,7 +91,7 @@ function ProjectGanttState({ title, message, onRetry, isLoading = false }) {
   return (
     <div className="flex-1 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-center p-8">
       <div className="max-w-md">
-        {isLoading && <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mx-auto mb-4" />}
+        {isLoading && <Loader2 className="w-8 h-8 animate-spin text-[#002046] mx-auto mb-4" />}
         <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
         <p className="mt-2 text-sm text-slate-500">{message}</p>
         {onRetry && (
@@ -108,7 +108,7 @@ function ProjectAuditState({ title, message, onRetry, isLoading = false }) {
   return (
     <div className="flex-1 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-center p-8">
       <div className="max-w-md">
-        {isLoading && <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mx-auto mb-4" />}
+        {isLoading && <Loader2 className="w-8 h-8 animate-spin text-[#002046] mx-auto mb-4" />}
         <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
         <p className="mt-2 text-sm text-slate-500">{message}</p>
         {onRetry && (
@@ -1611,7 +1611,7 @@ export default function Projects() {
   if (isLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-[#002046]" />
       </div>
     );
   }
@@ -1645,7 +1645,7 @@ export default function Projects() {
           !hasValidProjectRoute ? (
             <PortfolioState title="Invalid project link" message="This project URL is not a valid Project Hub UUID." />
           ) : isProjectRouteLoading ? (
-            <div className="flex-1 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>
+            <div className="flex-1 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#002046]" /></div>
           ) : isProjectRouteError || !projectDetail ? (
             <PortfolioState title="Project not found" message="We could not load this project. It may have been removed or you may not have access." onRetry={retryProjectRoute} />
           ) : (
@@ -1744,7 +1744,7 @@ export default function Projects() {
                       type="button"
                       onClick={() => setProjectDetailsOpen(open => !open)}
                       aria-expanded={projectDetailsOpen}
-                      className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-600"
+                      className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-[#002046]"
                     >
                       Details <ChevronDown className={`w-3 h-3 transition-transform ${projectDetailsOpen ? 'rotate-180' : ''}`} />
                     </button>
@@ -1754,7 +1754,7 @@ export default function Projects() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span>Program: <button
                           onClick={() => projectDetail.program_id ? navigate(`/programs/${projectDetail.program_id}`) : navigate('/Projects?view=all_programs')}
-                          className="text-indigo-500 font-medium hover:text-indigo-700"
+                          className="text-[#002046] font-medium hover:text-[#002046]"
                         >{projectProgram?.name || 'Program'}</button></span>
                         <span>•</span>
                         <span>Portfolio: <span className="text-amber-600 font-medium">{projectPortfolio?.name || 'Unavailable'}</span></span>
@@ -1904,7 +1904,7 @@ export default function Projects() {
           !hasValidPortfolioRoute ? (
             <PortfolioState title="Invalid portfolio link" message="This portfolio URL is not a valid Project Hub UUID." />
           ) : isPortfolioRouteLoading ? (
-            <div className="flex-1 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>
+            <div className="flex-1 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#002046]" /></div>
           ) : isPortfolioRouteError || !portfolioDetail ? (
             <PortfolioState title="Portfolio not found" message="We could not load this portfolio. It may have been removed or you may not have access." onRetry={retryPortfolioRoute} />
           ) : (
@@ -1927,7 +1927,7 @@ export default function Projects() {
           !hasValidProgramRoute ? (
             <PortfolioState title="Invalid program link" message="This program URL is not a valid Project Hub UUID." />
           ) : isProgramRouteLoading ? (
-            <div className="flex-1 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>
+            <div className="flex-1 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#002046]" /></div>
           ) : isProgramRouteError || !programDetail ? (
             <PortfolioState title="Program not found" message="We could not load this program. It may have been removed or you may not have access." onRetry={retryProgramRoute} />
           ) : (
@@ -1967,7 +1967,7 @@ export default function Projects() {
           ) : accountProgramsProjectsError ? (
             <PortfolioState title="Programs could not load" message="We could not load programs for this account." onRetry={refetchAccountProgramsProjects} />
           ) : loadingAccountProgramsProjects ? (
-            <div className="flex-1 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>
+            <div className="flex-1 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#002046]" /></div>
           ) : (
           <ProgramsLanding
             programs={scoped.programs}

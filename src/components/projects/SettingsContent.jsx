@@ -118,7 +118,7 @@ function RAIDStatusEditor({ label, optionSet, onCreateValue, onUpdateValue, onDe
             {!optionSet && <p className="text-xs text-slate-400">This list isn’t set up for the account.</p>}
             {optionSet && !isLoading && !isError && statusRows.map((s, idx) => (
               <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 rounded-full text-xs text-slate-700">
-                <button onClick={() => startEditing(s)} disabled={!optionSet?.id || isSystemValue(s) || isMutating} className={cn(optionSet?.id && !isSystemValue(s) && !isMutating && 'hover:text-indigo-600')}>
+                <button onClick={() => startEditing(s)} disabled={!optionSet?.id || isSystemValue(s) || isMutating} className={cn(optionSet?.id && !isSystemValue(s) && !isMutating && 'hover:text-[#002046]')}>
                   {s.label || s.value || s}
                 </button>
                 {isSystemValue(s) && <span className="text-[9px] uppercase text-slate-300">system</span>}
@@ -136,7 +136,7 @@ function RAIDStatusEditor({ label, optionSet, onCreateValue, onUpdateValue, onDe
               </div>
               <div className="flex justify-end gap-2">
                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditingValue(null)} disabled={isMutating}>Cancel</Button>
-                <Button size="sm" className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700" onClick={saveEditing} disabled={isMutating || !editingValue.label?.trim()}>
+                <Button size="sm" className="h-7 text-xs bg-[#002046] hover:bg-[#003070]" onClick={saveEditing} disabled={isMutating || !editingValue.label?.trim()}>
                   {isMutating ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}Save
                 </Button>
               </div>
@@ -184,7 +184,7 @@ function SpecificDatesCalendar({ holidays = [], onCreate, onUpdate, onDelete, is
           <p className="text-sm font-medium text-slate-800">Specific Non-Working Dates</p>
           <p className="text-xs text-slate-400 mt-0.5">
             Select holidays or company days off for {currentYear}–{currentYear + 1}
-            {holidays.length > 0 && <span className="ml-2 text-indigo-600 font-medium">({holidays.length} selected)</span>}
+            {holidays.length > 0 && <span className="ml-2 text-[#002046] font-medium">({holidays.length} selected)</span>}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -254,7 +254,7 @@ function SpecificDatesCalendar({ holidays = [], onCreate, onUpdate, onDelete, is
           </label>
           <div className="flex justify-end gap-2">
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={closeForm} disabled={isMutating}>Cancel</Button>
-            <Button size="sm" className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700" onClick={submitForm} disabled={isMutating || !form.date || !form.name?.trim()}>
+            <Button size="sm" className="h-7 text-xs bg-[#002046] hover:bg-[#003070]" onClick={submitForm} disabled={isMutating || !form.date || !form.name?.trim()}>
               {isMutating ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}{form.id ? 'Save' : 'Add Holiday'}
             </Button>
           </div>
@@ -556,7 +556,7 @@ export default function SettingsContent() {
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">General</p>
             {isSavingGeneralSettings && (
-              <span className="inline-flex items-center gap-1 text-xs text-indigo-500">
+              <span className="inline-flex items-center gap-1 text-xs text-[#002046]">
                 <Loader2 className="w-3 h-3 animate-spin" /> Saving...
               </span>
             )}
@@ -612,7 +612,7 @@ export default function SettingsContent() {
             {DEFAULT_TASK_VIEW_OPTIONS.map(opt => (
               <button key={opt.value} onClick={() => { setDefaultTaskView(opt.value); save('app_default_task_view', opt.value); }}
                 className={cn('px-3 py-2 rounded-lg border-2 text-xs font-medium text-center transition-all',
-                  defaultTaskView === opt.value ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300')}>
+                  defaultTaskView === opt.value ? 'border-indigo-400 bg-indigo-50 text-[#002046]' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300')}>
                 {opt.label}
               </button>
             ))}
@@ -626,7 +626,7 @@ export default function SettingsContent() {
             <p className="text-xs text-slate-400 mt-0.5">Removes the Delivery category (including Sprints and Test Cases) from the sidebar</p>
           </div>
           <button disabled={isSavingGeneralSettings} onClick={() => { const v = !hideDelivery; applyGeneralSetting({ hide_delivery_section: v }, () => setHideDelivery(v)); }}
-            className={cn('w-10 h-5 rounded-full transition-colors relative flex-shrink-0', hideDelivery ? 'bg-indigo-600' : 'bg-slate-200', isSavingGeneralSettings && 'opacity-60 cursor-not-allowed')}>
+            className={cn('w-10 h-5 rounded-full transition-colors relative flex-shrink-0', hideDelivery ? 'bg-[#002046]' : 'bg-slate-200', isSavingGeneralSettings && 'opacity-60 cursor-not-allowed')}>
             <span className={cn('absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform', hideDelivery ? 'translate-x-5' : 'translate-x-0.5')} />
           </button>
         </div>
@@ -646,7 +646,7 @@ export default function SettingsContent() {
             {DAYS.map(({ v, l }) => (
               <button key={v} onClick={() => toggleDay(v)}
                 className={cn('flex-1 py-2 rounded-lg border text-xs font-medium transition-colors',
-                  nonWorkingDays.includes(v) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}>
+                  nonWorkingDays.includes(v) ? 'bg-[#002046] border-[#002046] text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}>
                 {l}
               </button>
             ))}

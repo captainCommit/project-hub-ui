@@ -22,9 +22,10 @@ export const taskHoursFor = (t, name) => {
 
 /**
  * Per person: weekly hours on each project (task hours spread over the project's length), non-project hours,
- * and the weekly total. { [full_name]: { projects: [{ id, name, weekly }], weekly, nonProject } }
+ * and the weekly total. { [full_name]: { projects: [{ id, name, weekly, derived, overridden }], projectWeekly, weekly, nonProject } }
+ * overrides (see useAllocationOverrides) replace the task-derived hours for a person on a project.
  */
-export function computeResourceWeekly(resources, tasks, projects) {
+export function computeResourceWeekly(resources, tasks, projects, overrides = undefined) {
   const map = {};
   resources.forEach(r => {
     const name = r.full_name;
@@ -42,10 +43,13 @@ export function computeResourceWeekly(resources, tasks, projects) {
         const end = parseISO(proj.end_date);
         if (isValid(start) && isValid(end)) weeks = Math.max(1, (end - start) / (1000 * 60 * 60 * 24)) / 7;
       }
-      return { id: pid, name: proj.name, weekly: hours / weeks };
+      const derived = hours / weeks;
+      const override = overrides?.get(`${r.id}:${pid}`);
+      return { id: pid, name: proj.name, weekly: override ?? derived, derived, overridden: override !== undefined };
     }).filter(Boolean);
     const nonProject = Number(r.non_project_hours) || 0;
-    map[name] = { projects: projectsList, weekly: projectsList.reduce((s, p) => s + p.weekly, 0) + nonProject, nonProject };
+    const projectWeekly = projectsList.reduce((s, p) => s + p.weekly, 0);
+    map[name] = { projects: projectsList, projectWeekly, weekly: projectWeekly + nonProject, nonProject };
   });
   return map;
 }

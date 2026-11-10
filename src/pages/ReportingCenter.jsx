@@ -186,7 +186,7 @@ export default function ReportingCenter() {
             </div>
             {report && (
               <div className="pb-2">
-                <Pill tone={OVERALL_TONES[report.overall.key] || 'grey'} className="px-3 py-1.5 text-[13px]" icon={AlertTriangle}>Overall Status: {report.overall.label}</Pill>
+                <Pill tone={OVERALL_TONES[report.overall.key] || 'grey'} className="px-3 py-1.5 text-[13px]" icon={<AlertTriangle className="w-3.5 h-3.5" />}>Overall Status: {report.overall.label}</Pill>
               </div>
             )}
           </div>

@@ -29,11 +29,12 @@ const segmentColor = (key) => SEGMENT_COLORS[key] || '#CBD5E1';
 function Tile({ icon: Icon, tone, value, label }) {
   const colors = TONES[tone];
   return (
-    <div className="rounded-xl px-4 py-3.5 flex items-center gap-3 min-w-0" style={{ backgroundColor: colors.bg }}>
+    // Below 2xl the tiles are narrow, so the icon sits above the text and the label wraps on whole words.
+    <div className="rounded-xl px-4 py-3.5 flex flex-col items-start gap-1.5 2xl:flex-row 2xl:items-center 2xl:gap-3 min-w-0" style={{ backgroundColor: colors.bg }}>
       <Icon className="w-6 h-6 flex-shrink-0" style={{ color: colors.fg }} />
       <div className="min-w-0">
         <p className="text-2xl font-bold leading-tight truncate" style={{ color: NAVY }}>{value}</p>
-        <p className="text-[13px] truncate" style={{ color: NAVY }}>{label}</p>
+        <p className="text-[13px] leading-snug" style={{ color: NAVY }}>{label}</p>
       </div>
     </div>
   );

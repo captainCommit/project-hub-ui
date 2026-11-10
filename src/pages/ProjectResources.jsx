@@ -100,7 +100,7 @@ function AllocationPanel({ resource, weekly, onSet, onReset, onClose }) {
     ['Utilization', utilization === null ? '—' : `${utilization}%`],
   ];
   return (
-    <aside className="w-[460px] flex-shrink-0 bg-white border-l border-slate-200 flex flex-col overflow-hidden">
+    <aside className="w-[400px] 2xl:w-[460px] flex-shrink-0 bg-white border-l border-slate-200 flex flex-col overflow-hidden">
       <div className="flex items-start gap-3 px-5 pt-5 pb-3">
         <div className="flex-1 min-w-0">
           <h2 className="text-xl font-bold truncate" style={{ color: NAVY }}>{resource.full_name}</h2>
@@ -126,10 +126,12 @@ function AllocationPanel({ resource, weekly, onSet, onReset, onClose }) {
                   <tr>
                     <th className="text-left px-3 py-2 font-semibold">Project ({weekly.projects.length})</th>
                     <th className="text-left px-2 py-2 font-semibold whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1">Task-Derived (hrs/wk) <InfoTip className="w-3.5 h-3.5 text-white/80">Task hours spread evenly over the length of the project.</InfoTip></span>
+                      <span className="inline-flex items-center gap-1">Task-Derived <InfoTip className="w-3.5 h-3.5 text-white/80">Task hours spread evenly over the length of the project.</InfoTip></span>
+                      <span className="block text-[11px] font-normal text-white/80">hrs/wk</span>
                     </th>
                     <th className="text-left px-2 py-2 font-semibold whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1">Allocation (hrs/wk) <InfoTip className="w-3.5 h-3.5 text-white/80">The hours to plan with. Starts at the task-derived figure; change it to override.</InfoTip></span>
+                      <span className="inline-flex items-center gap-1">Allocation <InfoTip className="w-3.5 h-3.5 text-white/80">The hours to plan with. Starts at the task-derived figure; change it to override.</InfoTip></span>
+                      <span className="block text-[11px] font-normal text-white/80">hrs/wk</span>
                     </th>
                   </tr>
                 </thead>
@@ -473,6 +475,9 @@ export default function ProjectResources({
   );
 
   const panelResource = panelResourceId ? resources.find(r => r.id === panelResourceId) : null;
+  // Beside the allocation panel the table drops Department and the row actions so Utilization stays in view.
+  // Editing or adding a row needs every column, so it shows them all again.
+  const compactTable = Boolean(panelResource) && !editingId && !newRow;
   const shareOf = (key) => (stats.total ? Math.round(stats.counts[key] / stats.total * 100) : 0);
 
   return (
@@ -602,15 +607,17 @@ export default function ProjectResources({
           </div>
 
           <div className={`${CARD} overflow-x-auto`}>
-              <table className="w-full text-sm" style={{ minWidth: '1000px' }}>
+              <table className="w-full text-sm" style={{ minWidth: panelResource ? undefined : '1000px' }}>
                 <thead className="bg-[#002046] [&_th]:text-white">
                   <tr>
                     <th className="text-left px-4 py-3 text-[13px] font-semibold">
                       <span className="flex items-center gap-1">Resource <SortIcon col="full_name" /></span>
                     </th>
-                    <th className="text-left px-3 py-3 text-[13px] font-semibold">
-                      <span className="flex items-center gap-1">Department <SortIcon col="department" /></span>
-                    </th>
+                    {!compactTable && (
+                      <th className="text-left px-3 py-3 text-[13px] font-semibold">
+                        <span className="flex items-center gap-1">Department <SortIcon col="department" /></span>
+                      </th>
+                    )}
                     <th className="text-left px-3 py-3 text-[13px] font-semibold">
                       <span className="flex items-center gap-1">Weekly Capacity <SortIcon col="weekly_capacity" /></span>
                     </th>
@@ -635,15 +642,15 @@ export default function ProjectResources({
                         </span>
                       </th>
                     ))}
-                    <th className="px-2 py-3 w-24"></th>
+                    {!compactTable && <th className="px-2 py-3 w-24"></th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {!selectedAccountId && <tr><td colSpan={8 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">Select an account to view resources.</td></tr>}
-                  {selectedAccountId && isLoading && <tr><td colSpan={8 + customColumns.length} className="text-center py-8 text-slate-400 text-xs">Loading resources...</td></tr>}
-                  {selectedAccountId && isError && <tr><td colSpan={8 + customColumns.length} className="text-center py-8 text-xs"><div className="flex flex-col items-center gap-2 text-slate-500"><span>{error?.message || 'Unable to load resources.'}</span><Button size="sm" variant="outline" onClick={() => refetch()}>Retry</Button></div></td></tr>}
-                  {selectedAccountId && !isLoading && !isError && resources.length === 0 && !newRow && <tr><td colSpan={8 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">No resources yet. Click "New Resource" to get started.</td></tr>}
-                  {selectedAccountId && !isLoading && resources.length > 0 && dirResources.length === 0 && <tr><td colSpan={8 + customColumns.length} className="text-center py-10 text-slate-400 text-xs">No resources match your filters.</td></tr>}
+                  {!selectedAccountId && <tr><td colSpan={(compactTable ? 6 : 8) + customColumns.length} className="text-center py-10 text-slate-400 text-xs">Select an account to view resources.</td></tr>}
+                  {selectedAccountId && isLoading && <tr><td colSpan={(compactTable ? 6 : 8) + customColumns.length} className="text-center py-8 text-slate-400 text-xs">Loading resources...</td></tr>}
+                  {selectedAccountId && isError && <tr><td colSpan={(compactTable ? 6 : 8) + customColumns.length} className="text-center py-8 text-xs"><div className="flex flex-col items-center gap-2 text-slate-500"><span>{error?.message || 'Unable to load resources.'}</span><Button size="sm" variant="outline" onClick={() => refetch()}>Retry</Button></div></td></tr>}
+                  {selectedAccountId && !isLoading && !isError && resources.length === 0 && !newRow && <tr><td colSpan={(compactTable ? 6 : 8) + customColumns.length} className="text-center py-10 text-slate-400 text-xs">No resources yet. Click "New Resource" to get started.</td></tr>}
+                  {selectedAccountId && !isLoading && resources.length > 0 && dirResources.length === 0 && <tr><td colSpan={(compactTable ? 6 : 8) + customColumns.length} className="text-center py-10 text-slate-400 text-xs">No resources match your filters.</td></tr>}
                   {dirResources.map(r => {
                     const rw = resourceWeekly[r.full_name] || { projects: [], weekly: 0 };
                     const pctAlloc = pctOf(r);
@@ -676,7 +683,7 @@ export default function ProjectResources({
                               <p className="font-semibold" style={{ color: NAVY }}>{r.full_name}</p>
                               <p className="text-xs text-slate-400">{r.role || 'No role set'}</p>
                             </td>
-                            <td className="px-3 py-2.5 text-slate-600">{r.department || '—'}</td>
+                            {!compactTable && <td className="px-3 py-2.5 text-slate-600">{r.department || '—'}</td>}
                             <td className="px-3 py-2.5 text-slate-600">{r.weekly_capacity != null ? `${r.weekly_capacity} hrs` : '—'}</td>
                             <td className="px-3 py-2.5">
                               <button type="button" onClick={() => setPanelResourceId(r.id)} className="flex items-center gap-2 text-left">
@@ -702,7 +709,7 @@ export default function ProjectResources({
                               <span className="ml-1.5 text-xs text-slate-500">{allocationMode === 'hours' ? 'hrs' : '%'}</span>
                             </td>
                             <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">{shownAllocation(rw.weekly, r.weekly_capacity)}</td>
-                            <td className="px-3 py-2.5 min-w-[120px]">
+                            <td className="px-3 py-2.5 min-w-[96px]">
                               {pctAlloc != null ? (
                                 <>
                                   <span className="block font-semibold" style={{ color: healthOf(pctAlloc).color }}>{pctAlloc}%</span>
@@ -713,13 +720,13 @@ export default function ProjectResources({
                               ) : '—'}
                             </td>
                             {customColumns.map(col => <td key={col.key} className="px-3 py-2.5 text-slate-500">{r[col.key] || '—'}</td>)}
-                            <td className="px-3 py-2.5">
+                            {!compactTable && <td className="px-3 py-2.5">
                               <div className="flex items-center gap-1 justify-end">
                                 <button onClick={() => handleStartEdit(r)} aria-label={`Edit ${r.full_name}`} className="p-1.5 text-slate-300 hover:text-slate-500 hover:bg-slate-100 rounded opacity-0 group-hover:opacity-100"><Edit2 className="w-3 h-3" /></button>
                                 <button onClick={() => remove.mutate(r.id)} aria-label={`Delete ${r.full_name}`} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100"><Trash2 className="w-3 h-3" /></button>
                                 <button onClick={() => setPanelResourceId(r.id)} aria-label={`Open allocation for ${r.full_name}`} className="p-1 rounded hover:bg-slate-100"><ChevronRight className="w-4 h-4" style={{ color: NAVY }} /></button>
                               </div>
-                            </td>
+                            </td>}
                           </>
                         )}
                       </tr>

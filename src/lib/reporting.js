@@ -55,7 +55,6 @@ const SPRINT_ACTIVE = new Set(['active', 'in_progress']);
 const SPRINT_CANCELLED = new Set(['cancelled', 'canceled']);
 
 const GOVERNANCE_CLOSED = new Set(['approved', 'cancelled', 'deferred', 'implemented', 'closed', 'rejected', 'declined']);
-const GOVERNANCE_PENDING = new Set(['in_review', 'open', 'pending', 'submitted']);
 // Listed even at zero, so a report always shows the whole lifecycle.
 const DECISION_STATUSES = ['in_review', 'approved', 'cancelled', 'deferred'];
 const CHANGE_STATUSES = ['in_review', 'approved', 'implemented', 'cancelled', 'deferred'];
@@ -193,7 +192,7 @@ export function buildReport({
   const openGovernance = [...decisionRows, ...changeRows].filter(row => !GOVERNANCE_CLOSED.has(row.status));
   const governanceCounts = (rows) => ({
     approved: rows.filter(r => r.status === 'approved').length,
-    pending: rows.filter(r => GOVERNANCE_PENDING.has(r.status)).length,
+    pending: rows.filter(r => r.status === 'in_review').length,
   });
 
   // Delivery

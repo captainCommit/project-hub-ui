@@ -175,10 +175,10 @@ export function StatusView({ report }) {
         <Tile icon={Scale} tone="purple" value={status.governance.length} label="Open governance" />
         <Tile icon={Flag} tone="amber" value={status.milestones.length} label="Key deliverables" />
       </div>
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
         <ExpandableTaskCard icon={CheckCircle2} title="Tasks Completed This Period" rows={status.completed} dateLabel="Completed" groupLabel={group} noun="completed tasks" />
         <ExpandableTaskCard icon={Calendar} title="Tasks Coming Up Next Period" rows={status.upcoming} dateLabel="Due" groupLabel={group} noun="upcoming tasks" />
-        <SectionCard icon={AlertTriangle} title={`RAID Summary (${status.raid.length} Open)`}>
+        <SectionCard icon={AlertTriangle} title={`RAID Summary (${status.raid.length} Open)`} className="2xl:col-span-2">
           <ReportTable groupLabel={group} empty="No open RAID items." rows={status.raid.slice(0, SHORT_LIST)} columns={[
             { key: 'number', label: 'ID', className: 'whitespace-nowrap' },
             { key: 'type', label: 'Type' },
@@ -189,7 +189,7 @@ export function StatusView({ report }) {
           ]} />
           <FooterLink to="/RiskLog">View RAID register</FooterLink>
         </SectionCard>
-        <SectionCard icon={Scale} title={`Governance Summary (${status.governance.length} Open)`}>
+        <SectionCard icon={Scale} title={`Governance Summary (${status.governance.length} Open)`} className="2xl:col-span-2">
           <ReportTable groupLabel={group} empty="No open decisions or changes." rows={status.governance.slice(0, SHORT_LIST)} columns={[
             { key: 'number', label: 'ID', className: 'whitespace-nowrap' },
             { key: 'type', label: 'Type' },

@@ -268,7 +268,7 @@ export default function RiskLog() {
           <SimpleRaidSheet
             entityType="Assumption"
             queryKey={['assumptions']}
-            idPrefix="AL"
+            idPrefix="A"
             idField="assumption_id"
             idStart={1}
             noun="Assumption"

@@ -259,7 +259,7 @@ export default function ReportingCenter() {
           <div className="flex items-center gap-2 border-t border-slate-200 p-4">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button disabled={!report || Boolean(exporting)} className="flex-1 text-white hover:opacity-90" style={{ backgroundColor: ORANGE }}>
+                <Button disabled={!report || Boolean(exporting)} className="flex-1 min-w-0 px-3 text-[13px] text-white hover:opacity-90" style={{ backgroundColor: ORANGE }}>
                   {exporting ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <FileText className="w-4 h-4 mr-1.5" />} Generate Report <ChevronDown className="w-4 h-4 ml-1" />
                 </Button>
               </DropdownMenuTrigger>
@@ -269,7 +269,7 @@ export default function ReportingCenter() {
                 <DropdownMenuItem onClick={() => generate('xlsx')}><FileSpreadsheet className="w-4 h-4 mr-2 text-green-600" /> Excel</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button variant="outline" disabled={!report} onClick={() => setTemplateDialogOpen(true)} style={{ color: NAVY }}>Save Template</Button>
+            <Button variant="outline" disabled={!report} onClick={() => setTemplateDialogOpen(true)} className="flex-shrink-0 px-3 text-[13px]" style={{ color: NAVY }}>Save Template</Button>
           </div>
         </aside>
       )}

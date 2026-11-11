@@ -36,10 +36,6 @@ export default function GanttChart({
   enableScheduleEditing = false,
   pendingTaskIds = {},
   onTaskScheduleChange,
-  enableDependencyEditing = false,
-  dependencyPendingTaskIds = {},
-  onAddDependency,
-  onRemoveDependency,
   // task -> how many critical-priority RAID items it is linked to (Related Record on the sheet); shown on critical bars.
   getCriticalRaidCount = undefined,
 }) {
@@ -276,32 +272,6 @@ export default function GanttChart({
   }, [tasks]);
 
   const predecessorIdsForTask = (task) => Array.isArray(task.predecessors) ? task.predecessors : [];
-  const predecessorLinksForTask = (task) => Array.isArray(task.predecessor_links) ? task.predecessor_links : [];
-
-  const wouldCreateCircularDependency = (successorTaskId, candidatePredecessorTaskId) => {
-    const visit = (taskId, seen = new Set()) => {
-      if (taskId === successorTaskId) return true;
-      if (seen.has(taskId)) return false;
-      seen.add(taskId);
-
-      const task = taskById.get(taskId);
-      return predecessorIdsForTask(task).some(predecessorTaskId => visit(predecessorTaskId, seen));
-    };
-
-    return visit(candidatePredecessorTaskId);
-  };
-
-  const getDependencyCandidates = (task) => {
-    const existingPredecessors = new Set(predecessorIdsForTask(task));
-    const descendants = descendantIdsByTaskId.get(task.id) || new Set();
-
-    return tasks.filter(candidate => (
-      candidate.id !== task.id &&
-      !existingPredecessors.has(candidate.id) &&
-      !descendants.has(candidate.id) &&
-      !wouldCreateCircularDependency(task.id, candidate.id)
-    ));
-  };
 
   // Critical path: work tasks with no slack. Walking back from the project's last finish date through the
   // predecessor links, a task is critical when the latest it could finish without moving that date is its
@@ -384,10 +354,6 @@ export default function GanttChart({
     const totalRowWidth = TASK_NAME_COL_W + columns.length * cw;
     const isScheduleEditable = isTaskScheduleEditable(task);
     const isPending = Boolean(pendingTaskIds?.[task.id]);
-    const isDependencyEditable = enableDependencyEditing && typeof onAddDependency === 'function' && typeof onRemoveDependency === 'function';
-    const isDependencyPending = Boolean(dependencyPendingTaskIds?.[task.id]);
-    const dependencyCandidates = isDependencyEditable && !isDependencyPending ? getDependencyCandidates(task) : [];
-    const predecessorLinks = predecessorLinksForTask(task);
 
     return (
       <React.Fragment key={task.id}>
@@ -408,46 +374,6 @@ export default function GanttChart({
               {task.title}
             </span>
             {isCritical && showCriticalPath && <Zap className="w-3 h-3 text-red-500 flex-shrink-0" />}
-            {isDependencyEditable && (
-              <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                {predecessorLinks.map(link => {
-                  const predecessorTask = taskById.get(link.predecessor_task_id);
-                  return (
-                    <button
-                      key={link.id || link.predecessor_task_id}
-                      type="button"
-                      disabled={isDependencyPending || !link.id}
-                      title={link.id ? `Remove predecessor: ${predecessorTask?.title || link.predecessor_task_id}` : 'This dependency cannot be removed until it is refreshed from the server.'}
-                      className="px-1.5 py-0.5 rounded border border-slate-200 bg-white text-[10px] text-slate-500 hover:text-red-600 hover:border-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (link.id) onRemoveDependency(task.id, link.id);
-                      }}
-                    >
-                      × {predecessorTask?.title || 'Pred'}
-                    </button>
-                  );
-                })}
-                <select
-                  value=""
-                  disabled={isDependencyPending || dependencyCandidates.length === 0}
-                  title={dependencyCandidates.length === 0 ? 'No valid predecessor candidates' : 'Add predecessor'}
-                  className="max-w-[94px] rounded border border-slate-200 bg-white px-1 py-0.5 text-[10px] text-slate-500 disabled:opacity-50"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onChange={(e) => {
-                    const predecessorTaskId = e.target.value;
-                    e.target.value = '';
-                    if (predecessorTaskId) onAddDependency(task.id, predecessorTaskId);
-                  }}
-                >
-                  <option value="">+ Pred</option>
-                  {dependencyCandidates.map(candidate => (
-                    <option key={candidate.id} value={candidate.id}>{candidate.title}</option>
-                  ))}
-                </select>
-              </div>
-            )}
           </div>
 
           {/* Timeline bars */}

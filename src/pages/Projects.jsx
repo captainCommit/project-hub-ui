@@ -279,7 +279,6 @@ export default function Projects() {
   const [pendingProjectSheetHierarchyTaskIds, setPendingProjectSheetHierarchyTaskIds] = useState({});
   const [pendingProjectSheetPredecessorTaskIds, setPendingProjectSheetPredecessorTaskIds] = useState({});
   const [pendingProjectGanttScheduleTaskIds, setPendingProjectGanttScheduleTaskIds] = useState({});
-  const [pendingProjectGanttDependencyTaskIds, setPendingProjectGanttDependencyTaskIds] = useState({});
   const [deletingProjectSheetTaskIds, setDeletingProjectSheetTaskIds] = useState({});
   const [isReorderingProjectSheetTasks, setIsReorderingProjectSheetTasks] = useState(false);
   const pendingProjectSheetPriorityRequests = useRef(new Set());
@@ -287,7 +286,6 @@ export default function Projects() {
   const pendingProjectSheetPredecessorRequests = useRef(new Set());
   const pendingProjectGanttScheduleTaskRequests = useRef(new Set());
   const pendingProjectGanttScheduleRequests = useRef(new Set());
-  const pendingProjectGanttDependencyRequests = useRef(new Set());
   const deletingProjectSheetTaskRequests = useRef(new Set());
   const pendingProjectSheetReorderRequest = useRef(null);
 
@@ -945,28 +943,6 @@ export default function Projects() {
     },
   });
 
-  const addProjectGanttTaskPredecessor = useMutation({
-    mutationFn: ({ id, predecessorTaskId }) => tasksApi.addPredecessor(id, { predecessor_task_id: predecessorTaskId }),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['project-gantt', projectId] }),
-        queryClient.invalidateQueries({ queryKey: ['project-task-tree', projectId] }),
-        queryClient.invalidateQueries({ queryKey: ['project-overview', projectId] }),
-      ]);
-    },
-  });
-
-  const deleteProjectGanttTaskPredecessor = useMutation({
-    mutationFn: ({ id, predecessorId }) => tasksApi.deletePredecessor(id, predecessorId),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['project-gantt', projectId] }),
-        queryClient.invalidateQueries({ queryKey: ['project-task-tree', projectId] }),
-        queryClient.invalidateQueries({ queryKey: ['project-overview', projectId] }),
-      ]);
-    },
-  });
-
   const updateProjectBoardTaskPosition = useMutation({
     mutationFn: ({ id, data }) => tasksApi.updateBoardPosition(id, mapTaskBoardPositionToPayload(data)),
     onMutate: ({ id, data }) => {
@@ -1484,46 +1460,6 @@ export default function Projects() {
     }
   };
 
-  const handleProjectGanttDependencyChange = async (id, requestKey, mutationRunner) => {
-    if (!projectId || !id || !isProjectGanttRoute) return;
-    if (pendingProjectGanttDependencyRequests.current.has(requestKey)) return;
-    if (pendingProjectGanttDependencyTaskIds[id]) return;
-
-    pendingProjectGanttDependencyRequests.current.add(requestKey);
-    setPendingProjectGanttDependencyTaskIds(prev => ({ ...prev, [id]: true }));
-
-    try {
-      await mutationRunner();
-    } catch (error) {
-      toastError(getBackendSafeMessage(error, 'We could not update this task dependency. Please try again.'));
-    } finally {
-      pendingProjectGanttDependencyRequests.current.delete(requestKey);
-      setPendingProjectGanttDependencyTaskIds(prev => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-    }
-  };
-
-  const handleAddProjectGanttTaskPredecessor = (id, predecessorTaskId) => {
-    if (!id || !predecessorTaskId) return;
-    return handleProjectGanttDependencyChange(
-      id,
-      `${id}:add:${predecessorTaskId}`,
-      () => addProjectGanttTaskPredecessor.mutateAsync({ id, predecessorTaskId })
-    );
-  };
-
-  const handleRemoveProjectGanttTaskPredecessor = (id, predecessorId) => {
-    if (!id || !predecessorId) return;
-    return handleProjectGanttDependencyChange(
-      id,
-      `${id}:delete:${predecessorId}`,
-      () => deleteProjectGanttTaskPredecessor.mutateAsync({ id, predecessorId })
-    );
-  };
-
   const handleRenameItem = (id, newName, type) => {
     if (type === 'program') {
       updateProgram.mutate({ id, data: { name: newName } });
@@ -1876,10 +1812,6 @@ export default function Projects() {
                     enableScheduleEditing={canEditProjectTasks}
                     pendingTaskIds={pendingProjectGanttScheduleTaskIds}
                     onTaskScheduleChange={handleUpdateProjectGanttTaskSchedule}
-                    enableDependencyEditing={canEditProjectTasks}
-                    dependencyPendingTaskIds={pendingProjectGanttDependencyTaskIds}
-                    onAddDependency={handleAddProjectGanttTaskPredecessor}
-                    onRemoveDependency={handleRemoveProjectGanttTaskPredecessor}
                     expandedTasks={expandedTasks}
                     onToggleExpand={handleToggleExpand}
                     getCriticalRaidCount={(task) => criticalRaidCount(task, relatedRecordIndex)}

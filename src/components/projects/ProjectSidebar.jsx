@@ -105,9 +105,12 @@ export default function ProjectSidebar(/** @type {any} */ {
   // Selected items get a grey highlight, bold text and icon stroke, and an orange left border.
   const activeBar = 'bg-[#E2E8F0] font-bold nav-selected border-l-[3px] border-l-[#c87b14]';
   const navEdge = 'border-l-[3px] border-l-transparent';
-  const itemClass = (/** @type {boolean} */ active) => cn(
+  // Extra classes go before the bold so an item's font-medium cannot override the selected state.
+  const itemClass = (/** @type {boolean} */ active, /** @type {string} */ extra = '') => cn(
     'w-full flex items-center gap-2 px-2 py-1.5 text-[13px] rounded-md transition-colors text-[#002046]',
     active ? activeBar : cn(navEdge, 'hover:bg-slate-100'),
+    extra,
+    active && 'font-bold',
   );
   const collapsedClass = (/** @type {boolean} */ active) => cn('p-2 rounded-lg', active ? 'bg-[#E2E8F0] nav-selected text-[#64748B]' : 'hover:bg-slate-100 text-[#64748B]');
 
@@ -125,7 +128,7 @@ export default function ProjectSidebar(/** @type {any} */ {
   const IconNavLink = (/** @type {{ href: string, icon: any, label: string, className?: string }} */ { href, icon, label, className = '' }) => {
     const NavIcon = icon;
     return (
-      <Link to={href} className={cn(itemClass(isPageActive(href)), className)}>
+      <Link to={href} className={itemClass(isPageActive(href), className)}>
         <NavIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: MUTED }} />{label}
       </Link>
     );
@@ -203,24 +206,24 @@ export default function ProjectSidebar(/** @type {any} */ {
       <div ref={scrollRef} data-tour="sidebar-nav" className="flex-1 px-2 py-3 overflow-y-auto">
 
         {/* Home */}
-        <Link to="/" className={cn(itemClass(pathname === '/'), 'mb-1 font-medium')}>
+        <Link to="/" className={itemClass(pathname === '/', 'mb-1 font-medium')}>
           <HomeIcon className="w-3.5 h-3.5" style={{ color: MUTED }} /> Home
         </Link>
 
         {/* Portfolios */}
-        <Link to="/Projects?view=all_portfolios" className={cn(itemClass(portfoliosActive), 'mb-1 font-medium')}>
+        <Link to="/Projects?view=all_portfolios" className={itemClass(portfoliosActive, 'mb-1 font-medium')}>
           <Building2 className="w-3.5 h-3.5 flex-shrink-0" style={{ color: MUTED }} />
           <span className="flex-1 text-left">Portfolios</span>
         </Link>
 
         {/* Programs */}
-        <Link to="/Projects?view=all_programs" className={cn(itemClass(programsActive), 'mb-1 font-medium')}>
+        <Link to="/Projects?view=all_programs" className={itemClass(programsActive, 'mb-1 font-medium')}>
           <FolderTree className="w-3.5 h-3.5 flex-shrink-0" style={{ color: MUTED }} />
           <span className="flex-1 text-left">Programs</span>
         </Link>
 
         {/* Projects */}
-        <Link to="/Projects?view=all_projects" className={cn(itemClass(projectsActive), 'mb-1 font-medium')}>
+        <Link to="/Projects?view=all_projects" className={itemClass(projectsActive, 'mb-1 font-medium')}>
           <Folder className="w-3.5 h-3.5 flex-shrink-0" style={{ color: MUTED }} />
           <span className="flex-1 text-left">Projects</span>
         </Link>
@@ -258,7 +261,7 @@ export default function ProjectSidebar(/** @type {any} */ {
 
         {/* Templates */}
         <div className="mb-1">
-          <Link to="/Projects?view=templates" className={cn(itemClass(directoryView === 'templates'), 'font-medium')}>
+          <Link to="/Projects?view=templates" className={itemClass(directoryView === 'templates', 'font-medium')}>
             <FileText className="w-3.5 h-3.5 flex-shrink-0" style={{ color: MUTED }} />
             <span className="flex-1 text-left">Templates</span>
           </Link>

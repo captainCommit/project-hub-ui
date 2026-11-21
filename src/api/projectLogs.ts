@@ -46,6 +46,8 @@ export const mapChangeRequestFromApi = (record: ApiRecord = {}) => ({
   proposed_by: record.proposed_by_name || '',
   proposed_date: dateOnly(record.proposed_date),
   related_record: record.related_record || '',
+  implementation_resources: Array.isArray(record.implementation_resources) ? record.implementation_resources : [],
+  completion_date: dateOnly(record.completion_date),
 });
 
 export const mapChangeRequestInputToPayload = (input: ApiRecord = {}) => buildPayload(input, {
@@ -56,6 +58,8 @@ export const mapChangeRequestInputToPayload = (input: ApiRecord = {}) => buildPa
   proposed_by: 'proposed_by_name',
   proposed_date: 'proposed_date',
   related_record: 'related_record',
+  implementation_resources: 'implementation_resources',
+  completion_date: 'completion_date',
 });
 
 export const mapRequirementFromApi = (record: ApiRecord = {}) => ({

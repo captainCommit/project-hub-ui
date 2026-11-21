@@ -191,6 +191,11 @@ export const mapResourceCalendar = (response: any, timeOffEntries: ApiResource[]
 };
 
 export const resourcesApi = {
+  listProjectAllocationOverrides: (accountId: string) => apiClient.get(`/api/v1/accounts/${accountId}/resource-project-allocations`) as Promise<ApiResource[]>,
+  /** weeklyHours null goes back to the hours worked out from the person's tasks. */
+  setProjectAllocation: (resourceId: string, projectId: string, weeklyHours: number | null) =>
+    apiClient.put(`/api/v1/resources/${resourceId}/project-allocations/${projectId}`, { weekly_hours: weeklyHours }),
+  resetProjectAllocations: (resourceId: string) => apiClient.delete(`/api/v1/resources/${resourceId}/project-allocations`),
   list: (accountId: string) => apiClient.get(`/api/v1/accounts/${accountId}/resources`),
   create: (accountId: string, data: unknown) => apiClient.post(`/api/v1/accounts/${accountId}/resources`, data),
   get: (resourceId: string) => apiClient.get(`/api/v1/resources/${resourceId}`),

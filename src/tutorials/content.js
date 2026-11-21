@@ -25,7 +25,7 @@ export const LESSONS = [
       {
         title: 'Find your way with the sidebar',
         image: 'welcome/sidebar',
-        body: 'Portfolios, Programs and Projects sit at the top. Delivery holds Requirements, Testing and Sprints; Controls holds RAID, Governance and Resources. Below them are Templates, Ask Compass (the AI assistant, when AI is turned on for your account) and this Help Center. The button next to the logo collapses the sidebar.',
+        body: 'Portfolios, Programs, Projects and the Reporting Center sit at the top. Delivery holds Requirements, Testing and Sprints; Controls holds RAID, Governance and Resources. Below them are Templates, Ask Compass (the AI assistant, when AI is turned on for your account) and this Help Center. The button next to the logo collapses the sidebar.',
       },
       {
         title: 'Search everything',

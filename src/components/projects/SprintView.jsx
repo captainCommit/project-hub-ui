@@ -2,10 +2,17 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { formatStoryId, sprintsApi } from '@/api/sprints';
 import { accountDataApi } from '@/api/accountData';
+import { tasksApi } from '@/api/tasks';
+import { mapIssueListFromApi, mapRiskListFromApi, raidApi } from '@/api/raid';
+import { raidEntityAdapters } from '@/api/raidEntities';
+import { buildRelatedRecordIndex, resolveRelatedRecords, RELATED_RECORD_ORDER, RELATED_RECORD_TYPES } from '@/lib/relatedRecords';
+import { useAccountRequirements } from '@/hooks/useAccountLookups';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { cn } from '@/lib/utils';
-import { Plus, Zap, Loader2, AlertCircle, ChevronLeft, ChevronRight, GripVertical, MoreHorizontal, MoreVertical, FilePlus2, Filter, List, Check } from 'lucide-react';
+import { Plus, Zap, Loader2, AlertCircle, AlertTriangle, ChevronLeft, ChevronRight, Flag, GripVertical, Link2, MoreHorizontal, MoreVertical, FilePlus2, Filter, List, Check, X } from 'lucide-react';
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +25,7 @@ import { addDays, differenceInCalendarDays, format } from 'date-fns';
 import { parseDate } from '@/lib/dateUtils';
 import { exportRecords } from '@/lib/exportUtils';
 import StarButton from '@/components/projects/StarButton';
-import { FilterSelect, NAVY, Pill, PrimaryButton, SearchInput } from '@/components/projects/DirectoryKit';
+import { FilterSelect, NAVY, Pill, PriorityPill, PrimaryButton, SearchInput } from '@/components/projects/DirectoryKit';
 
 // --- Weekday utils ---
 function getNonWorkingDays() {
@@ -217,20 +224,22 @@ function SprintStep({ sprint, index, selected, onSelect }) {
 /** One table of stories (the sprint's or the backlog's). Rows drag between the two. */
 const STORY_COLUMNS = [
   { key: 'id', label: 'ID' },
+  { key: 'requirement', label: 'Requirement ID' },
   { key: 'title', label: 'Title' },
   { key: 'priority', label: 'Priority' },
   { key: 'points', label: 'Story Points' },
   { key: 'status', label: 'Status' },
+  { key: 'raid', label: 'RAID' },
   { key: 'assignee', label: 'Assignee' },
 ];
 const ALL_STORY_COLUMNS = STORY_COLUMNS.map(c => c.key);
 
-function StoryTable({ stories, statusFor, actionsFor, onDragStart, onDragEnd, draggable, empty, columns = ALL_STORY_COLUMNS }) {
+function StoryTable({ stories, statusFor, actionsFor, renderRaid, renderRequirement, onDragStart, onDragEnd, draggable, empty, columns = ALL_STORY_COLUMNS }) {
   const show = (key) => columns.includes(key);
   const shownColumns = STORY_COLUMNS.filter(c => show(c.key));
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200">
-      <table className="w-full text-sm" style={{ minWidth: 760 }}>
+      <table className="w-full text-sm" style={{ minWidth: 1020 }}>
         <thead>
           <tr style={{ backgroundColor: NAVY }}>
             {[{ key: 'grip', label: '' }, { key: 'rank', label: '#' }, ...shownColumns, { key: 'actions', label: 'Actions' }].map(c => (
@@ -254,10 +263,12 @@ function StoryTable({ stories, statusFor, actionsFor, onDragStart, onDragEnd, dr
                 <td className="px-3 py-2.5 text-slate-400"><GripVertical className="w-4 h-4" /></td>
                 <td className="px-3 py-2.5 text-slate-500">{i + 1}</td>
                 {show('id') && <td className="px-3 py-2.5 whitespace-nowrap" style={{ color: NAVY }}>{formatStoryId(story.story_number) || '—'}</td>}
+                {show('requirement') && <td className="px-3 py-2.5 whitespace-nowrap">{renderRequirement(story)}</td>}
                 {show('title') && <td className="px-3 py-2.5" style={{ color: NAVY }}>{story.title || story.name}</td>}
                 {show('priority') && <td className="px-3 py-2.5">{story.priority ? <Pill tone={SPRINT_PRIORITY_TONES[story.priority] || 'grey'} className="rounded-md">{raidLabel(story.priority)}</Pill> : <span className="text-slate-400">—</span>}</td>}
                 {show('points') && <td className="px-3 py-2.5" style={{ color: NAVY }}>{story.story_points ?? '—'}</td>}
                 {show('status') && <td className="px-3 py-2.5"><Pill tone={status.tone}>{status.label}</Pill></td>}
+                {show('raid') && <td className="px-3 py-2.5">{renderRaid(story)}</td>}
                 {show('assignee') && <td className="px-3 py-2.5" style={{ color: NAVY }}>{story.assignee || '—'}</td>}
                 <td className="px-3 py-2.5 text-center">
                   <DropdownMenu>
@@ -273,6 +284,133 @@ function StoryTable({ stories, statusFor, actionsFor, onDragStart, onDragEnd, dr
         </tbody>
       </table>
     </div>
+  );
+}
+
+const RAID_LOOK = {
+  RISK: { label: 'Risk', icon: AlertTriangle, color: '#DC2626', card: 'border-red-200 bg-red-50/50' },
+  ISSUE: { label: 'Issue', icon: AlertCircle, color: '#c87b14', card: 'border-orange-200 bg-orange-50/50' },
+  ASSUMPTION: { label: 'Assumption', icon: Flag, color: '#002046', card: 'border-slate-200 bg-slate-50' },
+  DEPENDENCY: { label: 'Dependency', icon: Link2, color: '#2C80F4', card: 'border-blue-200 bg-blue-50/50' },
+};
+const RAID_LINK_TYPES = RELATED_RECORD_ORDER.filter(type => RELATED_RECORD_TYPES[type].raid);
+const statusWords = (value) => { const text = String(value || '—').replace(/_/g, ' '); return text.charAt(0).toUpperCase() + text.slice(1); };
+
+/** The RAID column: the story's linked items, or a + when it has none. Either opens the panel. */
+function RaidCell({ records, onOpen }) {
+  const open = (e) => { e.stopPropagation(); onOpen(); };
+  if (records.length === 0) {
+    return (
+      <button type="button" onClick={open} title="Link a RAID item" aria-label="Link a RAID item" className="w-6 h-6 rounded-full flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-500">
+        <Plus className="w-3.5 h-3.5" />
+      </button>
+    );
+  }
+  return (
+    <button type="button" onClick={open} className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-left hover:opacity-80" aria-label="View linked RAID items">
+      {records.map(r => {
+        const look = RAID_LOOK[r.type];
+        const Icon = look.icon;
+        return (
+          <span key={`${r.type}-${r.id}`} title={r.title} className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium" style={{ color: NAVY }}>
+            <Icon className="w-3.5 h-3.5" style={{ color: look.color }} />{r.number}
+          </span>
+        );
+      })}
+    </button>
+  );
+}
+
+/** Which requirement a story delivers, shown by its number and chosen from the project's requirements. */
+function RequirementCell({ story, requirements, onChange }) {
+  const current = requirements.find(r => r.id === story.requirement_id);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" className="hover:underline" style={{ color: NAVY }} title={current ? current.title : 'Link a requirement'}>
+          {current ? current.requirement_id : <span className="text-slate-400">—</span>}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-72 max-h-72 overflow-y-auto">
+        {requirements.length === 0 && <DropdownMenuItem disabled>No requirements in this project</DropdownMenuItem>}
+        {requirements.map(r => (
+          <DropdownMenuItem key={r.id} onClick={() => onChange(story, r.id)}>
+            <span className="font-mono text-xs mr-2 flex-shrink-0">{r.requirement_id}</span><span className="truncate">{r.title}</span>
+          </DropdownMenuItem>
+        ))}
+        {current && (<><DropdownMenuSeparator /><DropdownMenuItem onClick={() => onChange(story, null)}>Clear requirement</DropdownMenuItem></>)}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** Right-hand panel: the RAID items linked to one story. Create goes to the RAID page; Link Existing stays here. */
+function LinkedRaidPanel({ story, records, candidates, busy, onClose, onLink, onUnlink, onCreate }) {
+  const [linking, setLinking] = useState(false);
+  const [search, setSearch] = useState('');
+  useEffect(() => { setLinking(false); setSearch(''); }, [story?.id]);
+  const high = records.filter(r => r.priority === 'high' || r.priority === 'critical').length;
+  const query = search.trim().toLowerCase();
+  const shownCandidates = candidates.filter(c => `${c.number} ${c.title}`.toLowerCase().includes(query)).slice(0, 50);
+  return (
+    <Sheet open={Boolean(story)} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <SheetContent side="right" className="w-[440px] sm:max-w-[440px] flex flex-col gap-0 p-0">
+        <div className="px-5 pt-5 pb-3 border-b border-slate-200">
+          <SheetTitle className="text-xl font-bold pr-6" style={{ color: NAVY }}>Linked RAID Items</SheetTitle>
+          <SheetDescription className="text-sm truncate">{story ? `${formatStoryId(story.story_number)} · ${story.title || story.name}` : ''}</SheetDescription>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold" style={{ color: NAVY }}>{records.length} linked item{records.length === 1 ? '' : 's'}</p>
+            {high > 0 && <Pill tone="red">{high} High Priority</Pill>}
+          </div>
+          {records.length === 0 && !linking && <p className="text-sm text-slate-400 py-8 text-center">No RAID items are linked to this story yet.</p>}
+          {records.map(r => {
+            const look = RAID_LOOK[r.type];
+            const Icon = look.icon;
+            return (
+              <div key={`${r.type}-${r.id}`} className={cn('rounded-xl border p-3.5 space-y-2', look.card)}>
+                <div className="flex items-center gap-2">
+                  <Icon className="w-4 h-4 flex-shrink-0" style={{ color: look.color }} />
+                  <p className="text-sm font-bold flex-1 min-w-0 truncate" style={{ color: NAVY }}>{r.number} · {look.label}</p>
+                  {r.priority && <PriorityPill priority={r.priority} />}
+                  <button type="button" disabled={busy} onClick={() => onUnlink(r)} title="Unlink from this story" aria-label={`Unlink ${r.number}`} className="text-slate-400 hover:text-red-500 disabled:opacity-50"><X className="w-3.5 h-3.5" /></button>
+                </div>
+                <p className="text-sm" style={{ color: NAVY }}>{r.title}</p>
+                <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
+                  <span className="flex items-center gap-1">Status: <Pill tone="blue" className="!py-0">{statusWords(r.status)}</Pill></span>
+                  <span>Owner: <span style={{ color: NAVY }}>{r.owner || '—'}</span></span>
+                </div>
+                <p className="text-xs text-slate-500">Target: <span style={{ color: NAVY }}>{r.target_date ? shortDate(r.target_date) : '—'}</span></p>
+              </div>
+            );
+          })}
+          {linking && (
+            <div className="rounded-xl border border-slate-200 p-2">
+              <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search this project's RAID items..." className="h-8 text-xs" autoFocus />
+              <div className="mt-1 max-h-56 overflow-y-auto">
+                {shownCandidates.length === 0 && <p className="text-xs py-3 text-center text-slate-400">Nothing left to link.</p>}
+                {shownCandidates.map(c => {
+                  const look = RAID_LOOK[c.type];
+                  const Icon = look.icon;
+                  return (
+                    <button key={`${c.type}-${c.id}`} type="button" disabled={busy} onClick={() => onLink(c)} className="w-full flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-slate-50 disabled:opacity-50">
+                      <Icon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: look.color }} />
+                      <span className="font-mono flex-shrink-0" style={{ color: NAVY }}>{c.number}</span>
+                      <span className="truncate text-slate-500">{c.title}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-3 border-t border-slate-200 p-4">
+          <Button variant="outline" className="flex-1 border-[#c87b14]" style={{ color: NAVY }} onClick={() => setLinking(v => !v)}><Link2 className="w-4 h-4 mr-1.5" /> Link Existing</Button>
+          <PrimaryButton icon={Plus} className="flex-1 justify-center" onClick={onCreate}>Create RAID</PrimaryButton>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -378,6 +516,8 @@ export default function SprintView({ projects, programs = [], portfolios = [], r
   const [dragging, setDragging] = useState(/** @type {{ story: any, from: 'sprint' | 'backlog' } | null} */ (null));
   const [dropTarget, setDropTarget] = useState('');
   const [moveError, setMoveError] = useState('');
+  const [raidStoryId, setRaidStoryId] = useState('');
+  const navigate = useNavigate();
   const stepsRef = useRef(/** @type {HTMLDivElement | null} */ (null));
 
   useEffect(() => { if (initialProjectId) setProjectId(initialProjectId); }, [initialProjectId]);
@@ -417,6 +557,16 @@ export default function SprintView({ projects, programs = [], portfolios = [], r
     queryFn: () => accountDataApi.listTasks(selectedAccountId, { project_id: validProjectId }),
     enabled: Boolean(selectedAccountId && validProjectId),
   });
+
+  const raidEnabled = Boolean(selectedAccountId && validProjectId);
+  const { data: risks = [] } = useQuery({ queryKey: ['account-risks', selectedAccountId], queryFn: async () => mapRiskListFromApi(await raidApi.listAccountRisks(selectedAccountId)), enabled: raidEnabled });
+  const { data: issues = [] } = useQuery({ queryKey: ['account-issues', selectedAccountId], queryFn: async () => mapIssueListFromApi(await raidApi.listAccountIssues(selectedAccountId)), enabled: raidEnabled });
+  const { data: assumptions = [] } = useQuery({ queryKey: ['assumptions', selectedAccountId], queryFn: () => raidEntityAdapters.Assumption.list(selectedAccountId), enabled: raidEnabled });
+  const { data: dependencies = [] } = useQuery({ queryKey: ['dependencies', selectedAccountId], queryFn: () => raidEntityAdapters.Dependency.list(selectedAccountId), enabled: raidEnabled });
+  const raidIndex = useMemo(() => buildRelatedRecordIndex({ risks, issues, assumptions, dependencies }), [risks, issues, assumptions, dependencies]);
+  const raidRecordsFor = (story) => resolveRelatedRecords(story, raidIndex).filter(r => RELATED_RECORD_TYPES[r.type].raid);
+  const { requirements: allRequirements } = useAccountRequirements();
+  const projectRequirements = useMemo(() => allRequirements.filter(r => r.project_id === validProjectId), [allRequirements, validProjectId]);
 
   // The board's columns are the task statuses; their tasks are the sprint's stories.
   const columns = sprintBoard?.columns || [];
@@ -505,6 +655,28 @@ export default function SprintView({ projects, programs = [], portfolios = [], r
     onError: () => setMoveError('We couldn’t change that story’s status. Please try again.'),
   });
 
+  const saveRelatedRecords = useMutation({
+    mutationFn: ({ story, records }) => tasksApi.updateRelatedRecords(story.id, records),
+    onSuccess: () => invalidateSprintData(validProjectId, activeSprintId),
+    onError: (error) => toastError(error.message),
+  });
+  const saveRequirement = useMutation({
+    mutationFn: ({ story, requirementId }) => tasksApi.updateRequirement(story.id, requirementId),
+    onSuccess: () => invalidateSprintData(validProjectId, activeSprintId),
+    onError: (error) => toastError(error.message),
+  });
+  const renderRaid = (story) => <RaidCell records={raidRecordsFor(story)} onOpen={() => setRaidStoryId(story.id)} />;
+  const renderRequirement = (story) => (
+    <RequirementCell story={story} requirements={projectRequirements} onChange={(s, requirementId) => saveRequirement.mutate({ story: s, requirementId })} />
+  );
+  // Looked up each render so the panel shows new links as soon as the board refreshes.
+  const raidStory = raidStoryId ? [...sprintStories, ...backlog].find(s => s.id === raidStoryId) || null : null;
+  const linkRaid = (record) => saveRelatedRecords.mutate({ story: raidStory, records: [...(raidStory.related_records || []), { type: record.type, id: record.id }] });
+  const unlinkRaid = (record) => saveRelatedRecords.mutate({ story: raidStory, records: (raidStory.related_records || []).filter(l => !(l.type === record.type && l.id === record.id)) });
+  const raidCandidates = raidStory
+    ? [...raidIndex.values()].filter(r => RAID_LINK_TYPES.includes(r.type) && r.project_id === validProjectId && !raidRecordsFor(raidStory).some(l => l.type === r.type && l.id === r.id))
+    : [];
+
   const statusOptions = Array.from(
     new Map(
       sprints
@@ -526,10 +698,12 @@ export default function SprintView({ projects, programs = [], portfolios = [], r
     if (!activeSprint) return;
     exportRecords(sprintStories, [
       { label: 'ID', value: (s) => formatStoryId(s.story_number) },
+      { label: 'Requirement ID', value: (s) => projectRequirements.find(r => r.id === s.requirement_id)?.requirement_id || '' },
       { label: 'Title', key: 'title' },
       { label: 'Priority', key: 'priority' },
       { label: 'Story Points', key: 'story_points' },
       { label: 'Status', key: 'status_label' },
+      { label: 'RAID', value: (s) => raidRecordsFor(s).map(r => r.number).join('; ') },
       { label: 'Assignee', key: 'assignee' },
     ], `${activeSprint.name.replace(/\s+/g, '_')}_stories.csv`);
   };
@@ -684,6 +858,8 @@ export default function SprintView({ projects, programs = [], portfolios = [], r
                   ) : (
                     <StoryTable
                       stories={sprintStories}
+                      renderRaid={renderRaid}
+                      renderRequirement={renderRequirement}
                       draggable={!moveStory.isPending}
                       onDragStart={(story) => setDragging({ story, from: 'sprint' })}
                       onDragEnd={endDrag}
@@ -730,6 +906,8 @@ export default function SprintView({ projects, programs = [], portfolios = [], r
                 ) : (
                   <StoryTable
                     stories={shownBacklog}
+                    renderRaid={renderRaid}
+                    renderRequirement={renderRequirement}
                     columns={backlogColumns}
                     draggable={Boolean(activeSprintId) && !moveStory.isPending}
                     onDragStart={(story) => setDragging({ story, from: 'backlog' })}
@@ -748,6 +926,17 @@ export default function SprintView({ projects, programs = [], portfolios = [], r
           )}
         </div>
       </div>
+
+      <LinkedRaidPanel
+        story={raidStory}
+        records={raidStory ? raidRecordsFor(raidStory) : []}
+        candidates={raidCandidates}
+        busy={saveRelatedRecords.isPending}
+        onClose={() => setRaidStoryId('')}
+        onLink={linkRaid}
+        onUnlink={unlinkRaid}
+        onCreate={() => navigate('/RiskLog')}
+      />
 
       <SprintSettingsDialog
         open={sprintDialogOpen}

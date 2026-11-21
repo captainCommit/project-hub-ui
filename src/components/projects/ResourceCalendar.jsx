@@ -14,9 +14,9 @@ import { cn } from "@/lib/utils";
 
 import { parseDate } from '@/lib/dateUtils';
 const COLOR_DOTS = [
-  'bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-orange-500',
+  'bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-[#c87b14]',
   'bg-pink-500', 'bg-teal-500', 'bg-amber-500', 'bg-red-500',
-  'bg-cyan-500', 'bg-lime-500', 'bg-fuchsia-500', 'bg-indigo-500',
+  'bg-cyan-500', 'bg-lime-500', 'bg-fuchsia-500', 'bg-[#002046]',
 ];
 
 const COLOR_BADGES = [
@@ -31,7 +31,7 @@ const COLOR_BADGES = [
   'bg-cyan-100 text-cyan-700 border-cyan-200',
   'bg-lime-100 text-lime-700 border-lime-200',
   'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200',
-  'bg-indigo-100 text-indigo-700 border-indigo-200',
+  'bg-indigo-100 text-[#002046] border-indigo-200',
 ];
 
 /** @typedef {{ resourceId: string, data: Record<string, any> }} TimeOffCreateVariables */
@@ -545,7 +545,7 @@ export default function ResourceCalendar({ open, onOpenChange }) {
                             {v.type && <p className="text-[10px] text-slate-400 truncate">{v.type}</p>}
                             {v.notes && <p className="text-[10px] text-slate-400 truncate">{v.notes}</p>}
                           </div>
-                          <button className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-indigo-600 p-0.5" onClick={() => handleEdit(v)} disabled={isSubmitting}>
+                          <button className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-[#002046] p-0.5" onClick={() => handleEdit(v)} disabled={isSubmitting}>
                             <Edit2 className="w-3 h-3" />
                           </button>
                         </div>

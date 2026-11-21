@@ -186,7 +186,7 @@ export default function ReportGenerator({ scope = 'project', project, program, p
                 <button type="button" onClick={() => setReportId(null)} className="text-slate-500 hover:text-slate-800" aria-label="Back to report types">
                   <ArrowLeft className="w-5 h-5" />
                 </button>
-              ) : <FileText className="w-5 h-5 text-indigo-500" />}
+              ) : <FileText className="w-5 h-5 text-[#002046]" />}
               {report ? report.title : `Reports for ${entity?.name || ''}`}
             </DialogTitle>
           </DialogHeader>
@@ -232,7 +232,7 @@ export default function ReportGenerator({ scope = 'project', project, program, p
                           <span className="text-xs text-slate-500 ml-2">
                             since {item.since} · {new Date(item.created_at).toLocaleString()}
                             {item.status === 'FAILED' && <span className="text-red-600"> · failed</span>}
-                            {isActive(item) && <span className="text-indigo-600"> · writing…</span>}
+                            {isActive(item) && <span className="text-[#002046]"> · writing…</span>}
                           </span>
                         </button>
                         <button type="button" onClick={() => remove.mutate(item.id)} className="text-slate-400 hover:text-red-600" aria-label="Delete report">
@@ -248,7 +248,7 @@ export default function ReportGenerator({ scope = 'project', project, program, p
 
           {report && isActive(report) && (
             <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-slate-500">
-              <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+              <Loader2 className="w-6 h-6 animate-spin text-[#002046]" />
               {report.progress || 'Waiting to start…'}
               <span className="text-xs text-slate-400">Longer reports can take up to a minute.</span>
             </div>

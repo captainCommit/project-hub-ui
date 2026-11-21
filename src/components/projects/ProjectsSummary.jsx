@@ -6,7 +6,7 @@ import { exportRecords } from '@/lib/exportUtils';
 import { RAG } from './HealthIndicator';
 import {
   PageHeader, PageBody, PrimaryButton, ExportButton, StatGrid, StatCard, FilterBar, SearchInput, FilterSelect, optionsFrom,
-  DataTable, TitleCell, HealthPill, WorkStatusPill, CompletionBar, CountCell, DetailsChevron,
+  DataTable, TitleCell, HealthPill, WorkStatusPill, CompletionBar, DetailsChevron,
   WORK_STATUS_OPTIONS, workStatusInfo, isCompleteStatus, isOpenRaid, isHighOrCritical, riskIssueLine, SOFT, PersonCell,
 } from './DirectoryKit';
 
@@ -84,7 +84,7 @@ export default function ProjectsSummary({ projects = [], programs = [], portfoli
 
   const columns = [
     {
-      key: 'name', label: 'Project', sortValue: r => r.project.name,
+      key: 'name', label: 'Project', sortValue: r => r.project.name, className: 'min-w-[360px]', headerClassName: 'min-w-[360px]',
       render: r => (
         <TitleCell title={r.project.name} sub={r.program ? `Program: ${r.program.name}` : null} />
       ),
@@ -93,8 +93,6 @@ export default function ProjectsSummary({ projects = [], programs = [], portfoli
     { key: 'status', label: 'Status', sortValue: r => workStatusInfo(r.project.status).label, render: r => <WorkStatusPill status={r.project.status} /> },
     { key: 'completion', label: 'Completion', sortValue: r => r.progress, render: r => <CompletionBar pct={r.progress} /> },
     { key: 'tasks', label: 'Tasks', sortValue: r => r.total, render: r => <span className="text-sm" style={{ color: SOFT }}>{r.done}/{r.total}</span> },
-    { key: 'risks', label: 'Open Risks', sortValue: r => r.openRisks, className: 'text-center', headerClassName: 'text-center', render: r => <CountCell value={r.openRisks} /> },
-    { key: 'issues', label: 'Open Issues', sortValue: r => r.openIssues, className: 'text-center', headerClassName: 'text-center', render: r => <CountCell value={r.openIssues} /> },
     { key: 'owner', label: 'Project Owner(s)', sortValue: r => r.manager, render: r => <PersonCell name={r.manager} /> },
     { key: 'open', label: '', className: 'w-8', render: () => <DetailsChevron /> },
   ];

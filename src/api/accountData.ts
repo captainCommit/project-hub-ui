@@ -45,6 +45,9 @@ export const mapAccountTaskToUi = (task: ApiRecord) => {
     progress: toNumber(task.percent_complete),
     story_points: task.story_points ?? null,
     story_number: task.story_number ?? null,
+    predecessors: Array.isArray(task.predecessors) ? task.predecessors.map((p: ApiRecord) => p.predecessor_task_id).filter(Boolean) : [],
+    requirement_id: task.requirement_id ?? null,
+    related_records: Array.isArray(task.related_records) ? task.related_records : [],
     assignee: resources[0] || '',
     resources,
     resource_hours: assignments

@@ -30,6 +30,7 @@ const AIAssistant = lazy(() => import('./pages/AIAssistant'));
 const LearnSupport = lazy(() => import('./pages/LearnSupport'));
 const Financials = lazy(() => import('./pages/Financials'));
 const SprintManagement = lazy(() => import('./pages/SprintManagement'));
+const ReportingCenter = lazy(() => import('./pages/ReportingCenter'));
 const Testing = lazy(() => import('./pages/Testing'));
 const Requirements = lazy(() => import('./pages/Requirements'));
 const ResourceManagementHub = lazy(() => import('./pages/ResourceManagementHub'));
@@ -164,6 +165,7 @@ const AuthenticatedApp = () => {
       <Route path="/AIAssistant" element={<LayoutWrapper currentPageName="AIAssistant"><AIAssistant /></LayoutWrapper>} />
       <Route path="/LearnSupport" element={<LayoutWrapper currentPageName="LearnSupport"><LearnSupport /></LayoutWrapper>} />
       <Route path="/Financials" element={<LayoutWrapper currentPageName="Financials"><Financials /></LayoutWrapper>} />
+      <Route path="/ReportingCenter" element={<LayoutWrapper currentPageName="ReportingCenter"><ReportingCenter /></LayoutWrapper>} />
       <Route path="/SprintManagement" element={<LayoutWrapper currentPageName="SprintManagement"><SprintManagement /></LayoutWrapper>} />
       <Route path="/Testing" element={<LayoutWrapper currentPageName="Testing"><Testing /></LayoutWrapper>} />
       <Route path="/Requirements" element={<LayoutWrapper currentPageName="Requirements"><Requirements /></LayoutWrapper>} />

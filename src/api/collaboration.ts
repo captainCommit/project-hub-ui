@@ -79,6 +79,8 @@ export const mapTicketFromApi = (ticket: ApiRecord) => ({
   status: lower(ticket.status),
   requester_name: ticket.requester_name,
   requester_email: ticket.requester_email,
+  phone_call_ok: Boolean(ticket.phone_call_ok),
+  phone_number: ticket.phone_number || '',
   messages: asArray(ticket.messages),
   // Ticket-level attachments are the ones sent with the opening message.
   attachments: asArray(ticket.messages)[0]?.attachments || [],
@@ -98,6 +100,8 @@ export const supportTicketsApi = {
       priority: upper(data.priority || 'medium'),
       requester_name: data.requester_name || null,
       requester_email: data.requester_email || null,
+      phone_call_ok: Boolean(data.phone_call_ok),
+      phone_number: data.phone_call_ok && data.phone_number ? data.phone_number : null,
     })),
   update: async (id: string, data: ApiRecord) =>
     mapTicketFromApi(await apiClient.patch<ApiRecord>(`/api/v1/support-tickets/${id}`, {

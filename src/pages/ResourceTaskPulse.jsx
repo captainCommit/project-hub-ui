@@ -191,7 +191,7 @@ export default function ResourceTaskPulse() {
         <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-orange-100 rounded-lg flex items-center justify-center">
-              <Clock className="w-5 h-5 text-orange-500" />
+              <Clock className="w-5 h-5 text-[#c87b14]" />
             </div>
             <div>
               <h1 className="text-lg font-semibold text-slate-800">Overdue / Upcoming Tasks</h1>
@@ -344,7 +344,7 @@ export default function ResourceTaskPulse() {
                         {row.isOverdue ? (
                           <span className="text-red-600 font-semibold">{row.daysNum}d late</span>
                         ) : (
-                          <span className={cn('font-semibold', row.daysNum <= 3 ? 'text-orange-600' : 'text-amber-600')}>
+                          <span className={cn('font-semibold', row.daysNum <= 3 ? 'text-[#c87b14]' : 'text-amber-600')}>
                             {row.daysNum === 0 ? 'Today' : row.daysNum === 1 ? 'Tomorrow' : `${row.daysNum}d left`}
                           </span>
                         )}

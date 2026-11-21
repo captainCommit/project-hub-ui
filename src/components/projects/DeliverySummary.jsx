@@ -61,7 +61,7 @@ function SprintRow({ sprint, onOpenSprint }) {
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="h-1.5 bg-slate-100 rounded-full w-20 overflow-hidden">
-            <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+            <div className="h-full bg-[#002046] rounded-full transition-all" style={{ width: `${pct}%` }} />
           </div>
           <span className="text-xs text-slate-500">{pct}%</span>
         </div>
@@ -199,7 +199,7 @@ export default function DeliverySummary({ portfolios = [], onNavigateToSprints, 
           <div className="text-center py-20 text-slate-400">
             <Zap className="w-12 h-12 mx-auto mb-3 opacity-30" />
             <p className="text-sm">No delivery overview data available.</p>
-            <button onClick={onNavigateToSprints} className="mt-2 text-xs text-indigo-600 hover:underline flex items-center gap-1 mx-auto">
+            <button onClick={onNavigateToSprints} className="mt-2 text-xs text-[#002046] hover:underline flex items-center gap-1 mx-auto">
               Go to Sprints <ChevronRight className="w-3 h-3" />
             </button>
           </div>

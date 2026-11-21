@@ -13,7 +13,7 @@ import { SCOPE_TOUR } from './ScopeBar.tour';
 const SCOPED_PATHS = new Set([
   '/Projects', '/RiskLog', '/ChangeRegisterHub', '/DecisionLog', '/ChangeRegister',
   '/Requirements', '/Testing', '/SprintManagement', '/Financials',
-  '/ResourceManagementHub', '/ProjectResources', '/ResourceTaskPulse', '/ResourceCalendarPage',
+  '/ResourceManagementHub', '/ProjectResources', '/ResourceTaskPulse', '/ResourceCalendarPage', '/ReportingCenter',
 ]);
 
 const ALL = '__all__';

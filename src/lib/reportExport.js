@@ -33,6 +33,70 @@ export async function downloadPdf(element, fileName) {
   }
 }
 
+const xmlText = (value) => String(value ?? '')
+  // eslint-disable-next-line no-control-regex
+  .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+const columnName = (index) => {
+  let name = '';
+  for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) name = String.fromCharCode(65 + ((n - 1) % 26)) + name;
+  return name;
+};
+
+/** Excel allows 31 characters, no []:*?/\\, and each sheet name only once. */
+const sheetNames = (sheets) => {
+  const used = new Set();
+  return sheets.map((sheet, index) => {
+    const base = String(sheet.name).replace(/[[\]:*?/\\]/g, ' ').trim().slice(0, 31) || `Sheet ${index + 1}`;
+    let name = base;
+    for (let n = 2; used.has(name.toLowerCase()); n += 1) name = `${base.slice(0, 28)} ${n}`;
+    used.add(name.toLowerCase());
+    return name;
+  });
+};
+
+/**
+ * The files inside an .xlsx: one worksheet per { name, rows }, every value as text. The first row is a navy header
+ * unless the sheet is marked plain.
+ */
+export function xlsxParts(sheets) {
+  const names = sheetNames(sheets);
+  const parts = {
+    '[Content_Types].xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`,
+    '_rels/.rels': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+    'xl/workbook.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${names.map((name, i) => `<sheet name="${xmlText(name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`,
+    'xl/_rels/workbook.xml.rels': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
+    'xl/styles.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF${NAVY}"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`,
+  };
+  sheets.forEach((sheet, sheetIndex) => {
+    const width = sheet.rows.reduce((max, row) => Math.max(max, row.length), 0);
+    const cols = Array.from({ length: width }, (_, c) => {
+      const longest = sheet.rows.reduce((max, row) => Math.max(max, String(row[c] ?? '').length), 8);
+      return `<col min="${c + 1}" max="${c + 1}" width="${Math.min(longest + 2, 60)}" customWidth="1"/>`;
+    }).join('');
+    const rows = sheet.rows.map((row, r) => {
+      const style = r === 0 && !sheet.plain ? ' s="1"' : '';
+      const cells = row.map((value, c) => `<c r="${columnName(c)}${r + 1}"${style} t="inlineStr"><is><t xml:space="preserve">${xmlText(value)}</t></is></c>`).join('');
+      return `<row r="${r + 1}">${cells}</row>`;
+    }).join('');
+    parts[`xl/worksheets/sheet${sheetIndex + 1}.xml`] = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${cols ? `<cols>${cols}</cols>` : ''}<sheetData>${rows}</sheetData></worksheet>`;
+  });
+  return parts;
+}
+
+/** An Excel workbook with one sheet per { name, rows }. */
+export async function downloadXlsx(sheets, fileName) {
+  const { default: JSZip } = await import('jszip');
+  const zip = new JSZip();
+  Object.entries(xlsxParts(sheets)).forEach(([path, text]) => zip.file(path, text));
+  const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', compression: 'DEFLATE' });
+  const url = URL.createObjectURL(blob);
+  const link = Object.assign(document.createElement('a'), { href: url, download: fileName });
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 /** Markdown inline formatting removed: links become their text, emphasis and code marks go. */
 const plain = (text) => text
   .replace(/!\[[^\]]*\]\([^)]*\)/g, '')

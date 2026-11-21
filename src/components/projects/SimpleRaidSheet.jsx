@@ -14,20 +14,11 @@ import { X, MessageSquare, Loader2, Bell } from 'lucide-react';
 import { DataTable, PageBody } from '@/components/projects/DirectoryKit';
 import { RaidActions, RaidToolbar, filterRaidItems, raidColumns } from '@/components/projects/RaidTable';
 import { useGlobalScope } from '@/lib/globalScope';
+import { useStatusOptions } from '@/hooks/useStatusOptions';
 import EscalateDialog from '@/components/projects/EscalateDialog';
 import { exportRecords } from '@/lib/exportUtils';
 import { cn } from '@/lib/utils';
 import { confirmAction } from '@/components/ui/confirm-dialog';
-
-// The default assumption statuses (Escalated is only offered where the log has that status).
-const DEFAULT_STATUSES = [
-  { value: 'draft', label: 'Draft', className: 'bg-slate-100 text-slate-600' },
-  { value: 'open', label: 'Open', className: 'bg-blue-100 text-blue-700' },
-  { value: 'in_review', label: 'In Review', className: 'bg-yellow-100 text-yellow-700' },
-  { value: 'validated', label: 'Validated', className: 'bg-emerald-100 text-emerald-700' },
-  { value: 'invalidated', label: 'Invalidated', className: 'bg-red-100 text-red-700' },
-  { value: 'closed', label: 'Closed', className: 'bg-slate-100 text-slate-600' },
-];
 
 function ResourceInput({ value, onChange, resources, placeholder }) {
   const [q, setQ] = useState('');
@@ -321,7 +312,6 @@ export default function SimpleRaidSheet({
   projects = [],
   programs = [],
   resources = [],
-  statuses = DEFAULT_STATUSES,
   showImpactDelay = false,
   showFallbackPlan = false,
   showPriority = true,
@@ -333,6 +323,9 @@ export default function SimpleRaidSheet({
   onCountChange = undefined,
 }) {
   const qc = useQueryClient();
+  // The account's statuses for this log (Account > Settings).
+  const statusOptions = useStatusOptions(entityType === 'Dependency' ? 'dependency' : 'assumption');
+  const statuses = statusOptions.map(st => ({ ...st, className: st.color }));
   const [selected, setSelected] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
 

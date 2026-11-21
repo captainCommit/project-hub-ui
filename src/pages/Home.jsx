@@ -21,7 +21,7 @@ import { homeApi } from '@/api/home';
 import { tasksApi } from '@/api/tasks';
 import { programsApi } from '@/api/programs';
 import { raidApi, mapRiskInputToPayload, mapIssueInputToPayload, mapDecisionInputToPayload } from '@/api/raid';
-import { getRaidStatuses } from '@/lib/raidStatuses';
+import { useStatusOptions } from '@/hooks/useStatusOptions';
 import { dependenciesApi } from '@/api/projectLogs';
 import { notificationsApi } from '@/api/notifications';
 import Tour from '@/components/tour/Tour';
@@ -64,6 +64,7 @@ export default function Home() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { projects, programs, portfolios } = useAccountHierarchy();
+  const decisionStatuses = useStatusOptions('decision');
   const resources = useAccountResources();
   const [projectOpen, setProjectOpen] = useState(false);
   // 'risk' or 'issue' while that dialog is open.
@@ -341,7 +342,7 @@ export default function Home() {
         projects={projects}
         programs={programs}
         resources={resources}
-        statusOptions={getRaidStatuses('decision')}
+        statusOptions={decisionStatuses}
         onCreate={(form) => createDecision.mutate(form)}
       />
     </div>

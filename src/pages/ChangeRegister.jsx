@@ -13,22 +13,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAccountChangeRequests, useAccountDecisions, useAccountHierarchy, useAccountResources } from '@/hooks/useAccountLookups';
+import { useStatusOptions } from '@/hooks/useStatusOptions';
 import { changeRequestsApi, mapChangeRequestFromApi, mapChangeRequestInputToPayload } from '@/api/projectLogs';
 import { raidApi } from '@/api/raid';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 import { useGlobalScope } from '@/lib/globalScope';
 
-const CR_STATUSES = [
-  { value: 'draft', label: 'Draft', color: 'bg-slate-100 text-slate-600' },
-  { value: 'open', label: 'Open', color: 'bg-blue-100 text-blue-700' },
-  { value: 'in_review', label: 'In Review', color: 'bg-yellow-100 text-yellow-700' },
-  { value: 'approved', label: 'Approved', color: 'bg-green-100 text-green-700' },
-  { value: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-700' },
-  { value: 'deferred', label: 'Deferred', color: 'bg-orange-100 text-orange-700' },
-  { value: 'implemented', label: 'Implemented', color: 'bg-emerald-100 text-emerald-700' },
-];
-
-const getStatus = (val) => CR_STATUSES.find(s => s.value === val) || CR_STATUSES[0];
 const today = () => new Date().toISOString().split('T')[0];
 const parseRelated = (val) => { if (!val) return []; try { const p = JSON.parse(val); if (Array.isArray(p)) return p; } catch {} return val ? [val] : []; };
 const saveRelated = (arr) => arr.length === 0 ? '' : JSON.stringify(arr);
@@ -48,6 +38,8 @@ export default function ChangeRegister({ embedded = false, filters: sharedFilter
   const { projects, programs, portfolios } = scopeHierarchy(useAccountHierarchy());
   const resources = useAccountResources();
   const decisions = useAccountDecisions();
+  const statusOptions = useStatusOptions('change_request');
+  const statusLabel = (value) => statusOptions.find(st => st.value === value)?.label || value || '';
 
   const getRelatedDecisions = (programId) => {
     const hasProgram = programId && programId !== 'all';
@@ -104,7 +96,7 @@ export default function ChangeRegister({ embedded = false, filters: sharedFilter
 
   const exportColumns = [
     { label: 'CR ID', key: 'cr_id' },
-    { label: 'Status', value: (c) => getStatus(c.status).label },
+    { label: 'Status', value: (c) => statusLabel(c.status) },
     { label: 'Program', value: (c) => getProgram(c.program_id) },
     { label: 'Project', value: (c) => getProject(c.project_id) },
     { label: 'Priority', key: 'priority' },
@@ -155,7 +147,7 @@ export default function ChangeRegister({ embedded = false, filters: sharedFilter
           items={changeRequests}
           projects={projects}
           programs={programs}
-          statuses={CR_STATUSES.map(s => ({ value: s.value, label: s.label }))}
+          statuses={statusOptions.map(st => ({ value: st.value, label: st.label }))}
           assigneeLabel="Proposed By"
           personField="proposed_by"
           searchPlaceholder="Search change requests..."
@@ -177,6 +169,7 @@ export default function ChangeRegister({ embedded = false, filters: sharedFilter
           cr={selectedCR}
           resources={resources}
           decisions={decisions}
+          statusOptions={statusOptions}
           getRelatedDecisions={getRelatedDecisions}
           onUpdate={handleUpdate}
           onClose={() => setSelectedCR(null)}
@@ -191,6 +184,7 @@ export default function ChangeRegister({ embedded = false, filters: sharedFilter
         programs={programs}
         resources={resources}
         decisions={decisions}
+        statusOptions={statusOptions}
         getRelatedDecisions={getRelatedDecisions}
         onCreate={handleAdd}
       />
@@ -210,7 +204,7 @@ export default function ChangeRegister({ embedded = false, filters: sharedFilter
   );
 }
 
-function CRDetailPanel({ cr, resources = [], decisions = [], getRelatedDecisions, onUpdate, onClose, onDelete }) {
+function CRDetailPanel({ cr, resources = [], decisions = [], statusOptions, getRelatedDecisions, onUpdate, onClose, onDelete }) {
   const [local, setLocal] = React.useState(cr);
   const [commentText, setCommentText] = React.useState('');
   const [proposedByQ, setProposedByQ] = React.useState('');
@@ -251,7 +245,7 @@ function CRDetailPanel({ cr, resources = [], decisions = [], getRelatedDecisions
             <Label className="text-xs text-slate-500">Status</Label>
             <Select value={local.status || 'draft'} onValueChange={v => save('status', v)}>
               <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-              <SelectContent>{CR_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+              <SelectContent>{statusOptions.map(st => <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           {/* Priority */}
@@ -349,7 +343,7 @@ function CRDetailPanel({ cr, resources = [], decisions = [], getRelatedDecisions
   );
 }
 
-function AddCRDialog({ open, onOpenChange, projects, programs, resources, decisions, getRelatedDecisions, onCreate }) {
+function AddCRDialog({ open, onOpenChange, projects, programs, resources, decisions, statusOptions, getRelatedDecisions, onCreate }) {
   const emptyForm = () => ({ title: '', description: '', priority: 'medium', project_id: '', program_id: '', proposed_by: '', proposed_date: today(), status: 'draft', related_record: '' });
   const [form, setForm] = useState(emptyForm());
   const [proposedByQ, setProposedByQ] = useState('');
@@ -444,7 +438,7 @@ function AddCRDialog({ open, onOpenChange, projects, programs, resources, decisi
               <Label className="text-xs text-slate-500">Status</Label>
               <Select value={form.status} onValueChange={v => setForm(p => ({ ...p, status: v }))}>
                 <SelectTrigger className="h-8 text-sm mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>{CR_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                <SelectContent>{statusOptions.map(st => <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>

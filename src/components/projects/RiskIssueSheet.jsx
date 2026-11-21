@@ -8,21 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { exportRecords } from '@/lib/exportUtils';
 import { DataTable, PageBody } from './DirectoryKit';
 import { RaidActions, RaidToolbar, filterRaidItems, raidColumns } from './RaidTable';
+import { useStatusOptions } from '@/hooks/useStatusOptions';
 
 const today = () => new Date().toISOString().split('T')[0];
-
-const getStatuses = (t) => {
-  try {
-    const stored = localStorage.getItem('app_raid_status_' + t);
-    if (stored) {
-      const p = JSON.parse(stored);
-      if (Array.isArray(p) && p.length) return p;
-    }
-  } catch (e) {}
-  return t === 'risk' || t === 'issue'
-    ? [{ value: 'open', label: 'Open' }, { value: 'resolved', label: 'Resolved' }, { value: 'blocked', label: 'Blocked' }, { value: 'cancelled', label: 'Cancelled' }]
-    : [{ value: 'open', label: 'Open' }, { value: 'closed', label: 'Closed' }];
-};
 
 // ─── Add Dialog ───────────────────────────────────────────────────────────────
 export function AddDialog({ open, onOpenChange, type, projects, programs, resources, onAdd, existingCount }) {
@@ -62,7 +50,7 @@ export function AddDialog({ open, onOpenChange, type, projects, programs, resour
     setResourceQ('');
   };
 
-  const statuses = getStatuses(type);
+  const statuses = useStatusOptions(type);
 
   return (
     <Dialog open={open} onOpenChange={v => { onOpenChange(v); if (!v) { setForm(emptyForm()); setResourceQ(''); } }}>

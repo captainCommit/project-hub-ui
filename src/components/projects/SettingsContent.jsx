@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { getRaidStatuses, setRaidStatuses, RAID_DEFAULTS } from '@/lib/raidStatuses';
 import { useThemePreference } from '@/lib/theme';
 import { X, Plus, ChevronDown, ChevronRight, AlertCircle, Loader2, Sun, Moon, Monitor } from 'lucide-react';
 
@@ -20,20 +19,20 @@ const DEFAULT_TASK_VIEW_OPTIONS = [
   { value: 'audit', label: 'Audit' },
 ];
 
+// The account's lists in the API, by the option set they edit. Everyone in the account sees the same choices.
 const RAID_TYPES = [
-  { key: 'risk', label: 'Risk', color: 'text-orange-500', optionKeys: ['risk', 'risk_status', 'risk_statuses'] },
-  { key: 'issue', label: 'Issue', color: 'text-red-500', optionKeys: ['issue', 'issue_status', 'issue_statuses'] },
-  { key: 'assumption', label: 'Assumption', color: 'text-teal-500', optionKeys: ['assumption', 'assumption_status', 'assumption_statuses'] },
-  { key: 'decision', label: 'Decision', color: 'text-indigo-500', optionKeys: ['decision', 'decision_status', 'decision_statuses'] },
-  { key: 'task_status', label: 'Task Status', color: 'text-blue-500', optionKeys: ['task_status', 'task_statuses', 'status', 'statuses'] },
-  { key: 'task_type', label: 'Task Type', color: 'text-purple-500', optionKeys: ['task_type', 'task_types', 'type', 'types'] },
-  { key: 'priority', label: 'Priority', color: 'text-amber-500', optionKeys: ['priority', 'priorities'] },
+  { key: 'risk', label: 'Risk statuses', entityType: 'RISK', name: 'STATUS' },
+  { key: 'issue', label: 'Issue statuses', entityType: 'ISSUE', name: 'STATUS' },
+  { key: 'assumption', label: 'Assumption statuses', entityType: 'ASSUMPTION', name: 'STATUS' },
+  { key: 'dependency', label: 'Dependency statuses', entityType: 'DEPENDENCY', name: 'STATUS' },
+  { key: 'decision', label: 'Decision statuses', entityType: 'DECISION', name: 'STATUS' },
+  { key: 'change_request', label: 'Change request statuses', entityType: 'CHANGE_REQUEST', name: 'STATUS' },
+  { key: 'task_status', label: 'Task statuses', entityType: 'TASK', name: 'STATUS' },
+  { key: 'task_type', label: 'Task types', entityType: 'TASK', name: 'TYPE' },
+  { key: 'priority', label: 'Task priorities', entityType: 'TASK', name: 'PRIORITY' },
 ];
 
-const normalizeOptionKey = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-
-function RAIDStatusEditor({ type, label, optionSet, onCreateValue, onUpdateValue, onDeleteValue, isMutating, mutationError }) {
-  const [statuses, setStatuses] = useState(() => getRaidStatuses(type));
+function RAIDStatusEditor({ label, optionSet, onCreateValue, onUpdateValue, onDeleteValue, isMutating, mutationError }) {
   const [newStatus, setNewStatus] = useState('');
   const [editingValue, setEditingValue] = useState(null);
   const [expanded, setExpanded] = useState(false);
@@ -48,42 +47,22 @@ function RAIDStatusEditor({ type, label, optionSet, onCreateValue, onUpdateValue
     queryFn: () => settingsApi.listOptionValues(optionSet.id),
     enabled: expanded && Boolean(optionSet?.id),
   });
-  const statusRows = optionSet ? values : statuses;
+  const statusRows = values;
   const isSystemValue = (value) => Boolean(value?.protected || value?.is_protected || value?.system || value?.is_system);
 
   const add = () => {
-    if (!newStatus.trim()) return;
-    if (optionSet?.id) {
-      onCreateValue(optionSet.id, {
-        value: newStatus.trim().toLowerCase().replace(/\s+/g, '_'),
-        label: newStatus.trim(),
-        sort_order: values.length,
-        active: true,
-      }, () => setNewStatus(''));
-      return;
-    }
-    const updated = [...statuses, { value: newStatus.trim().toLowerCase().replace(/\s+/g, '_'), label: newStatus.trim() }];
-    setStatuses(updated);
-    setRaidStatuses(type, updated);
-    setNewStatus('');
+    if (!newStatus.trim() || !optionSet?.id) return;
+    onCreateValue(optionSet.id, {
+      value: newStatus.trim().toLowerCase().replace(/\s+/g, '_'),
+      label: newStatus.trim(),
+      sort_order: values.length,
+      active: true,
+    }, () => setNewStatus(''));
   };
 
-  const remove = (idx, status) => {
-    if (optionSet?.id && status?.id) {
-      if (isSystemValue(status)) return;
-      onDeleteValue(optionSet.id, status.id);
-      return;
-    }
-    const updated = statuses.filter((_, i) => i !== idx);
-    setStatuses(updated);
-    setRaidStatuses(type, updated);
-  };
-
-  const reset = () => {
-    if (optionSet?.id) return;
-    const defaults = RAID_DEFAULTS[type] || [];
-    setStatuses(defaults);
-    setRaidStatuses(type, defaults);
+  const remove = (status) => {
+    if (!optionSet?.id || !status?.id || isSystemValue(status)) return;
+    onDeleteValue(optionSet.id, status.id);
   };
 
   const startEditing = (status) => {
@@ -106,9 +85,9 @@ function RAIDStatusEditor({ type, label, optionSet, onCreateValue, onUpdateValue
     <div className="border border-slate-200 rounded-lg overflow-hidden">
       <button onClick={() => setExpanded(v => !v)}
         className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors">
-        <span className="text-sm font-medium text-slate-700">{label} Statuses</span>
+        <span className="text-sm font-medium text-slate-700">{label}</span>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400 bg-white border border-slate-200 rounded-full px-2 py-0.5">{optionSet && isLoading ? 'Loading...' : `${statusRows.length} statuses`}</span>
+          <span className="text-xs text-slate-400 bg-white border border-slate-200 rounded-full px-2 py-0.5">{!optionSet ? 'Not set up' : isLoading && expanded ? 'Loading...' : expanded ? `${statusRows.length} values` : 'Edit'}</span>
           {expanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
         </div>
       </button>
@@ -136,13 +115,14 @@ function RAIDStatusEditor({ type, label, optionSet, onCreateValue, onUpdateValue
             <p className="text-xs text-slate-400 text-center py-3 border border-dashed border-slate-200 rounded-lg">No values yet.</p>
           )}
           <div className="flex flex-wrap gap-2">
-            {!isLoading && !isError && statusRows.map((s, idx) => (
+            {!optionSet && <p className="text-xs text-slate-400">This list isn’t set up for the account.</p>}
+            {optionSet && !isLoading && !isError && statusRows.map((s, idx) => (
               <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 rounded-full text-xs text-slate-700">
                 <button onClick={() => startEditing(s)} disabled={!optionSet?.id || isSystemValue(s) || isMutating} className={cn(optionSet?.id && !isSystemValue(s) && !isMutating && 'hover:text-indigo-600')}>
                   {s.label || s.value || s}
                 </button>
                 {isSystemValue(s) && <span className="text-[9px] uppercase text-slate-300">system</span>}
-                <button onClick={() => remove(idx, s)} disabled={isMutating || isSystemValue(s)} className="text-slate-300 hover:text-red-500 transition-colors disabled:cursor-not-allowed disabled:hover:text-slate-300">
+                <button onClick={() => remove(s)} disabled={isMutating || isSystemValue(s)} className="text-slate-300 hover:text-red-500 transition-colors disabled:cursor-not-allowed disabled:hover:text-slate-300">
                   <X className="w-3 h-3" />
                 </button>
               </span>
@@ -165,12 +145,11 @@ function RAIDStatusEditor({ type, label, optionSet, onCreateValue, onUpdateValue
           <div className="flex gap-2">
             <Input value={newStatus} onChange={e => setNewStatus(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && add()}
-              placeholder="Add status..." className="h-8 text-sm flex-1" disabled={isMutating || (optionSet && (isLoading || isError))} />
-            <Button size="sm" variant="outline" className="h-8 px-3" onClick={add} disabled={!newStatus.trim() || isMutating || (optionSet && (isLoading || isError))}>
+              placeholder="Add a value..." className="h-8 text-sm flex-1" disabled={!optionSet || isMutating || isLoading || isError} />
+            <Button size="sm" variant="outline" className="h-8 px-3" onClick={add} disabled={!optionSet || !newStatus.trim() || isMutating || isLoading || isError}>
               {isMutating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
             </Button>
           </div>
-          {!optionSet && <button onClick={reset} className="text-xs text-slate-400 hover:text-slate-600">Reset to defaults</button>}
         </div>
       )}
     </div>
@@ -383,12 +362,6 @@ export default function SettingsContent() {
     enabled: Boolean(selectedAccountId),
   });
 
-  useQuery({
-    queryKey: ['account-options', selectedAccountId],
-    queryFn: () => settingsApi.listOptions(selectedAccountId),
-    enabled: Boolean(selectedAccountId),
-  });
-
   useEffect(() => {
     if (!accountSettings || Object.keys(accountSettings).length === 0) return;
     if (accountSettings.date_format !== undefined) setDateFormat(accountSettings.date_format);
@@ -536,10 +509,7 @@ export default function SettingsContent() {
     deleteOptionValue.mutate({ optionSetId, optionValueId });
   };
 
-  const findOptionSet = (optionKeys = []) => accountOptionSets.find((optionSet) => {
-    const candidates = [optionSet.key, optionSet.code, optionSet.name, optionSet.label].map(normalizeOptionKey);
-    return optionKeys.map(normalizeOptionKey).some(key => candidates.includes(key));
-  });
+  const findOptionSet = (entityType, name) => accountOptionSets.find(set => set.entity_type === entityType && set.name === name);
 
   const toggleDay = (day) => {
     const updated = nonWorkingDays.includes(day) ? nonWorkingDays.filter(d => d !== day) : [...nonWorkingDays, day];
@@ -769,9 +739,8 @@ export default function SettingsContent() {
           {!loadingAccountOptionSets && !isAccountOptionSetsError && RAID_TYPES.map(rt => (
             <RAIDStatusEditor
               key={rt.key}
-              type={rt.key}
               label={rt.label}
-              optionSet={findOptionSet(rt.optionKeys)}
+              optionSet={findOptionSet(rt.entityType, rt.name)}
               onCreateValue={handleCreateOptionValue}
               onUpdateValue={handleUpdateOptionValue}
               onDeleteValue={handleDeleteOptionValue}

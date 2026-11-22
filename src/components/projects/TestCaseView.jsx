@@ -11,15 +11,15 @@ import { exportRecords } from '@/lib/exportUtils';
 import StarButton from '@/components/projects/StarButton';
 import {
   PageHeader, PageBody, PrimaryButton, ExportButton, StatGrid, StatCard, FilterBar, SearchInput, FilterSelect, optionsFrom,
-  DataTable, TitleCell, Pill, PriorityPill, DetailsChevron, SOFT,
+  DataTable, TitleCell, PriorityPill, DetailsChevron, SOFT,
 } from '@/components/projects/DirectoryKit';
 import { useAccountHierarchy, useAccountRequirements, useAccountSprints, useAccountTestCases } from '@/hooks/useAccountLookups';
 import { useGlobalScope } from '@/lib/globalScope';
 import { mapTestCaseFromApi, mapTestCaseInputToPayload, testCasesApi } from '@/api/projectLogs';
+import { swatchFor, useStatusLabels } from '@/lib/statusLabels';
 
-const RESULT_TONES = { pass: 'green', fail: 'red', not_executed: 'grey' };
-const PASS_FAIL_LABELS = { not_executed: 'Not Implemented', pass: 'Pass', fail: 'Fail' };
-const RESULT_OPTIONS = Object.entries(PASS_FAIL_LABELS).map(([value, label]) => ({ value, label }));
+// Result names and colours can be renamed in Settings > Status & Priority Labels (Delivery).
+const resultOf = (tc, results) => results[tc.pass_fail] || results.not_executed;
 const PRIORITY_OPTIONS = ['critical', 'high', 'medium', 'low'].map(v => ({ value: v, label: v.charAt(0).toUpperCase() + v.slice(1) }));
 const PRIORITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
 // Testing draws High in sand rather than orange.
@@ -32,7 +32,7 @@ const emptyForm = () => ({
   project_id: '', program_id: '', portfolio_id: '', sprint_id: '', requirement_id: '',
 });
 
-const EXPORT_COLUMNS = [
+const exportColumns = (results) => [
   { label: 'Test Case ID', key: 'test_case_id' },
   { label: 'Requirement ID', key: 'requirement_id' },
   { label: 'Sprint ID', key: 'sprint_id' },
@@ -42,7 +42,7 @@ const EXPORT_COLUMNS = [
   { label: 'Designed By', key: 'designed_by' },
   { label: 'Implemented By', key: 'executed_by' },
   { label: 'Implementation Date', key: 'execution_date' },
-  { label: 'Result', value: (tc) => PASS_FAIL_LABELS[tc.pass_fail] || PASS_FAIL_LABELS.not_executed },
+  { label: 'Result', value: (tc) => resultOf(tc, results).label },
   { label: 'Dependencies', key: 'dependencies' },
   { label: 'Test Steps', key: 'test_steps' },
   { label: 'Conditions', key: 'conditions' },
@@ -53,6 +53,8 @@ const EXPORT_COLUMNS = [
 ];
 
 export default function TestCaseView() {
+  const { testResult: results } = useStatusLabels();
+  const resultOptions = Object.entries(results).map(([value, { label }]) => ({ value, label }));
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [filterProjectId, setFilterProjectId] = useState('');
@@ -138,15 +140,19 @@ export default function TestCaseView() {
     },
     { key: 'priority', label: 'Priority', sortValue: tc => PRIORITY_RANK[tc.priority] ?? 9, render: tc => <PriorityPill priority={tc.priority} tones={TESTING_PRIORITY_TONES} /> },
     {
-      key: 'result', label: 'Result', sortValue: tc => PASS_FAIL_LABELS[tc.pass_fail] || '',
-      render: tc => <Pill tone={RESULT_TONES[tc.pass_fail] || 'grey'}>{PASS_FAIL_LABELS[tc.pass_fail] || PASS_FAIL_LABELS.not_executed}</Pill>,
+      key: 'result', label: 'Result', sortValue: tc => resultOf(tc, results).label,
+      render: tc => {
+        const { label, color } = resultOf(tc, results);
+        const swatch = swatchFor(color);
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap" style={{ backgroundColor: swatch.bg, color: swatch.fg }}>{label}</span>;
+      },
     },
     { key: 'implementer', label: 'Implemented By', sortValue: tc => tc.executed_by, render: tc => <span className="text-sm" style={{ color: SOFT }}>{tc.executed_by || '—'}</span> },
     { key: 'date', label: 'Implementation Date', sortValue: tc => tc.execution_date, render: tc => <span className="text-sm" style={{ color: SOFT }}>{tc.execution_date || '—'}</span> },
     { key: 'open', label: 'Details', className: 'w-16', render: () => <DetailsChevron /> },
   ];
 
-  const handleExportAll = () => exportRecords(filtered, EXPORT_COLUMNS, `test_cases_${new Date().toISOString().slice(0, 10)}.csv`);
+  const handleExportAll = () => exportRecords(filtered, exportColumns(results), `test_cases_${new Date().toISOString().slice(0, 10)}.csv`);
 
   const handleSubmit = () => {
     if (!form.title || !form.project_id) return;
@@ -198,15 +204,15 @@ export default function TestCaseView() {
 
         <StatGrid className="lg:grid-cols-4">
           <StatCard value={shown.length} label="Test Cases" sub="Across all projects" icon={FileText} />
-          <StatCard value={resultCounts.pass} label="Passed" sub={`${share(resultCounts.pass)}% success rate`} icon={CircleCheck} />
-          <StatCard value={resultCounts.fail} label="Failed" sub={`${share(resultCounts.fail)}% failure rate`} icon={CircleX} />
-          <StatCard value={resultCounts.not_executed} label="Not Implemented" sub={`${share(resultCounts.not_executed)}% pending implementation`} icon={CirclePlay} />
+          <StatCard value={resultCounts.pass} label={results.pass.label} sub={`${share(resultCounts.pass)}% success rate`} icon={CircleCheck} />
+          <StatCard value={resultCounts.fail} label={results.fail.label} sub={`${share(resultCounts.fail)}% failure rate`} icon={CircleX} />
+          <StatCard value={resultCounts.not_executed} label={results.not_executed.label} sub={`${share(resultCounts.not_executed)}% pending implementation`} icon={CirclePlay} />
         </StatGrid>
 
         <FilterBar right={<ExportButton onClick={handleExportAll} disabled={filtered.length === 0} />}>
           <SearchInput value={search} onChange={setSearch} placeholder="Search test cases..." />
           <FilterSelect value={filterProjectId} onChange={setFilterProjectId} allLabel="All Projects" options={projects.map(p => ({ value: p.id, label: p.name }))} />
-          <FilterSelect value={filterResult} onChange={setFilterResult} allLabel="Result" options={RESULT_OPTIONS} />
+          <FilterSelect value={filterResult} onChange={setFilterResult} allLabel="Result" options={resultOptions} />
           <FilterSelect value={filterPriority} onChange={setFilterPriority} allLabel="Priority" options={PRIORITY_OPTIONS} />
           <FilterSelect value={filterImplementer} onChange={setFilterImplementer} allLabel="Implemented By" options={optionsFrom(shown.map(tc => tc.executed_by))} />
         </FilterBar>
@@ -299,9 +305,7 @@ export default function TestCaseView() {
                     <Select value={form.pass_fail} onValueChange={v => setForm(p => ({ ...p, pass_fail: v }))}>
                       <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="not_executed">Not Implemented</SelectItem>
-                        <SelectItem value="pass">Pass</SelectItem>
-                        <SelectItem value="fail">Fail</SelectItem>
+                        {resultOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </Field>

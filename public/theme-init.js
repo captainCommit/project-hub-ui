@@ -3,7 +3,6 @@
 (function () {
   try {
     var saved = localStorage.getItem('app_theme');
-    var dark = saved === 'dark' || (saved === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    if (dark) document.documentElement.classList.add('dark');
+    if (saved === 'dark') document.documentElement.classList.add('dark');
   } catch (e) { /* storage blocked: stay light */ }
 })();

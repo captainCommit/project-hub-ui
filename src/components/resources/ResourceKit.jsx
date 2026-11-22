@@ -30,6 +30,12 @@ export function computeResourceWeekly(resources, tasks, projects, overrides = un
   resources.forEach(r => {
     const name = r.full_name;
     const byProject = {};
+    // Projects they're assigned to on Capacity show even before they have task hours there.
+    (r.project_ids || []).forEach(pid => { byProject[pid] = 0; });
+    overrides?.forEach((_hours, key) => {
+      const [resourceId, pid] = key.split(':');
+      if (resourceId === r.id && byProject[pid] === undefined) byProject[pid] = 0;
+    });
     tasks.forEach(t => {
       if (!t.project_id || !taskResourceNames(t).includes(name)) return;
       byProject[t.project_id] = (byProject[t.project_id] || 0) + taskHoursFor(t, name);
@@ -87,12 +93,15 @@ export function scopedProjectIds(scope, inScopeProjects, globalActive) {
   return globalActive ? new Set(inScopeProjects.map(p => p.id)) : null;
 }
 
-/** Names of the people with work in those projects (null means no narrowing). */
-export function namesInProjects(tasks, projectIds) {
+/** Names of the people with work in, or assigned to, those projects (null means no narrowing). */
+export function namesInProjects(tasks, projectIds, resources = []) {
   if (!projectIds) return null;
   const names = new Set();
   tasks.forEach(t => {
     if (t.project_id && projectIds.has(t.project_id)) taskResourceNames(t).forEach(n => names.add(n));
+  });
+  resources.forEach(r => {
+    if ((r.project_ids || []).some(pid => projectIds.has(pid))) names.add(r.full_name);
   });
   return names;
 }

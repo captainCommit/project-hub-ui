@@ -18,6 +18,7 @@ import ProjectDialog from '@/components/projects/ProjectDialog';
 import ViewToggle from '@/components/projects/ViewToggle';
 import ResourceCalendar from '@/components/projects/ResourceCalendar';
 import ScheduleAuditView from '@/components/projects/ScheduleAuditView';
+import { showDeletedToast } from '@/components/projects/DeletedUndoToast';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 import { applyTemplateToProject } from '@/lib/projectTemplates';
 import { settingsApi } from '@/api/settings';
@@ -31,6 +32,7 @@ import { toast, toastError } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import ProjectsSummary from '@/components/projects/ProjectsSummary';
 import { useGlobalScope } from '@/lib/globalScope';
+import { accountSettingsQueryKey } from '@/lib/statusLabels';
 import Tour from '@/components/tour/Tour';
 import { DIRECTORY_TOUR } from './Projects.tour';
 import RAIDSummary from '@/components/projects/RAIDSummary';
@@ -722,7 +724,9 @@ export default function Projects() {
           toastError(`The project was created, but the template's tasks could not all be added: ${error.message}`);
         }
       }
-      navigate(`/projects/${newProject.id}/sheet`);
+      // Open it in the view picked in the dialog (Sheet, Gantt or Board).
+      const tab = PROJECT_TABS.includes(data?.default_view) ? data.default_view : 'sheet';
+      navigate(`/projects/${newProject.id}/${tab}`);
     },
     onError: (error) => toastError(error.message),
   });
@@ -1042,13 +1046,15 @@ export default function Projects() {
     setViewMode(nextView);
   }, [location.pathname, location.search, hasPortfolioRoute, hasProgramRoute, hasProjectRoute, navigate, _defaultLanding]);
 
-  // Deleting a portfolio or program also deletes everything under it (the API cascades).
+  // Deleting a portfolio or program also deletes everything under it (the API cascades). It all goes to
+  // Account > Recently Deleted for 30 days, and the toast offers Undo for 10 seconds.
   const handleDeleteItem = (item, type) => {
     const remove = { portfolio: portfoliosApi.delete, program: programsApi.delete, project: projectsApi.delete }[type] || projectsApi.delete;
     const directory = { portfolio: 'all_portfolios', program: 'all_programs', project: 'all_projects' }[type] || 'all_projects';
     remove(item.id)
-      .then(() => {
+      .then((deleted) => {
         invalidateHierarchy(queryClient);
+        if (deleted?.id) showDeletedToast({ type, deleted, queryClient });
         // Leave a page that shows the record we just deleted.
         if (hasPortfolioRoute || hasProgramRoute || hasProjectRoute) navigate(`/Projects?view=${directory}`);
       })
@@ -1152,6 +1158,25 @@ export default function Projects() {
     () => settingsApi.updateOptionValue(column.status_id || column.id, { color: hex }), 'The column colour could not be changed.');
   const handleDeleteBoardColumn = async (column) => {
     const count = projectBoard.tasks.filter(task => task.status === column.id).length;
+    if (column.is_uncategorized) {
+      // Not a status: deleting it hides it on every board. It comes back by itself if a task ever has no status.
+      if (count > 0) {
+        toast({ title: 'Move the tasks first', description: `"${column.title}" still has ${count} task${count === 1 ? '' : 's'} without a status. Move them to another column, then delete it.` });
+        return;
+      }
+      const ok = await confirmAction({
+        title: `Delete the "${column.title}" column?`,
+        description: 'It disappears from every project’s board. If a task ever ends up without a status, the column comes back so the task stays visible.',
+        confirmLabel: 'Delete column',
+        destructive: true,
+      });
+      if (!ok) return;
+      runBoardColumnChange(async () => {
+        await settingsApi.updateAccountSettings(selectedAccountId, { hide_uncategorized_column: true });
+        queryClient.invalidateQueries({ queryKey: accountSettingsQueryKey(selectedAccountId) });
+      }, 'The column could not be deleted.');
+      return;
+    }
     if (count > 0) {
       toast({ title: 'Move the tasks first', description: `"${column.title}" still has ${count} task${count === 1 ? '' : 's'} on this board. Move them to another column, then delete it.` });
       return;
@@ -1673,8 +1698,6 @@ export default function Projects() {
                         onClick={() => { setEditingProject(projectDetail); setDialogType('project'); setProjectDialogOpen(true); }}
                         className="font-semibold text-[#002046] hover:underline"
                       >{projectDetail.project_manager || projectDetail.owner || 'Not assigned'}</button></span>
-                      {activeProjectTab === 'audit' && projectDetail.open_risks !== undefined && <span>Open risks: <span className="font-semibold text-red-600">{projectDetail.open_risks}</span></span>}
-                      {activeProjectTab === 'audit' && projectDetail.open_issues !== undefined && <span>Open issues: <span className="font-semibold text-red-600">{projectDetail.open_issues}</span></span>}
                     </div>
                     <button
                       type="button"

@@ -56,8 +56,9 @@ export default function MyProjects({ projects, onOpen, allProjects = [], onAdd =
       {projects.length === 0 ? (
         <p className="text-xs py-8 text-center" style={{ color: MUTED }}>No projects here yet. Use Add project to follow one.</p>
       ) : (
-        <div ref={scrollRef} className={cn('flex-1 min-h-0 overflow-y-auto mt-3', scrolls && 'pr-3')}>
-          <table className="w-full table-fixed text-[11px]">
+        <div ref={scrollRef} className={cn('flex-1 min-h-0 overflow-y-auto overflow-x-auto mt-3', scrolls && 'pr-3')}>
+          {/* The fixed columns need ~520px; narrower (phones) the table scrolls sideways instead of crushing Project. */}
+          <table className="w-full min-w-[520px] table-fixed text-[11px]">
             <thead>
               <tr className="border-b" style={{ borderColor: BORDER }}>
                 <th className="text-left align-middle font-normal py-2 px-2" style={{ color: MUTED }}>Project</th>

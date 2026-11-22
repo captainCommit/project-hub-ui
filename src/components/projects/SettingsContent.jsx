@@ -7,7 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useThemePreference } from '@/lib/theme';
-import { X, Plus, ChevronDown, ChevronRight, AlertCircle, Loader2, Sun, Moon, Monitor } from 'lucide-react';
+import { X, AlertCircle, Loader2, Sun, Moon } from 'lucide-react';
+import NotificationPreferences from '@/components/Account/NotificationPreferences';
+import StatusLabelsSettings from '@/components/Account/StatusLabelsSettings';
 
 const DAYS = [{ v: 0, l: 'Sun' }, { v: 1, l: 'Mon' }, { v: 2, l: 'Tue' }, { v: 3, l: 'Wed' }, { v: 4, l: 'Thu' }, { v: 5, l: 'Fri' }, { v: 6, l: 'Sat' }];
 
@@ -15,146 +17,7 @@ const DEFAULT_TASK_VIEW_OPTIONS = [
   { value: 'sheet', label: 'Sheet' },
   { value: 'gantt', label: 'Gantt' },
   { value: 'mondayboard', label: 'Board' },
-  { value: 'board', label: 'Cards' },
-  { value: 'audit', label: 'Audit' },
 ];
-
-// The account's lists in the API, by the option set they edit. Everyone in the account sees the same choices.
-const RAID_TYPES = [
-  { key: 'risk', label: 'Risk statuses', entityType: 'RISK', name: 'STATUS' },
-  { key: 'issue', label: 'Issue statuses', entityType: 'ISSUE', name: 'STATUS' },
-  { key: 'assumption', label: 'Assumption statuses', entityType: 'ASSUMPTION', name: 'STATUS' },
-  { key: 'dependency', label: 'Dependency statuses', entityType: 'DEPENDENCY', name: 'STATUS' },
-  { key: 'decision', label: 'Decision statuses', entityType: 'DECISION', name: 'STATUS' },
-  { key: 'change_request', label: 'Change request statuses', entityType: 'CHANGE_REQUEST', name: 'STATUS' },
-  { key: 'task_status', label: 'Task statuses', entityType: 'TASK', name: 'STATUS' },
-  { key: 'task_type', label: 'Task types', entityType: 'TASK', name: 'TYPE' },
-  { key: 'priority', label: 'Task priorities', entityType: 'TASK', name: 'PRIORITY' },
-];
-
-function RAIDStatusEditor({ label, optionSet, onCreateValue, onUpdateValue, onDeleteValue, isMutating, mutationError }) {
-  const [newStatus, setNewStatus] = useState('');
-  const [editingValue, setEditingValue] = useState(null);
-  const [expanded, setExpanded] = useState(false);
-  const {
-    data: values = [],
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useQuery({
-    queryKey: ['option-set-values', optionSet?.id],
-    queryFn: () => settingsApi.listOptionValues(optionSet.id),
-    enabled: expanded && Boolean(optionSet?.id),
-  });
-  const statusRows = values;
-  const isSystemValue = (value) => Boolean(value?.protected || value?.is_protected || value?.system || value?.is_system);
-
-  const add = () => {
-    if (!newStatus.trim() || !optionSet?.id) return;
-    onCreateValue(optionSet.id, {
-      value: newStatus.trim().toLowerCase().replace(/\s+/g, '_'),
-      label: newStatus.trim(),
-      sort_order: values.length,
-      active: true,
-    }, () => setNewStatus(''));
-  };
-
-  const remove = (status) => {
-    if (!optionSet?.id || !status?.id || isSystemValue(status)) return;
-    onDeleteValue(optionSet.id, status.id);
-  };
-
-  const startEditing = (status) => {
-    if (!optionSet?.id || !status?.id || isSystemValue(status)) return;
-    setEditingValue({ ...status, label: status.label || status.value || '', value: status.value || '', color: status.color || '' });
-  };
-
-  const saveEditing = () => {
-    if (!optionSet?.id || !editingValue?.id || !editingValue.label?.trim() || isMutating) return;
-    onUpdateValue(optionSet.id, editingValue.id, {
-      value: editingValue.value || editingValue.label.trim().toLowerCase().replace(/\s+/g, '_'),
-      label: editingValue.label.trim(),
-      color: editingValue.color || undefined,
-      sort_order: editingValue.sort_order,
-      active: editingValue.active,
-    }, () => setEditingValue(null));
-  };
-
-  return (
-    <div className="border border-slate-200 rounded-lg overflow-hidden">
-      <button onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors">
-        <span className="text-sm font-medium text-slate-700">{label}</span>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400 bg-white border border-slate-200 rounded-full px-2 py-0.5">{!optionSet ? 'Not set up' : isLoading && expanded ? 'Loading...' : expanded ? `${statusRows.length} values` : 'Edit'}</span>
-          {expanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
-        </div>
-      </button>
-      {expanded && (
-        <div className="p-4 space-y-3">
-          {optionSet && isLoading && (
-            <div className="flex items-center justify-center py-3 text-xs text-slate-400">
-              <Loader2 className="w-4 h-4 animate-spin text-indigo-400 mr-2" /> Loading values...
-            </div>
-          )}
-          {optionSet && isError && (
-            <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-3 text-center text-xs text-red-600">
-              <AlertCircle className="w-4 h-4 mx-auto mb-1" />
-              <p className="mb-2">{error?.message || `Unable to load ${label.toLowerCase()}.`}</p>
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => refetch()}>Retry</Button>
-            </div>
-          )}
-          {optionSet && mutationError && (
-            <div className="flex items-center gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600">
-              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>{mutationError}</span>
-            </div>
-          )}
-          {optionSet && !isLoading && !isError && statusRows.length === 0 && (
-            <p className="text-xs text-slate-400 text-center py-3 border border-dashed border-slate-200 rounded-lg">No values yet.</p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            {!optionSet && <p className="text-xs text-slate-400">This list isn’t set up for the account.</p>}
-            {optionSet && !isLoading && !isError && statusRows.map((s, idx) => (
-              <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 rounded-full text-xs text-slate-700">
-                <button onClick={() => startEditing(s)} disabled={!optionSet?.id || isSystemValue(s) || isMutating} className={cn(optionSet?.id && !isSystemValue(s) && !isMutating && 'hover:text-[#002046]')}>
-                  {s.label || s.value || s}
-                </button>
-                {isSystemValue(s) && <span className="text-[9px] uppercase text-slate-300">system</span>}
-                <button onClick={() => remove(s)} disabled={isMutating || isSystemValue(s)} className="text-slate-300 hover:text-red-500 transition-colors disabled:cursor-not-allowed disabled:hover:text-slate-300">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            ))}
-          </div>
-          {editingValue && (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <Input value={editingValue.label} onChange={e => setEditingValue(prev => ({ ...prev, label: e.target.value }))} disabled={isMutating} placeholder="Label" className="h-8 text-sm" />
-                <Input value={editingValue.color || ''} onChange={e => setEditingValue(prev => ({ ...prev, color: e.target.value }))} disabled={isMutating} placeholder="Color (optional)" className="h-8 text-sm" />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditingValue(null)} disabled={isMutating}>Cancel</Button>
-                <Button size="sm" className="h-7 text-xs bg-[#002046] hover:bg-[#003070]" onClick={saveEditing} disabled={isMutating || !editingValue.label?.trim()}>
-                  {isMutating ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}Save
-                </Button>
-              </div>
-            </div>
-          )}
-          <div className="flex gap-2">
-            <Input value={newStatus} onChange={e => setNewStatus(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && add()}
-              placeholder="Add a value..." className="h-8 text-sm flex-1" disabled={!optionSet || isMutating || isLoading || isError} />
-            <Button size="sm" variant="outline" className="h-8 px-3" onClick={add} disabled={!optionSet || !newStatus.trim() || isMutating || isLoading || isError}>
-              {isMutating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function SpecificDatesCalendar({ holidays = [], onCreate, onUpdate, onDelete, isLoading, isError, error, onRetry, isMutating, mutationError, nonWorkingWeekdays }) {
   const currentYear = new Date().getFullYear();
@@ -309,7 +172,6 @@ function SpecificDatesCalendar({ holidays = [], onCreate, onUpdate, onDelete, is
 const THEME_CHOICES = [
   { value: 'light', label: 'Light', icon: Sun },
   { value: 'dark', label: 'Dark', icon: Moon },
-  { value: 'system', label: 'Match system', icon: Monitor },
 ];
 
 export default function SettingsContent() {
@@ -321,10 +183,12 @@ export default function SettingsContent() {
     try { return JSON.parse(localStorage.getItem('app_nonworking_days') || '[0,6]'); } catch { return [0, 6]; }
   });
   const [hideDelivery, setHideDelivery] = useState(localStorage.getItem('app_hide_delivery') === 'true');
-  const [defaultTaskView, setDefaultTaskView] = useState(localStorage.getItem('app_default_task_view') || 'sheet');
+  const [defaultTaskView, setDefaultTaskView] = useState(() => {
+    const saved = localStorage.getItem('app_default_task_view');
+    return DEFAULT_TASK_VIEW_OPTIONS.some(o => o.value === saved) ? saved : 'sheet';
+  });
   const [mutationError, setMutationError] = useState('');
   const [holidayMutationError, setHolidayMutationError] = useState('');
-  const [optionValueMutationError, setOptionValueMutationError] = useState('');
 
   const {
     data: accountSettings = {},
@@ -347,18 +211,6 @@ export default function SettingsContent() {
   } = useQuery({
     queryKey: ['account-holidays', selectedAccountId],
     queryFn: () => settingsApi.listHolidays(selectedAccountId),
-    enabled: Boolean(selectedAccountId),
-  });
-
-  const {
-    data: accountOptionSets = [],
-    isLoading: loadingAccountOptionSets,
-    isError: isAccountOptionSetsError,
-    error: accountOptionSetsError,
-    refetch: retryAccountOptionSets,
-  } = useQuery({
-    queryKey: ['account-option-sets', selectedAccountId],
-    queryFn: () => settingsApi.listOptionSets(selectedAccountId),
     enabled: Boolean(selectedAccountId),
   });
 
@@ -447,69 +299,6 @@ export default function SettingsContent() {
     setHolidayMutationError('');
     deleteHoliday.mutate({ holidayId });
   };
-
-  const invalidateOptionValueData = (optionSetId) => {
-    if (optionSetId) queryClient.invalidateQueries({ queryKey: ['option-set-values', optionSetId] });
-    queryClient.invalidateQueries({ queryKey: ['account-option-sets', selectedAccountId] });
-    queryClient.invalidateQueries({ queryKey: ['account-options', selectedAccountId] });
-  };
-
-  const createOptionValue = useMutation({
-    mutationFn: ({ optionSetId, data }) => settingsApi.createOptionValue(optionSetId, data),
-    onSuccess: (_created, variables) => {
-      setOptionValueMutationError('');
-      invalidateOptionValueData(variables.optionSetId);
-      variables?.onSuccess?.();
-    },
-    onError: () => {
-      setOptionValueMutationError('We couldn’t add that option value. Please try again.');
-    },
-  });
-
-  const updateOptionValue = useMutation({
-    mutationFn: ({ optionValueId, data }) => settingsApi.updateOptionValue(optionValueId, data),
-    onSuccess: (_updated, variables) => {
-      setOptionValueMutationError('');
-      invalidateOptionValueData(variables.optionSetId);
-      variables?.onSuccess?.();
-    },
-    onError: () => {
-      setOptionValueMutationError('We couldn’t save that option value. Please try again.');
-    },
-  });
-
-  const deleteOptionValue = useMutation({
-    mutationFn: ({ optionValueId }) => settingsApi.deleteOptionValue(optionValueId),
-    onSuccess: (_deleted, variables) => {
-      setOptionValueMutationError('');
-      invalidateOptionValueData(variables.optionSetId);
-    },
-    onError: () => {
-      setOptionValueMutationError('We couldn’t delete that option value. Please try again.');
-    },
-  });
-
-  const isOptionValueMutationPending = createOptionValue.isPending || updateOptionValue.isPending || deleteOptionValue.isPending;
-
-  const handleCreateOptionValue = (optionSetId, data, onSuccess) => {
-    if (!optionSetId || isOptionValueMutationPending) return;
-    setOptionValueMutationError('');
-    createOptionValue.mutate({ optionSetId, data, onSuccess });
-  };
-
-  const handleUpdateOptionValue = (optionSetId, optionValueId, data, onSuccess) => {
-    if (!optionSetId || !optionValueId || isOptionValueMutationPending) return;
-    setOptionValueMutationError('');
-    updateOptionValue.mutate({ optionSetId, optionValueId, data, onSuccess });
-  };
-
-  const handleDeleteOptionValue = (optionSetId, optionValueId) => {
-    if (!optionSetId || !optionValueId || isOptionValueMutationPending) return;
-    setOptionValueMutationError('');
-    deleteOptionValue.mutate({ optionSetId, optionValueId });
-  };
-
-  const findOptionSet = (entityType, name) => accountOptionSets.find(set => set.entity_type === entityType && set.name === name);
 
   const toggleDay = (day) => {
     const updated = nonWorkingDays.includes(day) ? nonWorkingDays.filter(d => d !== day) : [...nonWorkingDays, day];
@@ -608,7 +397,7 @@ export default function SettingsContent() {
             <p className="text-sm font-medium text-slate-800">Default View for Projects</p>
             <p className="text-xs text-slate-400 mt-0.5">Which view opens by default when you select a project</p>
           </div>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {DEFAULT_TASK_VIEW_OPTIONS.map(opt => (
               <button key={opt.value} onClick={() => { setDefaultTaskView(opt.value); save('app_default_task_view', opt.value); }}
                 className={cn('px-3 py-2 rounded-lg border-2 text-xs font-medium text-center transition-all',
@@ -669,87 +458,11 @@ export default function SettingsContent() {
         </div>
       </div>
 
-      {/* User Access Types */}
-      <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
-        <div className="px-5 py-3">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">User Access</p>
-          <p className="text-xs text-slate-400 mt-0.5">Roles define what each user can do in the app</p>
-        </div>
-        <div className="px-5 py-5">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-xl p-4 border-2" style={{ borderColor: '#002046', backgroundColor: '#002046' + '0a' }}>
-              <div className="flex items-center gap-2.5 mb-3">
-                <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: '#002046' }}>A</span>
-                <div>
-                  <p className="text-sm font-bold" style={{ color: '#002046' }}>Admin</p>
-                  <p className="text-[10px] text-slate-400">Full control</p>
-                </div>
-              </div>
-              <ul className="space-y-1.5 text-xs text-slate-600">
-                {['Create & delete portfolios, programs, and projects','Share projects with other users','Manage app settings & RAID statuses','Full edit access to all views','Access Financials section & budget data on dashboards','Invite and manage users'].map(item => (
-                  <li key={item} className="flex items-start gap-2">
-                    <span className="mt-0.5 font-bold flex-shrink-0" style={{ color: '#c87b14' }}>✓</span> {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-xl p-4 border border-slate-200 bg-slate-50">
-              <div className="flex items-center gap-2.5 mb-3">
-                <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold bg-slate-400">U</span>
-                <div>
-                  <p className="text-sm font-bold text-slate-600">User</p>
-                  <p className="text-[10px] text-slate-400">Standard access</p>
-                </div>
-              </div>
-              <ul className="space-y-1.5 text-xs text-slate-600">
-                {['Edit tasks and project schedules','Update RAID logs (Risks, Issues, Assumptions, Decisions)','Manage Change Register entries','View portfolios, programs, and reports','Excludes Financials section & budget data on dashboards','Cannot delete portfolios, programs, or projects'].map(item => (
-                  <li key={item} className="flex items-start gap-2">
-                    <span className="mt-0.5 text-slate-400 flex-shrink-0">•</span> {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Email notifications (they used to have their own tab) */}
+      <NotificationPreferences />
 
-      {/* RAID Status Options */}
-      <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
-        <div className="px-5 py-3">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">RAID Log Status Options</p>
-          <p className="text-xs text-slate-400 mt-0.5">Customise the status values shown in each RAID log. Changes take effect immediately.</p>
-        </div>
-        <div className="px-5 py-4 space-y-3">
-          {loadingAccountOptionSets && (
-            <div className="flex items-center justify-center py-4 text-slate-400">
-              <Loader2 className="w-4 h-4 animate-spin text-indigo-400 mr-2" />
-              <span className="text-xs">Loading option sets...</span>
-            </div>
-          )}
-          {!loadingAccountOptionSets && isAccountOptionSetsError && (
-            <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-3 text-center text-xs text-red-600">
-              <AlertCircle className="w-4 h-4 mx-auto mb-1" />
-              <p className="mb-2">{accountOptionSetsError?.message || 'Unable to load option sets.'}</p>
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => retryAccountOptionSets()}>Retry</Button>
-            </div>
-          )}
-          {!loadingAccountOptionSets && !isAccountOptionSetsError && accountOptionSets.length === 0 && (
-            <p className="text-xs text-slate-400 text-center py-3 border border-dashed border-slate-200 rounded-lg">No option sets are available.</p>
-          )}
-          {!loadingAccountOptionSets && !isAccountOptionSetsError && RAID_TYPES.map(rt => (
-            <RAIDStatusEditor
-              key={rt.key}
-              label={rt.label}
-              optionSet={findOptionSet(rt.entityType, rt.name)}
-              onCreateValue={handleCreateOptionValue}
-              onUpdateValue={handleUpdateOptionValue}
-              onDeleteValue={handleDeleteOptionValue}
-              isMutating={isOptionValueMutationPending}
-              mutationError={optionValueMutationError}
-            />
-          ))}
-        </div>
-      </div>
+      {/* Status & Priority Labels */}
+      <StatusLabelsSettings />
     </div>
   );
 }

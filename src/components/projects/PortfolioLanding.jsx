@@ -1,25 +1,30 @@
+import { splitOwners } from '@/lib/owners';
 import React, { useMemo, useState } from 'react';
 import { Building2, Plus, FolderOpen, Network, FileText, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { exportRecords } from '@/lib/exportUtils';
 import { RAG } from './HealthIndicator';
+import { useStatusLabels } from '@/lib/statusLabels';
 import {
   PageHeader, PageBody, PrimaryButton, ExportButton, StatGrid, StatCard, FilterBar, SearchInput, FilterSelect, optionsFrom,
   DataTable, TitleCell, HealthPill, WorkStatusPill, CompletionBar, DetailsChevron,
-  WORK_STATUS_OPTIONS, workStatusInfo, isCompleteStatus, isOpenRaid, isHighOrCritical, riskIssueLine, NAVY, SOFT, PersonCell,
+  workStatusOptions, workStatusInfo, withHealthLabels, isCompleteStatus, isCancelledStatus, isOpenRaid, isHighOrCritical, riskIssueLine, NAVY, SOFT, PersonCell,
 } from './DirectoryKit';
 
-function getRag(critHighRisks, critHighIssues, pct) {
+function getRag(status, critHighRisks, critHighIssues, pct) {
+  if (isCancelledStatus(status)) return RAG.na;
   if (critHighIssues > 0 || critHighRisks > 3) return RAG.red;
   if (critHighRisks > 0) return RAG.amber;
   if (pct === 0) return RAG.grey;
   return RAG.green;
 }
 
-const HEALTH_INFO = `${RAG.green.label}: ${RAG.green.description}. ${RAG.amber.label}: ${RAG.amber.description}. ${RAG.red.label}: ${RAG.red.description}. ${RAG.grey.label}: no projects completed yet.`;
-const HEALTH_OPTIONS = [RAG.green, RAG.amber, RAG.red, RAG.grey].map(r => ({ value: r.key, label: r.label }));
+const healthInfo = (h) => `${h.green.label}: ${h.green.description}. ${h.amber.label}: ${h.amber.description}. ${h.red.label}: ${h.red.description}. ${h.grey.label}: no projects completed yet. ${h.na.label}: the portfolio is cancelled.`;
+const healthOptions = (h) => [h.green, h.amber, h.red, h.grey, h.na].map(r => ({ value: r.key, label: r.label }));
 
 export default function PortfolioLanding({ portfolios = [], programs = [], projects = [], risks = [], issues = [], onNewPortfolio, onSelectPortfolio }) {
+  const { workStatus, health: healthLabels } = useStatusLabels();
+  const H = Object.fromEntries(Object.keys(RAG).map(key => [key, withHealthLabels(RAG[key], healthLabels)]));
   const [search, setSearch] = useState('');
   const [health, setHealth] = useState('');
   const [status, setStatus] = useState('');
@@ -39,15 +44,15 @@ export default function PortfolioLanding({ portfolios = [], programs = [], proje
       port, pct, critHighRisks, critHighIssues,
       programCount: portPrograms.length, projectCount: portProjects.length,
       openRisks: openRisks.length, openIssues: openIssues.length,
-      rag: getRag(critHighRisks, critHighIssues, pct),
+      rag: withHealthLabels(getRag(port.status, critHighRisks, critHighIssues, pct), healthLabels),
     };
-  }), [portfolios, programs, projects, risks, issues]);
+  }), [portfolios, programs, projects, risks, issues, healthLabels]);
 
   const filtered = rows.filter(({ port, rag }) => {
     if (search && !port.name.toLowerCase().includes(search.toLowerCase())) return false;
     if (health && rag.key !== health) return false;
-    if (status && workStatusInfo(port.status).label !== status) return false;
-    if (owner && port.owner !== owner) return false;
+    if (status && workStatusInfo(port.status).key !== status) return false;
+    if (owner && !splitOwners(port.owner).includes(owner)) return false;
     return true;
   });
 
@@ -58,7 +63,7 @@ export default function PortfolioLanding({ portfolios = [], programs = [], proje
   const handleExport = () => exportRecords(filtered, [
     { label: 'Portfolio', value: r => r.port.name },
     { label: 'Health', value: r => r.rag.label },
-    { label: 'Status', value: r => workStatusInfo(r.port.status).label },
+    { label: 'Status', value: r => workStatusInfo(r.port.status, workStatus).label },
     { label: 'Completion %', value: r => r.pct },
     { label: 'Programs', value: r => r.programCount },
     { label: 'Projects', value: r => r.projectCount },
@@ -72,9 +77,9 @@ export default function PortfolioLanding({ portfolios = [], programs = [], proje
       key: 'name', label: 'Portfolio', sortValue: r => r.port.name, className: 'whitespace-nowrap min-w-[240px]', headerClassName: 'min-w-[240px]',
       render: r => <TitleCell title={r.port.name} />,
     },
-    { key: 'health', label: 'Health', info: HEALTH_INFO, render: r => <HealthPill rag={r.rag} /> },
-    { key: 'status', label: 'Status', sortValue: r => workStatusInfo(r.port.status).label, render: r => <WorkStatusPill status={r.port.status} /> },
-    { key: 'completion', label: 'Completion', sortValue: r => r.pct, render: r => <CompletionBar pct={r.pct} /> },
+    { key: 'health', label: 'Health', info: healthInfo(H), render: r => <HealthPill rag={r.rag} /> },
+    { key: 'status', label: 'Status', sortValue: r => workStatusInfo(r.port.status, workStatus).label, render: r => <WorkStatusPill status={r.port.status} /> },
+    { key: 'completion', label: 'Completion', sortValue: r => r.pct, render: r => <CompletionBar pct={r.pct} rag={r.rag} /> },
     { key: 'programs', label: 'Programs', sortValue: r => r.programCount, className: 'text-center', headerClassName: 'text-center', render: r => <span style={{ color: SOFT }}>{r.programCount}</span> },
     { key: 'projects', label: 'Projects', sortValue: r => r.projectCount, className: 'text-center', headerClassName: 'text-center', render: r => <span style={{ color: SOFT }}>{r.projectCount}</span> },
     { key: 'owner', label: 'Portfolio Owner(s)', sortValue: r => r.port.owner, render: r => <PersonCell name={r.port.owner} /> },
@@ -111,9 +116,9 @@ export default function PortfolioLanding({ portfolios = [], programs = [], proje
 
           <FilterBar right={<ExportButton onClick={handleExport} disabled={filtered.length === 0} />}>
             <SearchInput value={search} onChange={setSearch} placeholder="Search portfolios..." />
-            <FilterSelect value={health} onChange={setHealth} allLabel="Health" options={HEALTH_OPTIONS} />
-            <FilterSelect value={status} onChange={setStatus} allLabel="Status" options={WORK_STATUS_OPTIONS} />
-            <FilterSelect value={owner} onChange={setOwner} allLabel="Portfolio Owner" options={optionsFrom(portfolios.map(p => p.owner))} />
+            <FilterSelect value={health} onChange={setHealth} allLabel="Health" options={healthOptions(H)} />
+            <FilterSelect value={status} onChange={setStatus} allLabel="Status" options={workStatusOptions(workStatus)} />
+            <FilterSelect value={owner} onChange={setOwner} allLabel="Portfolio Owner" options={optionsFrom(portfolios.flatMap(p => splitOwners(p.owner)))} />
           </FilterBar>
 
           <DataTable

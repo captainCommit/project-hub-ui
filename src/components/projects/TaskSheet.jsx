@@ -107,7 +107,13 @@ const VISIBLE_COLUMNS_STORAGE_KEY = 'task_sheet_visible_columns_v2';
 const FROZEN_COLUMN_KEYS = ['row', 'title'];
 const FROZEN_EDGE_CLASS = 'shadow-[inset_-1px_0_0_#cbd5e1,4px_0_6px_-4px_rgba(15,23,42,0.15)]';
 
-const readStoredColumnKeys = () => {
+/** The optional sheet columns shown right now, in the sheet's order (for the import template). */
+export const visibleSheetColumnKeys = () => {
+  const shown = new Set(readStoredColumnKeys());
+  return columns.filter(column => !column.required && shown.has(column.key)).map(column => column.key);
+};
+
+function readStoredColumnKeys() {
   try {
     const stored = JSON.parse(localStorage.getItem(VISIBLE_COLUMNS_STORAGE_KEY));
     if (Array.isArray(stored)) return stored.filter(key => columns.some(column => column.key === key && !column.required));
@@ -115,7 +121,7 @@ const readStoredColumnKeys = () => {
     // Fall through to the default set.
   }
   return DEFAULT_VISIBLE_COLUMN_KEYS;
-};
+}
 
 export default function TaskSheet({ 
   tasks, 

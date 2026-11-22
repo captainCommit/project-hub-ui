@@ -62,6 +62,25 @@ export function useAssistantChat(accountId, { enabled = true } = {}) {
     onError: (error) => toastError(error?.message || 'The conversation could not be deleted.'),
   });
 
+  const refreshConversation = () => queryClient.invalidateQueries({ queryKey: ['ai-conversation', activeId] });
+
+  const feedback = useMutation({
+    mutationFn: ({ answerId, value }) => aiChatApi.setFeedback(answerId, value),
+    onSuccess: refreshConversation,
+    onError: (error) => toastError(error?.message || 'Your feedback could not be saved.'),
+  });
+
+  // Create what Compass drafted (a risk, issue or task); the record lists it lands in are refreshed too.
+  const createFromDraft = useMutation({
+    mutationFn: ({ draftId, changes }) => aiChatApi.createFromDraft(draftId, changes),
+    onSuccess: () => {
+      refreshConversation();
+      ['risks', 'account-risks', 'issues', 'account-issues', 'tasks', 'account-tasks', 'project-task-tree', 'project-board']
+        .forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
+    },
+    onError: (error) => toastError(error?.message || 'That could not be created.'),
+  });
+
   const detail = activeId ? conversationQuery.data : null;
   const messages = [...(detail?.messages || [])];
   // Show the question straight away, with a "thinking" answer, while it is being sent.
@@ -83,5 +102,8 @@ export function useAssistantChat(accountId, { enabled = true } = {}) {
     newChat: () => setActiveId(null),
     send: (text) => send.mutate(text),
     remove: (id) => remove.mutate(id),
+    setFeedback: (answerId, value) => feedback.mutate({ answerId, value }),
+    /** Returns a promise so the review card can show its own saving state. */
+    createFromDraft: (draftId, changes) => createFromDraft.mutateAsync({ draftId, changes }),
   };
 }

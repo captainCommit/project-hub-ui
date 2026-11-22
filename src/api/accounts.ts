@@ -22,6 +22,13 @@ export interface ProjectHubAccountUser {
   is_active: boolean;
   /** False until the person signs in for the first time. */
   has_signed_in: boolean;
+  /** Their account role (Account > Users & Roles). */
+  role_id: string | null;
+  role_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  title: string | null;
+  department: string | null;
 }
 
 /** Every account, as platform admins see it. */
@@ -223,6 +230,12 @@ const mapAccountUser = (payload: unknown): ProjectHubAccountUser => {
     role: String(record.role ?? 'MEMBER') as ProjectHubAccountRole,
     is_active: Boolean(record.is_active),
     has_signed_in: Boolean(record.has_signed_in),
+    role_id: nullableString(record.role_id),
+    role_name: nullableString(record.role_name),
+    first_name: nullableString(record.first_name),
+    last_name: nullableString(record.last_name),
+    title: nullableString(record.title),
+    department: nullableString(record.department),
   };
 };
 
@@ -258,6 +271,9 @@ export const accountsApi = {
   /** Owners only: change anyone's account role, other owners included (one owner must remain). */
   changeUserRole: (accountId: string, userId: string, role: ProjectHubAccountRole) =>
     apiClient.patch(`/api/v1/accounts/${accountId}/users/${userId}`, { role }),
+  /** Owners only: give someone one of the account's roles. */
+  changeUserAccountRole: (accountId: string, userId: string, roleId: string) =>
+    apiClient.patch(`/api/v1/accounts/${accountId}/users/${userId}`, { role_id: roleId }),
   /** Owners only: remove someone from the account along with their access. */
   removeUser: (accountId: string, userId: string) => apiClient.delete(`/api/v1/accounts/${accountId}/users/${userId}`),
   bulkInviteUsers: (accountId: string, data: unknown) => apiClient.post(`/api/v1/accounts/${accountId}/users/bulk-invite`, data),

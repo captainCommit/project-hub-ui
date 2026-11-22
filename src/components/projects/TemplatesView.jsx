@@ -15,7 +15,7 @@ import { confirmAction } from '@/components/ui/confirm-dialog';
 import { toastError } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import { getDefaultTemplateId, setDefaultTemplateId, templateTasksFromTree } from '@/lib/projectTemplates';
-import { NAVY, MUTED, TONES } from './DirectoryKit';
+import { NAVY, MUTED, ORANGE, TONES } from './DirectoryKit';
 
 const STANDARD_COLUMNS = [
   { key: 'title', label: 'Task Name', required: true },
@@ -301,7 +301,7 @@ export default function TemplatesView({ onUseTemplate = undefined, projects = []
             <h1 className="text-[32px] font-bold leading-tight" style={{ color: NAVY }}>Project Templates</h1>
             <p className="text-base mt-1" style={{ color: MUTED }}>Start projects faster with reusable schedules and workflows.</p>
           </div>
-          <Button onClick={() => setEditor({ mode: 'scratch' })} className="h-11 px-5 text-[15px] gap-2" style={{ backgroundColor: NAVY }}>
+          <Button onClick={() => setEditor({ mode: 'scratch' })} className="h-11 px-5 text-[15px] gap-2 text-white hover:opacity-90" style={{ backgroundColor: ORANGE }}>
             <Plus className="w-5 h-5" /> Create Template
           </Button>
         </div>
@@ -397,7 +397,7 @@ export default function TemplatesView({ onUseTemplate = undefined, projects = []
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="h-11 gap-2 bg-white"><Plus className="w-4 h-4" /> Create Template</Button>
+              <Button variant="outline" className="h-11 gap-2 bg-white hover:bg-orange-50" style={{ borderColor: ORANGE, color: ORANGE }}><Plus className="w-4 h-4" /> Create Template</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setEditor({ mode: 'scratch' })}><Plus className="w-4 h-4 mr-2" /> From scratch</DropdownMenuItem>

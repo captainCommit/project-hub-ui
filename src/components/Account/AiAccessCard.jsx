@@ -33,7 +33,7 @@ export default function AiAccessCard() {
     <Card title="AI assistant" icon={Sparkles}>
       {aiEnabled ? (
         <div className="text-sm text-slate-700 space-y-1">
-          <p>AI is turned on for this account: Ask Compass in the sidebar and Reports on projects, programs and portfolios.</p>
+          <p>AI is turned on for this account: Compass in the sidebar and Reports on projects, programs and portfolios.</p>
           {status.can_manage && (
             <Link to="/Account?tab=ai" className="text-sm font-medium text-[#002046] hover:underline">Set it up in Account &gt; AI assistant</Link>
           )}
@@ -41,7 +41,7 @@ export default function AiAccessCard() {
       ) : status.can_manage ? (
         <div className="space-y-3">
           <p className="text-sm text-slate-700">
-            Ask Compass answers questions about your projects, risks and resources, and writes status reports. Project Hub turns it on for your account when you ask.
+            Compass answers questions about your projects, risks and resources, and writes status reports. Project Hub turns it on for your account when you ask.
           </p>
           {status.requested_at ? (
             <p className="text-sm text-slate-500">Requested on {formatDate(status.requested_at)}. The AI assistant tab appears here once it’s turned on.</p>

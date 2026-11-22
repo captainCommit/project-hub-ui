@@ -16,7 +16,42 @@ export type AiChatMessage = {
   // The lookups it made, e.g. "Looking up tasks".
   steps?: string[];
   error?: string | null;
+  // Questions the answer suggests asking next.
+  follow_ups?: string[];
+  // Risks, issues or tasks the answer drafted for the person to review and create.
+  actions?: AiDraftAction[];
+  feedback?: 'up' | 'down' | null;
 };
+
+export type AiDraft = {
+  kind: 'risk' | 'issue' | 'task';
+  project_id?: string;
+  project?: string;
+  program?: string | null;
+  title: string;
+  cause?: string;
+  effect?: string;
+  description?: string;
+  priority?: string;
+  priority_label?: string;
+  status?: string;
+  status_label?: string;
+  assigned_to_name?: string;
+  target_date?: string;
+};
+
+export type AiDraftOutcome = {
+  status: 'CREATED';
+  kind: AiDraft['kind'];
+  id: string;
+  number: string | null;
+  title: string;
+  link: string;
+  project?: string;
+  draft: AiDraft;
+};
+
+export type AiDraftAction = { id: string; draft: AiDraft; outcome: AiDraftOutcome | null };
 
 export type AiConversationDetail = AiConversation & { messages: AiChatMessage[]; active_run_id: string | null };
 
@@ -31,6 +66,12 @@ export const aiChatApi = {
   ask: (conversationId: string, content: string) =>
     apiClient.post(`/api/v1/ai/conversations/${conversationId}/messages`, { content }, { silent: true }) as Promise<AiConversationDetail>,
   remove: (conversationId: string) => apiClient.delete(`/api/v1/ai/conversations/${conversationId}`),
+  /** Create what Compass drafted, with the review card's edits. */
+  createFromDraft: (draftId: string, changes: Partial<AiDraft>) =>
+    apiClient.post(`/api/v1/ai/drafts/${draftId}/create`, changes) as Promise<AiDraftOutcome>,
+  /** Thumbs up / down (null clears it) on an answer. */
+  setFeedback: (answerId: string, value: 'up' | 'down' | null) =>
+    apiClient.put(`/api/v1/ai/answers/${answerId}/feedback`, { value }),
 };
 
 // Written reports. Like questions, asking returns at once and the report is written in the background, so the

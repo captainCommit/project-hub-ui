@@ -29,6 +29,7 @@ const TRACK_ORDER = ['overdue', 'upcoming', 'on_track', 'done', 'no_date'];
 const toDate = (s) => { const d = s ? parseISO(s) : null; return d && isValid(d) ? d : null; };
 const fmt = (s) => { const d = toDate(s); return d ? format(d, 'MMM d, yyyy') : '—'; };
 const isDone = (t) => t.status === 'done' || Number(t.progress) >= 100;
+const isMilestone = (t) => /milestone/i.test(String(t.task_type || ''));
 
 function trackOf(task, today) {
   if (isDone(task)) return 'done';
@@ -48,7 +49,6 @@ function trackOf(task, today) {
  */
 export default function ScheduleAuditView({ tasks = [], sprints = [], historyEntries = [], onOpenTask, canNudge = true }) {
   const [mode, setMode] = useState('tasks');
-  const [scope, setScope] = useState('');
   const [assignee, setAssignee] = useState('');
   const [track, setTrack] = useState('');
   const [search, setSearch] = useState('');
@@ -59,19 +59,17 @@ export default function ScheduleAuditView({ tasks = [], sprints = [], historyEnt
   const byId = useMemo(() => new Map(tasks.map(t => [t.id, t])), [tasks]);
   const parentIds = useMemo(() => new Set(tasks.map(t => t.parent_task_id).filter(Boolean)), [tasks]);
 
-  const rows = useMemo(() => tasks.map(t => ({
+  // Only individual tasks: parent (summary) rows and milestones have no assignee of their own to chase.
+  const rows = useMemo(() => tasks.filter(t => !parentIds.has(t.id) && !isMilestone(t)).map(t => ({
     ...t,
     track: trackOf(t, today),
     sub: sprints.find(s => s.id === t.sprint_id)?.name || byId.get(t.parent_task_id)?.title || '',
     people: t.resources?.length ? t.resources : (t.assignee ? [t.assignee] : []),
-  })), [tasks, sprints, byId]);
+  })), [tasks, sprints, byId, parentIds]);
 
   const assigneeOptions = [...new Set(rows.flatMap(r => r.people))].sort().map(n => ({ value: n, label: n }));
 
   const filtered = rows.filter(r => {
-    if (scope === 'open' && r.track === 'done') return false;
-    if (scope === 'done' && r.track !== 'done') return false;
-    if (scope === 'work' && parentIds.has(r.id)) return false;
     if (assignee && !r.people.includes(assignee)) return false;
     if (track && r.track !== track) return false;
     if (search && !(r.title || '').toLowerCase().includes(search.toLowerCase())) return false;
@@ -176,8 +174,6 @@ export default function ScheduleAuditView({ tasks = [], sprints = [], historyEnt
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-3">
-            <FilterSelect value={scope} onChange={setScope} allLabel="All Tasks"
-              options={[{ value: 'open', label: 'Open tasks' }, { value: 'done', label: 'Completed tasks' }, { value: 'work', label: 'Work items only (no summary rows)' }]} />
             <FilterSelect value={assignee} onChange={setAssignee} allLabel="All Assignees" options={assigneeOptions} />
             <FilterSelect value={track} onChange={setTrack} allLabel="All Statuses" options={TRACK_ORDER.map(k => ({ value: k, label: TRACK[k].label }))} />
             <div className="ml-auto flex items-center gap-3">

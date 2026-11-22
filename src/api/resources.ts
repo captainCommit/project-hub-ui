@@ -42,6 +42,11 @@ export const mapResource = (resource: ApiResource | null | undefined) => {
     non_project_hours: numberOrUndefined(resource.non_project_hours) ?? 0,
     active: isActive !== false,
     is_active: isActive !== false,
+    // On the Resources pages for this viewer (members aren't until someone adds them on Capacity).
+    listed: resource.listed !== false,
+    portfolio_ids: resource.portfolio_ids ?? [],
+    program_ids: resource.program_ids ?? [],
+    project_ids: resource.project_ids ?? [],
     created_at: resource.created_at,
     updated_at: resource.updated_at,
   };
@@ -67,6 +72,9 @@ export const toResourcePayload = (data: ApiResource) => {
   }
   if (hasOwn(data, 'active')) payload.is_active = Boolean(data.active);
   if (hasOwn(data, 'user_id')) payload.user_id = data.user_id || null;
+  for (const key of ['portfolio_ids', 'program_ids', 'project_ids']) {
+    if (Array.isArray(data[key])) payload[key] = data[key];
+  }
 
   return payload;
 };

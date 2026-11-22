@@ -25,7 +25,7 @@ export const LESSONS = [
       {
         title: 'Find your way with the sidebar',
         image: 'welcome/sidebar',
-        body: 'Portfolios, Programs, Projects and the Reporting Center sit at the top. Delivery holds Requirements, Testing and Sprints; Controls holds RAID, Governance and Resources. Below them are Templates, Ask Compass (the AI assistant, when AI is turned on for your account) and this Help Center. The button next to the logo collapses the sidebar.',
+        body: 'Portfolios, Programs, Projects, the Reporting Center and Compass (the AI assistant, when AI is turned on for your account) sit at the top. Delivery holds Requirements, Testing and Sprints; Controls holds RAID, Governance and Resources. Below them are Templates and this Help Center. The button next to the logo collapses the sidebar.',
       },
       {
         title: 'Search everything',
@@ -258,15 +258,15 @@ export const LESSONS = [
         body: 'Resources > Costs compares each project\'s budget with planned and actual cost per person, so you can see the remaining budget and variance.',
       },
       {
-        title: 'Ask Compass',
+        title: 'Compass',
         image: 'dashboards/compass',
         body: 'Compass is the AI assistant. Ask it about your projects, risks, issues, resources or team status in plain language, and start a New Chat for each topic.',
-        tip: 'Compass is turned on per account. If Ask Compass is missing from your sidebar, AI is not on for your account yet.',
+        tip: 'Compass is turned on per account. If Compass is missing from your sidebar, AI is not on for your account yet.',
       },
       {
         title: 'Turn on AI for your account',
         image: 'ai/request',
-        body: 'Account owners: open Account > Connected apps and click Request AI. Once Project Hub turns it on, Ask Compass appears in the sidebar, Reports appear on projects, programs and portfolios, and the AI assistant tab appears in Account.',
+        body: 'Account owners: open Account > Connected apps and click Request AI. Once Project Hub turns it on, Compass appears in the sidebar, Reports appear on projects, programs and portfolios, and the AI assistant tab appears in Account.',
       },
       {
         title: 'Reports in one click',
@@ -586,7 +586,7 @@ export const LIBRARY = [
       {
         id: 'ai-assistant',
         title: 'The AI assistant',
-        summary: 'Ask Compass questions and generate reports.',
+        summary: 'Compass questions and generate reports.',
         minutes: 2,
         steps: [LESSONS[5].steps[4], LESSONS[5].steps[3], LESSONS[5].steps[5], LESSONS[5].steps[6]],
       },

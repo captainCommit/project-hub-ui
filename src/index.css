@@ -257,3 +257,25 @@
     stroke-width: 2.5;
   }
 }
+
+/* Phones and tablets (iOS Safari, Android Chrome) */
+
+/* 100vh includes the browser's address bar on mobile, which pushes the bottom of full-height pages (and their
+   buttons) off screen. dvh is the height actually visible. Browsers without dvh keep 100vh. */
+@supports (height: 100dvh) {
+  .h-screen { height: 100dvh; }
+  .min-h-screen { min-height: 100dvh; }
+  .max-h-screen { max-height: 100dvh; }
+}
+
+/* iOS zooms the page into any form field under 16px when it is tapped. */
+@media (pointer: coarse) and (max-width: 1024px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Taps on controls respond at once, without waiting to see if it's a double-tap zoom. */
+button, a, [role='button'] { touch-action: manipulation; }

@@ -87,7 +87,9 @@ export default function ResourceCalendarPage({ embedded = false, scope: scopePro
   const { projects: inScopeProjects, programs, portfolios } = scopeHierarchy(hierarchy);
   const sprints = useAccountSprints();
   const stories = useMemo(() => tasks.filter(t => t.sprint_id).map(mapTaskToUserStory), [tasks]);
-  const resourceRecords = useAccountResources();
+  // Everyone comes back for people pickers; Availability shows the people added on Resources > Capacity.
+  const allResourceRecords = useAccountResources();
+  const resourceRecords = useMemo(() => allResourceRecords.filter(r => r.listed), [allResourceRecords]);
 
   const invalidateVacations = () => queryClient.invalidateQueries({ queryKey: ['account-time-off'] });
   const createVacation = useMutation({ mutationFn: (data) => vacationsApi.create(resourceRecords, data), onSuccess: () => { invalidateVacations(); resetForm(); }, onError: (error) => toastError(error.message) });
@@ -141,8 +143,8 @@ export default function ResourceCalendarPage({ embedded = false, scope: scopePro
   };
 
   const namesInScope = useMemo(
-    () => namesInProjects(tasks, scopedProjectIds(scope, inScopeProjects, scopeActive)),
-    [tasks, scope, inScopeProjects, scopeActive],
+    () => namesInProjects(tasks, scopedProjectIds(scope, inScopeProjects, scopeActive), resourceRecords),
+    [tasks, scope, inScopeProjects, scopeActive, resourceRecords],
   );
 
   const rows = useMemo(() => {

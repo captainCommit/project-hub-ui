@@ -1,20 +1,20 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { resourcesApi } from '@/api/resources';
 import { accountsApi } from '@/api/accounts';
-import { toastError } from '@/components/ui/use-toast';
+import { toast, toastError } from '@/components/ui/use-toast';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 import {
-  Plus, Trash2, Edit2, Users, Check, X, ArrowUp, ArrowDown, ArrowUpDown, BarChart2, BarChart3, Lightbulb,
-  AlertTriangle, Info, ChevronRight, Search, RotateCcw,
+  Plus, Users, X, ArrowUp, ArrowDown, ArrowUpDown, BarChart2, BarChart3, Lightbulb,
+  AlertTriangle, Info, ChevronRight, Search, RotateCcw, Pencil, UserMinus, Settings2,
 } from 'lucide-react';
 import InfoTip from '@/components/projects/InfoTip';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import { ALLOCATION_OVERRIDES_KEY, useAccountHierarchy, useAccountTasks, useAllocationOverrides } from '@/hooks/useAccountLookups';
 import { useGlobalScope } from '@/lib/globalScope';
+import { useMyAccess } from '@/hooks/useMyAccess';
 import {
   FilterBar, SearchInput, FilterSelect, optionsFrom, ExportButton, PrimaryButton, DataTable, DetailsChevron, StatGrid, Pill,
   NAVY, MUTED, TONES,
@@ -23,6 +23,7 @@ import {
   computeResourceWeekly, allocationPct, healthOf, HEALTH, HEALTH_ORDER, HEALTH_OPTIONS, EMPTY_RESOURCE_SCOPE,
   scopedProjectIds, namesInProjects, ResourceScopeSelects, PersonLine,
 } from '@/components/resources/ResourceKit';
+import AddResourceDialog from '@/components/resources/AddResourceDialog';
 
 const CARD = 'bg-white rounded-xl border border-[#E6ECF4]';
 const PROJECT_TONES = ['blue', 'amber', 'green', 'purple'];
@@ -74,103 +75,142 @@ function AllocationCell({ pct }) {
 }
 
 const hrs = (hours) => `${(Number(hours) || 0).toFixed(1)} hrs`;
+const fixed1 = (hours) => (Number(hours) || 0).toFixed(1);
 
-/** Right-hand panel on the Capacity tab: one person's weekly hours per project, which can be overridden for planning. */
-function AllocationPanel({ resource, weekly, onSet, onReset, onClose }) {
-  const [tab, setTab] = useState('projects');
-  const capacity = Number(resource.weekly_capacity) || 0;
+/** An hours box that saves when it loses focus (or on Enter). Read-only text when editing isn't allowed. */
+function HoursInput({ value, onCommit, label, highlighted = false, editable = true }) {
+  if (!editable) return <span className="font-semibold" style={{ color: NAVY }}>{fixed1(value)}</span>;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <input key={fixed1(value)} type="number" min={0} step="0.1" defaultValue={fixed1(value)} aria-label={label}
+        onBlur={e => onCommit(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+        className={`h-7 w-16 text-xs font-semibold text-right rounded-md border px-2 focus:outline-none focus:ring-1 focus:ring-slate-400 ${highlighted ? 'border-[#E8711A] bg-orange-50' : 'border-slate-200'}`}
+        style={{ color: NAVY }} />
+      <Pencil className="w-3.5 h-3.5 flex-shrink-0" style={{ color: MUTED }} aria-hidden />
+    </span>
+  );
+}
+
+/**
+ * The tray on the Capacity tab: one person's weekly hours per project (pulled from their tasks, overridable for
+ * planning) and their non-project time. Opens when their row is clicked.
+ */
+function AllocationPanel({ resource, weekly, canEdit, canDelete, onSet, onReset, onSetNonProject, onEditAssignments, onRemove, onClose }) {
   const derivedTotal = weekly.projects.reduce((s, p) => s + p.derived, 0);
   const anyOverride = weekly.projects.some(p => p.overridden);
+  const capacity = Number(resource.weekly_capacity) || 0;
   const utilization = allocationPct(weekly.weekly, capacity);
-  const commit = (project, text) => {
-    const value = text.trim() === '' ? null : Number(text);
-    if (value !== null && (!Number.isFinite(value) || value < 0)) return;
+  const parse = (text) => {
+    const value = String(text).trim() === '' ? null : Number(text);
+    return value !== null && (!Number.isFinite(value) || value < 0) ? undefined : value;
+  };
+  const commitProject = (project, text) => {
+    const value = parse(text);
+    if (value === undefined) return;
     // Typing the task-derived figure (or clearing the box) removes the override.
-    const backToDerived = value === null || Math.abs(value - project.derived) < 0.05;
-    if (backToDerived) { if (project.overridden) onSet(project.id, null); return; }
+    if (value === null || Math.abs(value - project.derived) < 0.05) { if (project.overridden) onSet(project.id, null); return; }
     if (Math.abs(value - project.weekly) >= 0.05) onSet(project.id, value);
   };
-  const tabClass = (key) => `px-5 py-2.5 text-sm font-semibold border-b-2 -mb-px ${tab === key ? 'border-[#c87b14] text-[#002046] bg-orange-50' : 'border-transparent text-slate-500 hover:text-slate-700'}`;
-  const summary = [
-    ['Weekly Capacity', capacity ? hrs(capacity) : '—'],
-    ['Project Allocation', hrs(weekly.projectWeekly)],
-    ['Non-Project Allocation', hrs(weekly.nonProject)],
-    ['Total Allocated', hrs(weekly.weekly)],
-    ['Remaining Capacity', capacity ? hrs(capacity - weekly.weekly) : '—'],
-    ['Utilization', utilization === null ? '—' : `${utilization}%`],
-  ];
+  const commitNonProject = (text) => {
+    const parsed = parse(text);
+    if (parsed === undefined) return;
+    const value = parsed ?? 0;
+    if (Math.abs(value - weekly.nonProject) >= 0.005) onSetNonProject(value);
+  };
+  const subtitle = [resource.role, resource.department].filter(Boolean).join(' · ');
+
   return (
-    <aside className="w-[400px] 2xl:w-[460px] flex-shrink-0 bg-white border-l border-slate-200 flex flex-col overflow-hidden">
+    <aside className="w-[420px] 2xl:w-[480px] flex-shrink-0 bg-white border-l border-slate-200 flex flex-col overflow-hidden">
       <div className="flex items-start gap-3 px-5 pt-5 pb-3">
         <div className="flex-1 min-w-0">
           <h2 className="text-xl font-bold truncate" style={{ color: NAVY }}>{resource.full_name}</h2>
-          <p className="text-sm font-semibold" style={{ color: MUTED }}>Project Allocation · Weekly</p>
+          <p className="text-sm" style={{ color: MUTED }}>{subtitle || 'No job title set'}</p>
         </div>
-        {capacity > 0 && <Pill tone="blue" className="flex-shrink-0">{capacity} hrs capacity</Pill>}
-        <button type="button" onClick={onClose} aria-label="Close" className="p-1 rounded hover:bg-slate-100"><X className="w-4 h-4" style={{ color: NAVY }} /></button>
+        <button type="button" onClick={onClose} aria-label="Close" className="p-1 rounded hover:bg-slate-100"><X className="w-5 h-5" style={{ color: NAVY }} /></button>
       </div>
       <div className="flex-1 overflow-y-auto px-5 pb-5 space-y-4">
         <div className="flex items-start gap-2 rounded-lg bg-blue-50 px-3 py-2.5 text-[13px]" style={{ color: NAVY }}>
           <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
-          <span>Project allocation is calculated from task assignments. You can set a planning override here without changing task estimates.</span>
+          <span>Allocations are pulled from project tasks the resource is assigned to. {canEdit ? 'You can override the hours for a project or the non-project allocation if needed.' : ''}</span>
         </div>
-        <div className="flex border-b border-slate-200">
-          <button type="button" className={tabClass('projects')} onClick={() => setTab('projects')}>Project Allocation</button>
-          <button type="button" className={tabClass('summary')} onClick={() => setTab('summary')}>Allocation Summary</button>
+
+        <h3 className="text-base font-bold" style={{ color: NAVY }}>Allocation Details</h3>
+        <div className="rounded-lg border border-slate-200 overflow-hidden">
+          <table className="w-full text-[13px]">
+            <thead className="bg-slate-50" style={{ color: NAVY }}>
+              <tr>
+                <th className="text-left px-3 py-2 font-semibold">Project / Allocation</th>
+                <th className="text-center px-2 py-2 font-semibold whitespace-nowrap">
+                  <span className="inline-flex items-center gap-1">Task-Derived <InfoTip className="w-3.5 h-3.5">Task hours spread evenly over the length of the project.</InfoTip></span>
+                  <span className="block text-[11px] font-normal" style={{ color: MUTED }}>hrs/wk</span>
+                </th>
+                <th className="text-center px-2 py-2 font-semibold whitespace-nowrap">
+                  <span className="inline-flex items-center gap-1">Allocated <InfoTip className="w-3.5 h-3.5">The hours to plan with. Starts at the task-derived figure; change it to override.</InfoTip></span>
+                  <span className="block text-[11px] font-normal" style={{ color: MUTED }}>hrs/wk</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {weekly.projects.length === 0 && (
+                <tr><td colSpan={3} className="px-3 py-6 text-center text-xs" style={{ color: MUTED }}>Not assigned to any project yet.</td></tr>
+              )}
+              {weekly.projects.map(p => (
+                <tr key={p.id} className="border-t border-slate-100">
+                  <td className="px-3 py-2" style={{ color: NAVY }}>{p.name}</td>
+                  <td className="px-2 py-2 text-center" style={{ color: MUTED }}>{fixed1(p.derived)}</td>
+                  <td className="px-2 py-2 text-center whitespace-nowrap">
+                    <HoursInput value={p.weekly} onCommit={text => commitProject(p, text)} label={`Allocated hours for ${p.name}`}
+                      highlighted={p.overridden} editable={canEdit} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        {tab === 'projects' ? (
-          <>
-            <div className="rounded-lg border border-slate-200 overflow-hidden">
-              <table className="w-full text-[13px]">
-                <thead className="bg-[#002046] [&_th]:text-white">
-                  <tr>
-                    <th className="text-left px-3 py-2 font-semibold">Project ({weekly.projects.length})</th>
-                    <th className="text-left px-2 py-2 font-semibold whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1">Task-Derived <InfoTip className="w-3.5 h-3.5 text-white/80">Task hours spread evenly over the length of the project.</InfoTip></span>
-                      <span className="block text-[11px] font-normal text-white/80">hrs/wk</span>
-                    </th>
-                    <th className="text-left px-2 py-2 font-semibold whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1">Allocation <InfoTip className="w-3.5 h-3.5 text-white/80">The hours to plan with. Starts at the task-derived figure; change it to override.</InfoTip></span>
-                      <span className="block text-[11px] font-normal text-white/80">hrs/wk</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {weekly.projects.length === 0 && <tr><td colSpan={3} className="px-3 py-6 text-center text-xs" style={{ color: MUTED }}>No project work assigned.</td></tr>}
-                  {weekly.projects.map(p => (
-                    <tr key={p.id} className="border-t border-slate-100">
-                      <td className="px-3 py-2" style={{ color: NAVY }}>{p.name}</td>
-                      <td className="px-2 py-2 whitespace-nowrap" style={{ color: NAVY }}>{hrs(p.derived)}</td>
-                      <td className="px-2 py-2 whitespace-nowrap">
-                        <input key={`${p.id}-${p.weekly.toFixed(2)}`} type="number" min={0} step="0.1" defaultValue={p.weekly.toFixed(1)} aria-label={`Allocation for ${p.name}`}
-                          onBlur={e => commit(p, e.target.value)}
-                          className={`h-7 w-16 text-xs rounded-md border px-2 focus:outline-none focus:ring-1 focus:ring-slate-400 ${p.overridden ? 'border-[#c87b14]' : 'border-slate-200'}`} />
-                        <span className="ml-1.5 text-xs" style={{ color: MUTED }}>hrs</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t border-slate-200 bg-slate-50 font-bold" style={{ color: NAVY }}>
-                    <td className="px-3 py-2.5">Total Project Allocation</td>
-                    <td className="px-2 py-2.5 whitespace-nowrap">{hrs(derivedTotal)}</td>
-                    <td className="px-2 py-2.5 whitespace-nowrap">{hrs(weekly.projectWeekly)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-            <button type="button" disabled={!anyOverride} onClick={onReset}
-              className="inline-flex items-center gap-1.5 text-[13px] font-medium disabled:opacity-40 enabled:hover:underline" style={{ color: NAVY }}>
-              <RotateCcw className="w-3.5 h-3.5" /> Reset to task-derived allocation ({hrs(derivedTotal)})
-            </button>
-          </>
-        ) : (
-          <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
-            {summary.map(([label, value]) => (
-              <div key={label} className="flex items-center justify-between px-3 py-2.5 text-[13px]">
-                <span style={{ color: MUTED }}>{label}</span><span className="font-semibold" style={{ color: NAVY }}>{value}</span>
-              </div>
-            ))}
+
+        <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
+          <div className="flex items-center justify-between px-3 py-3">
+            <span className="text-sm font-semibold" style={{ color: NAVY }}>Project Allocation</span>
+            <span className="text-sm font-bold" style={{ color: NAVY }}>{hrs(weekly.projectWeekly)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3 px-3 py-3">
+            <span>
+              <span className="block text-sm font-semibold" style={{ color: NAVY }}>Non-Project Allocation</span>
+              <span className="block text-xs" style={{ color: MUTED }}>Meetings, admin, training, etc.</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-sm">
+              <HoursInput value={weekly.nonProject} onCommit={commitNonProject} label="Non-project hours" editable={canEdit} />
+              <span style={{ color: MUTED }}>hrs</span>
+            </span>
+          </div>
+          <div className="flex items-center justify-between px-3 py-3 rounded-b-lg" style={{ backgroundColor: '#FFF4EA' }}>
+            <span className="text-sm font-bold" style={{ color: NAVY }}>Total Allocation <span className="font-normal text-xs" style={{ color: MUTED }}>(Project + Non-Project)</span></span>
+            <span className="text-base font-bold" style={{ color: NAVY }}>{hrs(weekly.weekly)}</span>
+          </div>
+        </div>
+        <p className="text-xs" style={{ color: MUTED }}>
+          Weekly capacity {capacity ? hrs(capacity) : 'not set'}{utilization !== null && <> · <span className="font-semibold" style={{ color: healthOf(utilization).color }}>{utilization}% utilized</span></>}
+        </p>
+
+        {(canEdit || canDelete) && (
+          <div className="flex flex-col items-start gap-2 pt-2 border-t border-slate-100">
+            {canEdit && (
+              <button type="button" disabled={!anyOverride} onClick={onReset}
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium disabled:opacity-40 enabled:hover:underline" style={{ color: NAVY }}>
+                <RotateCcw className="w-3.5 h-3.5" /> Reset project hours to task-derived ({hrs(derivedTotal)})
+              </button>
+            )}
+            {canEdit && (
+              <button type="button" onClick={onEditAssignments} className="inline-flex items-center gap-1.5 text-[13px] font-medium hover:underline" style={{ color: NAVY }}>
+                <Settings2 className="w-3.5 h-3.5" /> Edit capacity and assignments
+              </button>
+            )}
+            {canDelete && (
+              <button type="button" onClick={onRemove} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-red-600 hover:underline">
+                <UserMinus className="w-3.5 h-3.5" /> Remove from Resources
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -190,12 +230,10 @@ export default function ProjectResources({
   const showCapacity = section !== 'overview';
   const queryClient = useQueryClient();
   const { selectedAccountId } = useAuth();
-  const [newRow, setNewRow] = useState(null);
-  const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({});
-  const [customColumns, setCustomColumns] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('resource_custom_columns') || '[]'); } catch { return []; }
-  });
+  const { can } = useMyAccess();
+  const canCreate = can('RESOURCES', 'CREATE');
+  const canEdit = can('RESOURCES', 'EDIT');
+  const canDelete = can('RESOURCES', 'DELETE');
 
   const [ownScope, setOwnScope] = useState(EMPTY_RESOURCE_SCOPE);
   const scope = scopeProp || ownScope;
@@ -212,30 +250,11 @@ export default function ProjectResources({
   // The Capacity table shows allocation as hours or as a share of the person's week.
   const [allocationMode, setAllocationMode] = useState('hours');
   const [panelResourceId, setPanelResourceId] = useState(null);
-
-  const removeColumn = (key) => {
-    const cols = customColumns.filter(c => c.key !== key);
-    setCustomColumns(cols);
-    try { localStorage.setItem('resource_custom_columns', JSON.stringify(cols)); } catch {}
-  };
-  const getEditableResourceData = (resource) => {
-    const extra = {};
-    customColumns.forEach(c => { extra[c.key] = resource[c.key] || ''; });
-    return {
-      full_name: resource.full_name || resource.name || '',
-      rate: resource.rate ?? '',
-      weekly_capacity: resource.weekly_capacity ?? resource.capacity ?? '',
-      role: resource.role || '',
-      department: resource.department || '',
-      allocation: resource.allocation ?? resource.utilization ?? '',
-      non_project_hours: resource.non_project_hours ?? '',
-      user_id: resource.user_id || '',
-      ...extra,
-    };
-  };
+  // The Add Resource modal: 'add', or the resource whose assignments are being edited.
+  const [dialog, setDialog] = useState(null);
 
   const {
-    data: resources = [],
+    data: allResources = [],
     isLoading,
     isError,
     error,
@@ -245,11 +264,8 @@ export default function ProjectResources({
     queryFn: () => resourcesApi.listAccountResources(selectedAccountId),
     enabled: Boolean(selectedAccountId),
   });
-  const { data: resourceDetail } = useQuery({
-    queryKey: ['resource-detail', editingId],
-    queryFn: () => resourcesApi.getResource(editingId),
-    enabled: Boolean(editingId),
-  });
+  // Every member comes back (for people pickers elsewhere); the Resources pages show the ones added here.
+  const resources = useMemo(() => allResources.filter(r => r.listed), [allResources]);
   // A person's load counts all their work (projects); the global scope and page filters narrow who is listed.
   const hierarchy = useAccountHierarchy();
   const { projects } = hierarchy;
@@ -257,59 +273,41 @@ export default function ProjectResources({
   const { projects: inScopeProjects, programs, portfolios } = scopeHierarchy(hierarchy);
   const { tasks: allTasks } = useAccountTasks();
 
-  const invalidateResources = (resourceId) => {
+  const invalidateResources = () => {
     queryClient.invalidateQueries({ queryKey: ['account-resources', selectedAccountId] });
-    if (resourceId) queryClient.invalidateQueries({ queryKey: ['resource-detail', resourceId] });
+    queryClient.invalidateQueries({ queryKey: [ALLOCATION_OVERRIDES_KEY, selectedAccountId] });
   };
+
+  // Account members, for picking who to add (name, job title and department come from their profile).
+  const { data: accountUsers = [] } = useQuery({
+    queryKey: ['account-members', selectedAccountId],
+    queryFn: () => accountsApi.listMembers(selectedAccountId),
+    enabled: Boolean(selectedAccountId) && showCapacity && canCreate,
+  });
+  const candidates = useMemo(() => {
+    const onResources = new Set(resources.filter(r => r.user_id).map(r => r.user_id));
+    return accountUsers.filter(u => u.is_active !== false && !onResources.has(u.id));
+  }, [accountUsers, resources]);
 
   const create = useMutation({
     mutationFn: d => resourcesApi.createResource(selectedAccountId, d),
     onSuccess: (resource) => {
-      invalidateResources(resource?.id);
-      setNewRow(null);
+      invalidateResources();
+      setDialog(null);
+      toast({ title: 'Resource added', description: `${resource?.full_name || 'They'} ${resource?.full_name ? 'is' : 'are'} now on Resources.` });
     },
     onError: (error) => toastError(error.message),
   });
   const update = useMutation({
     mutationFn: ({ id, data }) => resourcesApi.updateResource(id, data),
-    onSuccess: (_resource, variables) => {
-      invalidateResources(variables.id);
-      setEditingId(null);
-    },
+    onSuccess: () => { invalidateResources(); setDialog(null); },
     onError: (error) => toastError(error.message),
   });
-  // Account members, for linking a resource to someone's login (their assigned work then counts as theirs).
-  const { data: accountUsers = [] } = useQuery({
-    queryKey: ['account-members', selectedAccountId],
-    queryFn: () => accountsApi.listMembers(selectedAccountId),
-    enabled: Boolean(selectedAccountId) && showCapacity,
-  });
-  const userLabel = (user) => user?.full_name || user?.email || 'Unknown user';
-  const LinkedUserSelect = ({ value, resourceId = undefined, onChange }) => {
-    // People already linked to another resource can't be picked again.
-    const taken = new Set(resources.filter(r => r.id !== resourceId && r.user_id).map(r => r.user_id));
-    return (
-      <Select value={value || 'none'} onValueChange={v => onChange(v === 'none' ? '' : v)}>
-        <SelectTrigger className="h-7 text-xs bg-white" title="The login this resource belongs to; work assigned to the resource counts as theirs">
-          <SelectValue placeholder="Not linked" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">Login: not linked</SelectItem>
-          {accountUsers.filter(u => !taken.has(u.id) || u.id === value).map(u => (
-            <SelectItem key={u.id} value={u.id}>Login: {userLabel(u)}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    );
-  };
   const remove = useMutation({
     mutationFn: id => resourcesApi.deleteResource(id),
-    onSuccess: (_result, resourceId) => invalidateResources(resourceId),
+    onSuccess: () => { setPanelResourceId(null); invalidateResources(); },
+    onError: (error) => toastError(error.message),
   });
-
-  useEffect(() => {
-    if (resourceDetail && editingId) setEditData(getEditableResourceData(resourceDetail));
-  }, [resourceDetail, editingId]);
 
   const allocationOverrides = useAllocationOverrides();
   const resourceWeekly = useMemo(() => computeResourceWeekly(resources, allTasks, projects, allocationOverrides), [resources, allTasks, projects, allocationOverrides]);
@@ -326,10 +324,10 @@ export default function ProjectResources({
   });
   const pctOf = (r) => allocationPct(resourceWeekly[r.full_name]?.weekly, r.weekly_capacity);
 
-  // Page filters: who has work in the chosen portfolio / program / project, and their department.
+  // Page filters: who works in (or is assigned to) the chosen portfolio / program / project, and their department.
   const namesInScope = useMemo(
-    () => namesInProjects(allTasks, scopedProjectIds(scope, inScopeProjects, scopeActive)),
-    [allTasks, scope, inScopeProjects, scopeActive],
+    () => namesInProjects(allTasks, scopedProjectIds(scope, inScopeProjects, scopeActive), resources),
+    [allTasks, scope, inScopeProjects, scopeActive, resources],
   );
   const scopedResources = useMemo(() => resources.filter(r => {
     if (namesInScope && !namesInScope.has(r.full_name)) return false;
@@ -393,10 +391,11 @@ export default function ProjectResources({
     else { setSortKey(key); setSortDir('asc'); }
   };
   const SortIcon = ({ col }) => {
-    if (sortKey !== col) return <ArrowUpDown className="w-3 h-3 text-slate-300 cursor-pointer" onClick={() => toggleSort(col)} />;
+    const click = (e) => { e.stopPropagation(); toggleSort(col); };
+    if (sortKey !== col) return <ArrowUpDown className="w-3 h-3 text-slate-300 cursor-pointer" onClick={click} />;
     return sortDir === 'asc'
-      ? <ArrowUp className="w-3 h-3 text-white cursor-pointer" onClick={() => toggleSort(col)} />
-      : <ArrowDown className="w-3 h-3 text-white cursor-pointer" onClick={() => toggleSort(col)} />;
+      ? <ArrowUp className="w-3 h-3 text-white cursor-pointer" onClick={click} />
+      : <ArrowDown className="w-3 h-3 text-white cursor-pointer" onClick={click} />;
   };
 
   const exportToCSV = (list) => {
@@ -413,32 +412,26 @@ export default function ProjectResources({
     URL.revokeObjectURL(url);
   };
 
-  const handleSaveNew = () => { if (!selectedAccountId || !newRow?.full_name?.trim()) return; create.mutate(newRow); };
-  const handleStartEdit = (r) => { setEditingId(r.id); setEditData(getEditableResourceData(r)); };
-  const handleSaveEdit = () => { if (!editData.full_name?.trim()) return; update.mutate({ id: editingId, data: editData }); };
   const shownAllocation = (hours, capacity) => {
     if (allocationMode === 'hours') return hrs(hours);
     const cap = Number(capacity) || 0;
     return cap ? `${Math.round((Number(hours) || 0) / cap * 100)}%` : '—';
   };
-  // Non-project time is entered in the table's current unit and always stored as hours.
-  const nonProjectInput = (r) => {
-    const stored = Number(r.non_project_hours) || 0;
-    if (allocationMode === 'hours') return stored ? stored.toFixed(1) : '';
-    const cap = Number(r.weekly_capacity) || 0;
-    return cap && stored ? String(Math.round(stored / cap * 100)) : '';
-  };
-  const saveNonProjectHours = (r, val) => {
-    const entered = val === '' ? 0 : Number(val);
-    if (!Number.isFinite(entered) || entered < 0) return;
-    const cap = Number(r.weekly_capacity) || 0;
-    if (allocationMode === 'percent' && !cap) return;
-    const hours = allocationMode === 'percent' ? Math.round(entered / 100 * cap * 100) / 100 : entered;
-    if (Math.abs((Number(r.non_project_hours) || 0) - hours) < 0.005) return;
-    update.mutate({ id: r.id, data: { non_project_hours: hours } });
-  };
   const openCapacity = (filter) => {
     if (onOpenCapacity) onOpenCapacity(filter);
+  };
+  const submitDialog = (values) => {
+    if (dialog === 'add') create.mutate(values);
+    else if (dialog) update.mutate({ id: dialog.id, data: values });
+  };
+  const removeResource = async (resource) => {
+    const ok = await confirmAction({
+      title: `Remove ${resource.full_name} from Resources?`,
+      description: 'Their project assignments and hour overrides go too, along with any access those assignments gave them. Their tasks are not changed.',
+      confirmLabel: 'Remove',
+      destructive: true,
+    });
+    if (ok) remove.mutate(resource.id);
   };
 
   const overviewColumns = [
@@ -475,10 +468,18 @@ export default function ProjectResources({
   );
 
   const panelResource = panelResourceId ? resources.find(r => r.id === panelResourceId) : null;
-  // Beside the allocation panel the table drops Department and the row actions so Utilization stays in view.
-  // Editing or adding a row needs every column, so it shows them all again.
-  const compactTable = Boolean(panelResource) && !editingId && !newRow;
+  // Beside the tray the table drops Department so Utilization stays in view.
+  const compactTable = Boolean(panelResource);
+  const columnCount = compactTable ? 6 : 7;
   const shareOf = (key) => (stats.total ? Math.round(stats.counts[key] / stats.total * 100) : 0);
+  const headerCell = (label, col, extra = null) => (
+    <th className="text-left px-3 py-3 text-[13px] font-semibold">
+      <span className="flex items-center gap-1">{label} {extra} <SortIcon col={col} /></span>
+    </th>
+  );
+  const messageRow = (content, className = 'text-slate-400') => (
+    <tr><td colSpan={columnCount} className={`text-center py-10 text-xs ${className}`}>{content}</td></tr>
+  );
 
   return (
     <div className={`flex bg-slate-50 ${embedded ? 'flex-1 overflow-hidden' : 'h-screen'}`} style={{ fontFamily: 'Segoe UI, sans-serif' }}>
@@ -600,165 +601,80 @@ export default function ProjectResources({
             </div>
             <div className="flex items-center gap-2">
               <ExportButton onClick={() => exportToCSV(dirResources)} disabled={dirResources.length === 0} />
-              <PrimaryButton icon={Plus} disabled={!selectedAccountId} onClick={() => setNewRow({ full_name: '', rate: '', weekly_capacity: '', role: '', department: '', allocation: '', non_project_hours: '' })}>
-                New Resource
-              </PrimaryButton>
+              {canCreate && (
+                <PrimaryButton icon={Plus} disabled={!selectedAccountId} onClick={() => setDialog('add')}>
+                  Add Resource
+                </PrimaryButton>
+              )}
             </div>
           </div>
 
           <div className={`${CARD} overflow-x-auto`}>
-              <table className="w-full text-sm" style={{ minWidth: panelResource ? undefined : '1000px' }}>
+              <table className="w-full text-sm" style={{ minWidth: panelResource ? undefined : '900px' }}>
                 <thead className="bg-[#002046] [&_th]:text-white">
                   <tr>
                     <th className="text-left px-4 py-3 text-[13px] font-semibold">
                       <span className="flex items-center gap-1">Resource <SortIcon col="full_name" /></span>
                     </th>
-                    {!compactTable && (
-                      <th className="text-left px-3 py-3 text-[13px] font-semibold">
-                        <span className="flex items-center gap-1">Department <SortIcon col="department" /></span>
-                      </th>
-                    )}
-                    <th className="text-left px-3 py-3 text-[13px] font-semibold">
-                      <span className="flex items-center gap-1">Weekly Capacity <SortIcon col="weekly_capacity" /></span>
-                    </th>
-                    <th className="text-left px-3 py-3 text-[13px] font-semibold">
-                      <span className="flex items-center gap-1">Project Allocation <InfoTip className="w-3.5 h-3.5 text-white/80">Worked out from the person's task hours, unless overridden in the panel.</InfoTip> <SortIcon col="project_allocation" /></span>
-                      <span className="block text-[11px] font-normal text-white/80">Calculated from tasks</span>
-                    </th>
-                    <th className="text-left px-3 py-3 text-[13px] font-semibold">
-                      <span className="flex items-center gap-1">Non-Project Allocation <InfoTip className="w-3.5 h-3.5 text-white/80">Time outside projects, such as meetings, support and admin.</InfoTip> <SortIcon col="non_project_hours" /></span>
-                      <span className="block text-[11px] font-normal text-white/80">Manually entered</span>
-                    </th>
-                    <th className="text-left px-3 py-3 text-[13px] font-semibold">
-                      <span className="flex items-center gap-1">Total Allocated <SortIcon col="weekly_allocation" /></span>
-                    </th>
-                    <th className="text-left px-3 py-3 text-[13px] font-semibold">
-                      <span className="flex items-center gap-1">Utilization <SortIcon col="allocation" /></span>
-                    </th>
-                    {customColumns.map(col => (
-                      <th key={col.key} className="text-left px-3 py-3 text-[13px] font-semibold group">
-                        <span className="flex items-center gap-1">{col.label}
-                          <button onClick={() => removeColumn(col.key)} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400"><X className="w-3 h-3" /></button>
-                        </span>
-                      </th>
-                    ))}
-                    {!compactTable && <th className="px-2 py-3 w-24"></th>}
+                    {!compactTable && headerCell('Department', 'department')}
+                    {headerCell('Weekly Capacity', 'weekly_capacity')}
+                    {headerCell('Project Allocation', 'project_allocation',
+                      <InfoTip className="w-3.5 h-3.5 text-white/80">Worked out from the person's task hours, unless overridden in the resource details.</InfoTip>)}
+                    {headerCell('Non-Project Allocation', 'non_project_hours',
+                      <InfoTip className="w-3.5 h-3.5 text-white/80">Time outside projects, such as meetings, support and admin. Set it in the resource details.</InfoTip>)}
+                    {headerCell('Total Allocated', 'weekly_allocation')}
+                    {headerCell('Utilization', 'allocation')}
                   </tr>
                 </thead>
                 <tbody>
-                  {!selectedAccountId && <tr><td colSpan={(compactTable ? 6 : 8) + customColumns.length} className="text-center py-10 text-slate-400 text-xs">Select an account to view resources.</td></tr>}
-                  {selectedAccountId && isLoading && <tr><td colSpan={(compactTable ? 6 : 8) + customColumns.length} className="text-center py-8 text-slate-400 text-xs">Loading resources...</td></tr>}
-                  {selectedAccountId && isError && <tr><td colSpan={(compactTable ? 6 : 8) + customColumns.length} className="text-center py-8 text-xs"><div className="flex flex-col items-center gap-2 text-slate-500"><span>{error?.message || 'Unable to load resources.'}</span><Button size="sm" variant="outline" onClick={() => refetch()}>Retry</Button></div></td></tr>}
-                  {selectedAccountId && !isLoading && !isError && resources.length === 0 && !newRow && <tr><td colSpan={(compactTable ? 6 : 8) + customColumns.length} className="text-center py-10 text-slate-400 text-xs">No resources yet. Click "New Resource" to get started.</td></tr>}
-                  {selectedAccountId && !isLoading && resources.length > 0 && dirResources.length === 0 && <tr><td colSpan={(compactTable ? 6 : 8) + customColumns.length} className="text-center py-10 text-slate-400 text-xs">No resources match your filters.</td></tr>}
+                  {!selectedAccountId && messageRow('Select an account to view resources.')}
+                  {selectedAccountId && isLoading && messageRow('Loading resources...')}
+                  {selectedAccountId && isError && messageRow(
+                    <div className="flex flex-col items-center gap-2 text-slate-500"><span>{error?.message || 'Unable to load resources.'}</span><Button size="sm" variant="outline" onClick={() => refetch()}>Retry</Button></div>, '',
+                  )}
+                  {selectedAccountId && !isLoading && !isError && resources.length === 0 && messageRow(canCreate ? 'No resources yet. Click "Add Resource" to get started.' : 'No resources to show.')}
+                  {selectedAccountId && !isLoading && resources.length > 0 && dirResources.length === 0 && messageRow('No resources match your filters.')}
                   {dirResources.map(r => {
-                    const rw = resourceWeekly[r.full_name] || { projects: [], weekly: 0 };
+                    const rw = resourceWeekly[r.full_name] || { projects: [], weekly: 0, projectWeekly: 0, nonProject: 0 };
                     const pctAlloc = pctOf(r);
                     return (
-                      <tr key={r.id} className={`group border-b border-slate-100 ${panelResourceId === r.id ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
-                        {editingId === r.id ? (
-                          <>
-                            <td className="px-4 py-2 space-y-1 min-w-[220px]">
-                              <Input value={editData.full_name} onChange={e => setEditData(p => ({ ...p, full_name: e.target.value }))} className="h-7 text-sm" placeholder="Full name*" autoFocus />
-                              <Input value={editData.role} onChange={e => setEditData(p => ({ ...p, role: e.target.value }))} className="h-7 text-xs" placeholder="Role, e.g. Developer" />
-                              <LinkedUserSelect value={editData.user_id} resourceId={r.id} onChange={v => setEditData(p => ({ ...p, user_id: v }))} />
-                            </td>
-                            <td className="px-3 py-2"><Input value={editData.department} onChange={e => setEditData(p => ({ ...p, department: e.target.value }))} className="h-7 text-sm" placeholder="e.g. Engineering" /></td>
-                            <td className="px-3 py-2"><Select value={editData.weekly_capacity != null ? String(editData.weekly_capacity) : ''} onValueChange={v => setEditData(p => ({ ...p, weekly_capacity: Number(v) }))}><SelectTrigger className="h-7 text-xs bg-white"><SelectValue placeholder="—" /></SelectTrigger><SelectContent><SelectItem value="20">20 hrs</SelectItem><SelectItem value="40">40 hrs</SelectItem></SelectContent></Select></td>
-                            <td className="px-3 py-2 text-xs text-slate-400 italic">Auto-computed</td>
-                            <td className="px-3 py-2"><Input type="number" value={editData.non_project_hours ?? ''} onChange={e => setEditData(p => ({ ...p, non_project_hours: e.target.value === '' ? '' : Number(e.target.value) }))} className="h-7 text-sm" placeholder="0" /></td>
-                            <td className="px-3 py-2 text-xs text-slate-400 italic">Auto-computed</td>
-                            <td className="px-3 py-2 text-xs text-slate-400 italic">Auto-computed</td>
-                            {customColumns.map(col => <td key={col.key} className="px-3 py-2"><Input value={editData[col.key] || ''} onChange={e => setEditData(p => ({ ...p, [col.key]: e.target.value }))} className="h-7 text-sm" /></td>)}
-                            <td className="px-3 py-2">
-                              <div className="flex gap-1">
-                                <button onClick={handleSaveEdit} className="p-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded"><Check className="w-3 h-3" /></button>
-                                <button onClick={() => setEditingId(null)} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded"><X className="w-3 h-3" /></button>
-                              </div>
-                            </td>
-                          </>
-                        ) : (
-                          <>
-                            <td className="px-4 py-2.5">
-                              <p className="font-semibold" style={{ color: NAVY }}>{r.full_name}</p>
-                              <p className="text-xs text-slate-400">{r.role || 'No role set'}</p>
-                            </td>
-                            {!compactTable && <td className="px-3 py-2.5 text-slate-600">{r.department || '—'}</td>}
-                            <td className="px-3 py-2.5 text-slate-600">{r.weekly_capacity != null ? `${r.weekly_capacity} hrs` : '—'}</td>
-                            <td className="px-3 py-2.5">
-                              <button type="button" onClick={() => setPanelResourceId(r.id)} className="flex items-center gap-2 text-left">
-                                <span>
-                                  <span className="block font-medium underline" style={{ color: NAVY }}>{shownAllocation(rw.projectWeekly, r.weekly_capacity)}</span>
-                                  <span className="block text-xs text-slate-400">({rw.projects.length} project{rw.projects.length === 1 ? '' : 's'})</span>
-                                </span>
-                                <ChevronRight className="w-4 h-4 text-slate-400" />
-                              </button>
-                            </td>
-                            <td className="px-3 py-2.5 whitespace-nowrap">
-                              <input
-                                key={`${r.id}-${allocationMode}-${r.non_project_hours}`}
-                                type="number"
-                                min={0}
-                                step="any"
-                                defaultValue={nonProjectInput(r)}
-                                onBlur={(e) => saveNonProjectHours(r, e.target.value)}
-                                aria-label={`Non-project allocation for ${r.full_name}`}
-                                className="h-7 w-16 text-xs rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-1 focus:ring-slate-400"
-                                placeholder="0"
-                              />
-                              <span className="ml-1.5 text-xs text-slate-500">{allocationMode === 'hours' ? 'hrs' : '%'}</span>
-                            </td>
-                            <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">{shownAllocation(rw.weekly, r.weekly_capacity)}</td>
-                            <td className="px-3 py-2.5 min-w-[96px]">
-                              {pctAlloc != null ? (
-                                <>
-                                  <span className="block font-semibold" style={{ color: healthOf(pctAlloc).color }}>{pctAlloc}%</span>
-                                  <span className="block w-full h-1.5 mt-1 rounded-full overflow-hidden" style={{ backgroundColor: '#EAF0F6' }}>
-                                    <span className="block h-full rounded-full" style={{ width: `${Math.min(100, pctAlloc)}%`, backgroundColor: healthOf(pctAlloc).color }} />
-                                  </span>
-                                </>
-                              ) : '—'}
-                            </td>
-                            {customColumns.map(col => <td key={col.key} className="px-3 py-2.5 text-slate-500">{r[col.key] || '—'}</td>)}
-                            {!compactTable && <td className="px-3 py-2.5">
-                              <div className="flex items-center gap-1 justify-end">
-                                <button onClick={() => handleStartEdit(r)} aria-label={`Edit ${r.full_name}`} className="p-1.5 text-slate-300 hover:text-slate-500 hover:bg-slate-100 rounded opacity-0 group-hover:opacity-100"><Edit2 className="w-3 h-3" /></button>
-                                <button onClick={() => remove.mutate(r.id)} aria-label={`Delete ${r.full_name}`} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100"><Trash2 className="w-3 h-3" /></button>
-                                <button onClick={() => setPanelResourceId(r.id)} aria-label={`Open allocation for ${r.full_name}`} className="p-1 rounded hover:bg-slate-100"><ChevronRight className="w-4 h-4" style={{ color: NAVY }} /></button>
-                              </div>
-                            </td>}
-                          </>
-                        )}
+                      <tr key={r.id} onClick={() => setPanelResourceId(r.id)}
+                        className={`border-b border-slate-100 cursor-pointer ${panelResourceId === r.id ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
+                        <td className="px-4 py-2.5">
+                          <p className="font-semibold" style={{ color: NAVY }}>{r.full_name}</p>
+                          <p className="text-xs text-slate-400">{r.role || 'No job title set'}</p>
+                        </td>
+                        {!compactTable && <td className="px-3 py-2.5 text-slate-600">{r.department || '—'}</td>}
+                        <td className="px-3 py-2.5 text-slate-600">{r.weekly_capacity != null ? `${r.weekly_capacity} hrs` : '—'}</td>
+                        <td className="px-3 py-2.5">
+                          <span className="flex items-center gap-2">
+                            <span>
+                              <span className="block font-medium" style={{ color: NAVY }}>{shownAllocation(rw.projectWeekly, r.weekly_capacity)}</span>
+                              <span className="block text-xs text-slate-400">({rw.projects.length} project{rw.projects.length === 1 ? '' : 's'})</span>
+                            </span>
+                            <ChevronRight className="w-4 h-4 text-slate-400" />
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">{shownAllocation(rw.nonProject, r.weekly_capacity)}</td>
+                        <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">{shownAllocation(rw.weekly, r.weekly_capacity)}</td>
+                        <td className="px-3 py-2.5 min-w-[96px]">
+                          {pctAlloc != null ? (
+                            <>
+                              <span className="block font-semibold" style={{ color: healthOf(pctAlloc).color }}>{pctAlloc}%</span>
+                              <span className="block w-full h-1.5 mt-1 rounded-full overflow-hidden" style={{ backgroundColor: '#EAF0F6' }}>
+                                <span className="block h-full rounded-full" style={{ width: `${Math.min(100, pctAlloc)}%`, backgroundColor: healthOf(pctAlloc).color }} />
+                              </span>
+                            </>
+                          ) : '—'}
+                        </td>
                       </tr>
                     );
                   })}
-                  {newRow && (
-                    <tr className="border-b border-slate-100 bg-slate-50/60">
-                      <td className="px-4 py-2 space-y-1 min-w-[220px]">
-                        <Input value={newRow.full_name} onChange={e => setNewRow(p => ({ ...p, full_name: e.target.value }))} className="h-7 text-sm" placeholder="Full name*" autoFocus onKeyDown={e => e.key === 'Enter' && handleSaveNew()} />
-                        <Input value={newRow.role} onChange={e => setNewRow(p => ({ ...p, role: e.target.value }))} className="h-7 text-xs" placeholder="Role, e.g. Developer" />
-                        <LinkedUserSelect value={newRow.user_id} onChange={v => setNewRow(p => ({ ...p, user_id: v }))} />
-                      </td>
-                      <td className="px-3 py-2"><Input value={newRow.department} onChange={e => setNewRow(p => ({ ...p, department: e.target.value }))} className="h-7 text-sm" placeholder="e.g. Engineering" /></td>
-                      <td className="px-3 py-2"><Select value={newRow.weekly_capacity != null ? String(newRow.weekly_capacity) : ''} onValueChange={v => setNewRow(p => ({ ...p, weekly_capacity: Number(v) }))}><SelectTrigger className="h-7 text-xs bg-white"><SelectValue placeholder="—" /></SelectTrigger><SelectContent><SelectItem value="20">20 hrs</SelectItem><SelectItem value="40">40 hrs</SelectItem></SelectContent></Select></td>
-                      <td className="px-3 py-2 text-xs text-slate-300 italic">—</td>
-                      <td className="px-3 py-2"><Input type="number" value={newRow.non_project_hours ?? ''} onChange={e => setNewRow(p => ({ ...p, non_project_hours: e.target.value === '' ? '' : Number(e.target.value) }))} className="h-7 text-sm" placeholder="0" /></td>
-                      <td className="px-3 py-2 text-xs text-slate-300 italic">—</td>
-                      <td className="px-3 py-2 text-xs text-slate-300 italic">—</td>
-                      {customColumns.map(col => <td key={col.key} className="px-3 py-2" />)}
-                      <td className="px-3 py-2">
-                        <div className="flex gap-1">
-                          <button onClick={handleSaveNew} className="p-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded"><Check className="w-3 h-3" /></button>
-                          <button onClick={() => setNewRow(null)} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded"><X className="w-3 h-3" /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
           </div>
           <p className="text-xs" style={{ color: MUTED }}>
-            <Search className="w-3 h-3 inline mr-1" />Showing {dirResources.length} of {resources.length} resources. Health: {HEALTH_ORDER.map(k => HEALTH[k].legend).join(' · ')}.
+            <Search className="w-3 h-3 inline mr-1" />Showing {dirResources.length} of {resources.length} resources. Select a resource to see and override their allocation. Health: {HEALTH_ORDER.map(k => HEALTH[k].legend).join(' · ')}.
           </p>
           </>)}
 
@@ -769,9 +685,27 @@ export default function ProjectResources({
           key={panelResource.id}
           resource={panelResource}
           weekly={resourceWeekly[panelResource.full_name] || { projects: [], projectWeekly: 0, weekly: 0, nonProject: 0 }}
+          canEdit={canEdit}
+          canDelete={canDelete}
           onSet={(projectId, hours) => setProjectAllocation.mutate({ resourceId: panelResource.id, projectId, hours })}
           onReset={() => resetProjectAllocations.mutate(panelResource.id)}
+          onSetNonProject={(hours) => update.mutate({ id: panelResource.id, data: { non_project_hours: hours } })}
+          onEditAssignments={() => setDialog(panelResource)}
+          onRemove={() => removeResource(panelResource)}
           onClose={() => setPanelResourceId(null)}
+        />
+      )}
+      {showCapacity && (
+        <AddResourceDialog
+          open={Boolean(dialog)}
+          onOpenChange={(open) => { if (!open) setDialog(null); }}
+          resource={dialog && dialog !== 'add' ? dialog : null}
+          candidates={candidates}
+          portfolios={hierarchy.portfolios}
+          programs={hierarchy.programs}
+          projects={hierarchy.projects}
+          onSubmit={submitDialog}
+          saving={create.isPending || update.isPending}
         />
       )}
     </div>

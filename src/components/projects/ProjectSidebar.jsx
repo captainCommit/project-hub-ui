@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import BrandLogo from '@/components/BrandLogo';
 import { useAuth } from '@/lib/AuthContext';
 import { useAiStatus } from '@/hooks/useAiStatus';
+import { useMyAccess } from '@/hooks/useMyAccess';
 import {
   FolderTree, Building2, ChevronRight, ChevronDown,
   FileText, Shield, Users, Package, AlertTriangle,
@@ -45,17 +46,40 @@ const shortName = (/** @type {string} */ fullName) => {
   return `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}`;
 };
 
+const PHONE_QUERY = '(max-width: 767px)';
+const isPhoneWidth = () => typeof window !== 'undefined' && !!window.matchMedia?.(PHONE_QUERY).matches;
+
+/** True on phone-sized screens, following rotation and resizing. */
+function useIsPhone() {
+  const [phone, setPhone] = useState(isPhoneWidth);
+  useEffect(() => {
+    const media = window.matchMedia?.(PHONE_QUERY);
+    if (!media) return undefined;
+    const onChange = () => setPhone(media.matches);
+    media.addEventListener?.('change', onChange);
+    return () => media.removeEventListener?.('change', onChange);
+  }, []);
+  return phone;
+}
+
 export default function ProjectSidebar(/** @type {any} */ {
   projects, programs = [], portfolios = [], selectedItem, selectedType,
   onSelectItem, onNewProject, onNewProgram, onNewPortfolio, onRenameItem, onDeleteItem, onEditItem,
 }) {
   const [expandedFolders, setExpandedFolders] = useState(readSavedExpandedFolders);
+  // Phones start on the icon rail; opened, the sidebar slides over the page and closes again after navigating.
+  const isPhone = useIsPhone();
   const [collapsed, setCollapsed] = useState(() => {
+    if (isPhoneWidth()) return true;
     try { return localStorage.getItem('sidebar_collapsed') === 'true'; } catch { return false; }
   });
   const scrollRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const { user, selectedAccount, logout } = useAuth();
   const { aiEnabled } = useAiStatus();
+  // Areas the account role can't view are left out (Account > Users & Roles); the API refuses them regardless.
+  const { can } = useMyAccess();
+  const canSeeReporting = can('REPORTING');
+  const canSeeResources = can('RESOURCES');
   const location = useLocation();
   const pathname = location.pathname.toLowerCase();
 
@@ -66,10 +90,15 @@ export default function ProjectSidebar(/** @type {any} */ {
   const toggleCollapsed = () => {
     setCollapsed(p => {
       const next = !p;
-      try { localStorage.setItem('sidebar_collapsed', String(next)); } catch {}
+      if (!isPhone) {
+        try { localStorage.setItem('sidebar_collapsed', String(next)); } catch {}
+      }
       return next;
     });
   };
+  useEffect(() => {
+    if (isPhone) setCollapsed(true);
+  }, [isPhone, location.pathname, location.search]);
 
   // Keep the sidebar's scroll position across page changes.
   const pendingScrollTop = useRef(/** @type {number | null} */ (readSavedScrollTop()));
@@ -146,11 +175,7 @@ export default function ProjectSidebar(/** @type {any} */ {
     </div>
   );
 
-  const CompassBadge = () => (
-    <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #f59e0b, #c87b14)' }}>
-      <Sparkles className="w-3 h-3 text-white" />
-    </span>
-  );
+  const CompassBadge = () => <Sparkles className="w-4 h-4 flex-shrink-0" style={{ color: '#E8711A' }} />;
 
   if (collapsed) {
     return (
@@ -166,14 +191,14 @@ export default function ProjectSidebar(/** @type {any} */ {
           <Link to="/Projects?view=all_portfolios" title="Portfolios" className={collapsedClass(portfoliosActive)}><Building2 className="w-4 h-4" /></Link>
           <Link to="/Projects?view=all_programs" title="Programs" className={collapsedClass(programsActive)}><FolderTree className="w-4 h-4" /></Link>
           <Link to="/Projects?view=all_projects" title="Projects" className={collapsedClass(projectsActive)}><Folder className="w-4 h-4" /></Link>
-          <Link to={createPageUrl('ReportingCenter')} title="Reporting Center" className={collapsedClass(isPageActive('/ReportingCenter'))}><BarChart3 className="w-4 h-4" /></Link>
+          {canSeeReporting && <Link to={createPageUrl('ReportingCenter')} title="Reporting Center" className={collapsedClass(isPageActive('/ReportingCenter'))}><BarChart3 className="w-4 h-4" /></Link>}
+          {aiEnabled && <Link to="/AIAssistant" title="Compass (powered by AI)" className={collapsedClass(isPageActive('/AIAssistant'))}><CompassBadge /></Link>}
           <div className="w-6 border-t border-slate-200 my-1" />
           <Link to={createPageUrl('SprintManagement')} title="Sprints" className={collapsedClass(isPageActive('/SprintManagement'))}><RefreshCw className="w-4 h-4" /></Link>
           <Link to={createPageUrl('RiskLog')} title="RAID" className={collapsedClass(isPageActive('/RiskLog'))}><AlertTriangle className="w-4 h-4" /></Link>
           <Link to={createPageUrl('ChangeRegisterHub')} title="Governance" className={collapsedClass(isPageActive('/ChangeRegisterHub'))}><Scale className="w-4 h-4" /></Link>
-          <Link to={createPageUrl('ResourceManagementHub')} title="Resources" className={collapsedClass(isPageActive('/ResourceManagementHub'))}><Users className="w-4 h-4" /></Link>
+          {canSeeResources && <Link to={createPageUrl('ResourceManagementHub')} title="Resources" className={collapsedClass(isPageActive('/ResourceManagementHub'))}><Users className="w-4 h-4" /></Link>}
           <Link to="/Projects?view=templates" title="Templates" className={collapsedClass(directoryView === 'templates')}><FileText className="w-4 h-4" /></Link>
-          {aiEnabled && <Link to="/AIAssistant" title="Ask Compass (powered by AI)" className="p-2 rounded-lg hover:bg-slate-100"><CompassBadge /></Link>}
           <div className="mt-auto flex flex-col items-center gap-1">
             <Link to="/LearnSupport" title="Help Center" className={collapsedClass(isPageActive('/LearnSupport'))}><CircleHelp className="w-4 h-4" /></Link>
             {user?.is_platform_admin && (
@@ -187,7 +212,15 @@ export default function ProjectSidebar(/** @type {any} */ {
   }
 
   return (
-    <div className="w-72 bg-white border-r border-slate-200 flex flex-col select-none transition-all" style={{ fontFamily: 'Segoe UI, sans-serif' }}>
+    <>
+    {isPhone && (
+      <>
+        {/* Keeps the page where the icon rail was; the open sidebar floats over it. */}
+        <div className="w-12 flex-shrink-0" />
+        <button type="button" aria-label="Close menu" onClick={toggleCollapsed} className="fixed inset-0 z-40 bg-black/30" />
+      </>
+    )}
+    <div className={cn('w-72 bg-white border-r border-slate-200 flex flex-col select-none transition-all', isPhone && 'fixed inset-y-0 left-0 z-50 max-w-[85vw] shadow-2xl')} style={{ fontFamily: 'Segoe UI, sans-serif' }}>
       <div className="px-4 py-4 border-b border-slate-200 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2.5 min-w-0">
           <BrandLogo className="w-11 h-11 flex-shrink-0" />
@@ -229,7 +262,18 @@ export default function ProjectSidebar(/** @type {any} */ {
         </Link>
 
         {/* Reporting Center */}
-        <IconNavLink href={createPageUrl('ReportingCenter')} icon={BarChart3} label="Reporting Center" className="mb-1 font-medium" />
+        {canSeeReporting && <IconNavLink href={createPageUrl('ReportingCenter')} icon={BarChart3} label="Reporting Center" className="mb-1 font-medium" />}
+
+        {/* Compass (the AI assistant): only once AI is turned on for the account */}
+        {aiEnabled && (
+          <div className="mb-1">
+            <Link to="/AIAssistant" className={itemClass(isPageActive('/AIAssistant'), 'font-medium')}>
+              <CompassBadge />
+              <span className="flex-1 text-left">Compass</span>
+              <span className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap" style={{ backgroundColor: '#FDEBD9', color: '#B45309' }}>Powered by AI</span>
+            </Link>
+          </div>
+        )}
 
         <div className="border-t border-slate-200 my-3" />
 
@@ -254,7 +298,7 @@ export default function ProjectSidebar(/** @type {any} */ {
             <div className="ml-2 pl-3 border-l border-slate-200">
               <IconNavLink href={createPageUrl('RiskLog')} icon={AlertTriangle} label="RAID" />
               <IconNavLink href={createPageUrl('ChangeRegisterHub')} icon={Scale} label="Governance" />
-              <IconNavLink href={createPageUrl('ResourceManagementHub')} icon={Users} label="Resources" />
+              {canSeeResources && <IconNavLink href={createPageUrl('ResourceManagementHub')} icon={Users} label="Resources" />}
             </div>
           )}
         </div>
@@ -266,19 +310,6 @@ export default function ProjectSidebar(/** @type {any} */ {
             <span className="flex-1 text-left">Templates</span>
           </Link>
         </div>
-
-        {/* AI Assistant: only once AI is turned on for the account */}
-        {aiEnabled && (
-          <div className="mb-1">
-            <Link to="/AIAssistant" className={itemClass(isPageActive('/AIAssistant'))}>
-              <CompassBadge />
-              <span className="flex flex-col leading-tight">
-                <span>Ask Compass</span>
-                <span className="text-[10px] italic font-normal" style={{ color: MUTED }}>powered by AI</span>
-              </span>
-            </Link>
-          </div>
-        )}
 
         {/* Help */}
         <div className="mb-1 space-y-0.5">
@@ -304,5 +335,6 @@ export default function ProjectSidebar(/** @type {any} */ {
         </button>
       </div>
     </div>
+    </>
   );
 }

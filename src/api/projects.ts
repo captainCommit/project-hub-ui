@@ -138,7 +138,8 @@ export const mapProjectUpdatePayload = (formValues: Record<string, unknown>) => 
   ...(optionalDate(formValues.end_date ?? formValues.target_end_date)
     ? { target_end_date: optionalDate(formValues.end_date ?? formValues.target_end_date) }
     : {}),
-  ...(optionalString(formValues.status_id) ? { status_id: optionalString(formValues.status_id) } : {}),
+  // Null clears it (Not Started).
+  ...(formValues.status_id !== undefined ? { status_id: nullableString(formValues.status_id) } : {}),
   ...(optionalString(formValues.delivery_type) ? { delivery_type: optionalString(formValues.delivery_type) } : {}),
   // Sent as null to clear it.
   ...(formValues.project_manager !== undefined ? { project_manager: nullableString(formValues.project_manager) } : {}),

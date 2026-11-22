@@ -58,5 +58,17 @@ export function useMyAccess() {
     [data, isOwner],
   );
 
-  return { access: data, isLoading, isOwner, projectPermission, canEdit, canView, canViewAnywhere, canManage };
+  /**
+   * An account-wide right from the role grid, e.g. can('RESOURCES', 'CREATE') or can('REPORTING').
+   * True until access has loaded, like canView; the API refuses regardless.
+   */
+  const can = useCallback(
+    (area, action = 'VIEW') => {
+      if (isOwner || !data) return true;
+      return !!data.rights?.[area]?.includes(action);
+    },
+    [data, isOwner],
+  );
+
+  return { access: data, isLoading, isOwner, projectPermission, canEdit, canView, canViewAnywhere, canManage, can };
 }

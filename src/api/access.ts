@@ -62,6 +62,10 @@ export interface Permission {
 export interface MyAccess {
   account_role: string;
   is_owner: boolean;
+  // The account role's rights per area (Account > Users & Roles), e.g. { RESOURCES: ['VIEW', 'EDIT'] }.
+  rights?: Record<string, string[]>;
+  // True when the role reaches every project rather than only assigned ones.
+  scope_all?: boolean;
   portfolios: Record<string, Permission | null>;
   programs: Record<string, Permission | null>;
   projects: Record<string, Permission>;

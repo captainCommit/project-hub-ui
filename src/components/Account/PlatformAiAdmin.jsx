@@ -265,7 +265,7 @@ function FeaturePanel({ accounts }) {
   return (
     <Panel title="AI access" aside={waiting > 0 && <span className="text-xs font-medium text-amber-700">{waiting} waiting</span>}>
       <p className="px-5 pt-3 text-xs text-slate-500">
-        Accounts with AI off have no Ask Compass, reports or AI assistant tab. Owners can ask for it from Account &gt; Connected apps.
+        Accounts with AI off have no Compass, reports or AI assistant tab. Owners can ask for it from Account &gt; Connected apps.
       </p>
       <div className="divide-y divide-slate-100 mt-2">
         {accounts.map(row => (

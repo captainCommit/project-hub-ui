@@ -3,16 +3,16 @@ import { useAuth } from '@/lib/AuthContext';
 import { cn } from '@/lib/utils';
 import ProjectSidebar from '@/components/projects/ProjectSidebar';
 import SettingsContent from '@/components/projects/SettingsContent';
-import { Bell, Bot, CreditCard, Link2, UserCircle, Settings as SettingsIcon, Users } from 'lucide-react';
+import { Bot, CreditCard, Link2, UserCircle, Settings as SettingsIcon, Trash2, Users } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import ProfileEditor from '@/components/Account/ProfileEditor';
-import AccountUsers from '@/components/Account/AccountUsers';
+import UsersAndRoles from '@/components/Account/UsersAndRoles';
 import AccountBilling from '@/components/Account/AccountBilling';
-import NotificationPreferences from '@/components/Account/NotificationPreferences';
 import AiAssistantSettings from '@/components/Account/AiAssistantSettings';
 import IntegrationsSettings from '@/components/Account/IntegrationsSettings';
 import ConnectedApps from '@/components/Account/ConnectedApps';
 import AiAccessCard from '@/components/Account/AiAccessCard';
+import RecentlyDeleted from '@/components/Account/RecentlyDeleted';
 import { useAiStatus } from '@/hooks/useAiStatus';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAccountHierarchy } from '@/hooks/useAccountLookups';
@@ -41,10 +41,12 @@ function InfoRow({ label, value }) {
 
 export default function Account() {
   const [searchParams] = useSearchParams();
-  // Stripe Checkout and the billing portal send owners back to ?tab=billing; notification emails link to ?tab=notifications.
+  // Stripe Checkout and the billing portal send owners back to ?tab=billing. Notification emails link to
+  // ?tab=notifications; email settings now live on the Settings tab.
   // Slack/Microsoft sign-ins come back to ?tab=integrations (owners) and ?tab=connected (everyone); both are Connected apps now.
   const [tab, setTab] = useState(() => {
     const requested = searchParams.get('tab') || 'account';
+    if (requested === 'notifications') return 'settings';
     return requested === 'integrations' ? 'connected' : requested;
   });
   const { user, appPublicSettings, accounts, selectedAccount, selectedAccountId, setSelectedAccountId } = useAuth();
@@ -55,15 +57,14 @@ export default function Account() {
   const accountRole = selectedAccount?.role;
   const roleLabel = accountRole ? accountRole.charAt(0) + accountRole.slice(1).toLowerCase() : '—';
   const isAdmin = USER_ADMIN_ROLES.includes(accountRole);
-  const canManageUsers = !!selectedAccountId && isAdmin;
   const tabs = [
     { id: 'account', label: 'Account', icon: UserCircle },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'connected', label: 'Connected apps', icon: Link2 },
-    canManageUsers && { id: 'users', label: 'Users', icon: Users },
+    { id: 'users', label: 'Users & Roles', icon: Users },
     isAdmin && { id: 'billing', label: 'Billing', icon: CreditCard },
     isAdmin && aiEnabled && { id: 'ai', label: 'AI assistant', icon: Bot },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
+    { id: 'recently_deleted', label: 'Recently Deleted', icon: Trash2 },
   ].filter(Boolean);
   const sheetsOwned = projects.filter(p => p.created_by_id === user?.id || p.owner === user?.full_name).length;
   const plan = appPublicSettings?.public_settings?.plan_name || appPublicSettings?.public_settings?.plan || '—';
@@ -119,17 +120,10 @@ export default function Account() {
               </div>
             </div>
           </div>
-        ) : tab === 'notifications' ? (
-          <div className="flex-1 overflow-auto p-8">
-            <div className="max-w-3xl">
-              <NotificationPreferences />
-            </div>
-          </div>
-        ) : tab === 'users' && canManageUsers ? (
-          <div className="flex-1 overflow-auto p-8">
-            <div className="max-w-3xl">
-              <AccountUsers accountId={selectedAccountId} showAccessPicker={isAdmin} />
-            </div>
+        ) : tab === 'users' && selectedAccountId ? (
+          <div className="flex-1 overflow-auto p-6">
+            {/* Everyone sees the users and what each role can do; only owners can change them. */}
+            <UsersAndRoles accountId={selectedAccountId} />
           </div>
         ) : tab === 'billing' && isAdmin ? (
           <div className="flex-1 overflow-auto p-8">
@@ -157,6 +151,13 @@ export default function Account() {
                   />
                 </section>
               )}
+            </div>
+          </div>
+        ) : tab === 'recently_deleted' ? (
+          <div className="flex-1 overflow-auto p-8">
+            {/* Owners see everything deleted in the account; anyone else sees what they deleted. */}
+            <div className="max-w-6xl">
+              <RecentlyDeleted accountId={selectedAccountId} onBack={() => setTab('settings')} />
             </div>
           </div>
         ) : tab === 'ai' && isAdmin && aiEnabled ? (

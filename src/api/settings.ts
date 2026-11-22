@@ -29,10 +29,12 @@ export const mapAccountSettings = (settings: ApiRecord = {}) => {
   addIfPresent(mapped, settings, 'account_id');
   addIfPresent(mapped, settings, 'date_format');
   addIfPresent(mapped, settings, 'hide_delivery_section');
+  addIfPresent(mapped, settings, 'hide_uncategorized_column');
   addIfPresent(mapped, settings, 'timezone');
   addIfPresent(mapped, settings, 'week_start_day');
   addIfPresent(mapped, settings, 'working_days');
   addIfPresent(mapped, settings, 'non_working_weekdays');
+  addIfPresent(mapped, settings, 'status_labels');
   addIfPresent(mapped, settings, 'created_at');
   addIfPresent(mapped, settings, 'updated_at');
 
@@ -46,10 +48,12 @@ export const mapAccountSettingsPayload = (data: ApiRecord = {}) => {
 
   addIfPresent(payload, data, 'date_format');
   addIfPresent(payload, data, 'hide_delivery_section');
+  addIfPresent(payload, data, 'hide_uncategorized_column');
   addIfPresent(payload, data, 'timezone');
   addIfPresent(payload, data, 'week_start_day');
   addIfPresent(payload, data, 'working_days');
   addIfPresent(payload, data, 'non_working_weekdays');
+  addIfPresent(payload, data, 'status_labels');
 
   return payload;
 };
@@ -119,6 +123,8 @@ export const mapOptionValue = (optionValue: ApiRecord = {}) => {
   addIfPresent(mapped, optionValue, 'value');
   addIfPresent(mapped, optionValue, 'label');
   addIfPresent(mapped, optionValue, 'color');
+  addIfPresent(mapped, optionValue, 'default_label');
+  addIfPresent(mapped, optionValue, 'is_active');
   addIfPresent(mapped, optionValue, 'sort_order');
   addIfPresent(mapped, optionValue, 'active');
   addIfPresent(mapped, optionValue, 'protected');
@@ -169,5 +175,10 @@ export const settingsApi = {
   updateOptionValue: async (optionValueId: string, data: ApiRecord) =>
     mapOptionValueResponse(await apiClient.patch(`/api/v1/option-values/${optionValueId}`, mapOptionValuePayload(data))),
   deleteOptionValue: (optionValueId: string) => apiClient.delete(`/api/v1/option-values/${optionValueId}`),
+  /** Every option set with its active values, each value with the label it started with. */
+  listOptionSetsWithValues: async (accountId: string) =>
+    normalizeCollection(await apiClient.get(`/api/v1/accounts/${accountId}/options`))
+      .map(set => ({ ...mapOptionSet(set), values: normalizeCollection(set.values).map(mapOptionValue) })),
+  resetStatusLabels: (accountId: string) => apiClient.post(`/api/v1/accounts/${accountId}/status-labels/reset`),
   deactivateOptionValue: (optionValueId: string) => apiClient.delete(`/api/v1/option-values/${optionValueId}`),
 };

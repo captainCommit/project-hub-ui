@@ -9,6 +9,8 @@ import { useAccountHierarchy } from '@/hooks/useAccountLookups';
 import Tour from '@/components/tour/Tour';
 import { RESOURCES_TOUR } from './ResourceManagementHub.tour';
 import { EMPTY_RESOURCE_SCOPE } from '@/components/resources/ResourceKit';
+import { useMyAccess } from '@/hooks/useMyAccess';
+import NoAccessState from '@/components/NoAccessState';
 
 export default function ResourceManagementHub() {
   const [tab, setTab] = useState('overview');
@@ -17,6 +19,8 @@ export default function ResourceManagementHub() {
   const [scope, setScope] = useState(EMPTY_RESOURCE_SCOPE);
   // What the Capacity tab opens filtered to when the Overview sends someone there.
   const [capacityFilter, setCapacityFilter] = useState({});
+  const { can } = useMyAccess();
+  const allowed = can('RESOURCES');
 
   const switchTab = (next) => {
     setCapacityFilter({});
@@ -36,6 +40,7 @@ export default function ResourceManagementHub() {
         onRenameItem={() => {}} onShowVacationCalendar={() => {}}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
+        {!allowed ? <NoAccessState area="Resources" /> : (<>
         <div className="bg-white px-6 pt-5">
           <Tour tour={RESOURCES_TOUR} />
           <h1 className="text-2xl font-bold text-[#002046]">Resources</h1>
@@ -65,6 +70,7 @@ export default function ResourceManagementHub() {
         ) : (
           <Financials embedded />
         )}
+        </>)}
       </div>
     </div>
   );

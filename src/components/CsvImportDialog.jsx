@@ -11,11 +11,12 @@ const PREVIEW_ROWS = 50;
 /**
  * Upload a CSV, check it, preview it with problems flagged, then import it.
  * columns: [{ key, label, required?, aliases?, hint? }]; exampleRows: arrays in column order, for the template.
+ * templateKeys: when given, the template has just these columns (in this order) and exampleRows are { key: value }.
  * check(records) -> Promise<{ errors: { row, message }[] }> (row is 1-based, header not counted).
  * submit(records) -> Promise<{ message, errors? }>; errors here are shown on the result screen.
  */
 export default function CsvImportDialog({
-  open, onOpenChange, title, description, columns, exampleRows = [], templateFilename, maxRows = 1000, check, submit, onDone,
+  open, onOpenChange, title, description, columns, exampleRows = [], templateKeys = undefined, templateFilename, maxRows = 1000, check, submit, onDone,
 }) {
   const inputRef = useRef(null);
   const [file, setFile] = useState(null);
@@ -67,7 +68,11 @@ export default function CsvImportDialog({
   const errorRows = new Set(errors.map((e) => e.row));
   const fileError = errors.find((e) => e.row === 0);
   const visibleColumns = columns.filter((c) => records.some((r) => r[c.key]));
-  const template = () => downloadCSV([columns.map((c) => c.label), ...exampleRows], templateFilename);
+  const template = () => {
+    if (!templateKeys) return downloadCSV([columns.map((c) => c.label), ...exampleRows], templateFilename);
+    const picked = templateKeys.map((key) => columns.find((c) => c.key === key)).filter(Boolean);
+    return downloadCSV([picked.map((c) => c.label), ...exampleRows.map((row) => picked.map((c) => row[c.key] ?? ''))], templateFilename);
+  };
 
   return (
     <Dialog open={open} onOpenChange={close}>

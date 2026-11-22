@@ -27,6 +27,8 @@ import {
 } from '@/hooks/useAccountLookups';
 import { downloadPdf, downloadPpt, downloadXlsx, reportFileName } from '@/lib/reportExport';
 import { buildReport, defaultPeriodEnd, executiveSummary, PERIOD_TYPES, REPORT_PARTS, reportMarkdown, reportSections, reportTitle } from '@/lib/reporting';
+import { useMyAccess } from '@/hooks/useMyAccess';
+import NoAccessState from '@/components/NoAccessState';
 
 const TABS = [
   { key: 'status', label: 'Status Summary', icon: BarChart3 },
@@ -63,6 +65,8 @@ function Segmented({ options, value, onChange }) {
 
 export default function ReportingCenter() {
   const { selectedAccountId } = useAuth();
+  // Reporting > View on the account role (Account > Users & Roles); its data is limited by the API either way.
+  const canSeeReporting = useMyAccess().can('REPORTING');
   const { scopeHierarchy } = useGlobalScope();
   const allHierarchy = useAccountHierarchy();
   const hierarchy = scopeHierarchy(allHierarchy);
@@ -149,6 +153,19 @@ export default function ReportingCenter() {
   const scopeNoun = SCOPES.find(s => s.key === scopeType).noun;
   const loading = allHierarchy.isLoading || loadingTasks;
 
+  if (!canSeeReporting) {
+    return (
+      <div className="h-screen flex bg-slate-50" style={{ fontFamily: 'Segoe UI, sans-serif' }}>
+      <ProjectSidebar
+        projects={projects} programs={programs} portfolios={portfolios}
+        selectedItem={null} selectedType={null}
+        onSelectItem={() => {}} onNewProject={() => {}} onNewProgram={() => {}} onNewPortfolio={() => {}}
+        onRenameItem={() => {}} onShowVacationCalendar={() => {}}
+      />
+        <NoAccessState area="the Reporting Center" />
+      </div>
+    );
+  }
   return (
     <div className="h-screen flex bg-slate-50" style={{ fontFamily: 'Segoe UI, sans-serif' }}>
       <ProjectSidebar

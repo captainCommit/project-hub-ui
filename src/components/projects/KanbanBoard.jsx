@@ -171,12 +171,14 @@ export default function KanbanBoard({
                       onDoubleClick={() => { if (editable(column)) { setRenaming(column.id); setRenameText(column.title); } }}>{column.title}</h3>
                   )}
                   <span className="min-w-[28px] h-7 px-2 rounded-full bg-white text-sm font-semibold flex items-center justify-center" style={{ color: NAVY }}>{columnTasks.length}</span>
-                  {editable(column) && (
+                  {/* Uncategorized (tasks with no status) can only be deleted; the rest can be renamed and recoloured too. */}
+                  {canManageColumns && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button type="button" className="p-1 rounded hover:bg-white/60" aria-label={`${column.title} column options`}><MoreVertical className="w-4 h-4" style={{ color: NAVY }} /></button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-52">
+                        {editable(column) && (<>
                         <DropdownMenuItem onClick={() => { setRenaming(column.id); setRenameText(column.title); }}><Pencil className="w-4 h-4 mr-2" /> Edit column title</DropdownMenuItem>
                         <DropdownMenuLabel className="flex items-center text-sm font-normal"><Palette className="w-4 h-4 mr-2" /> Change color</DropdownMenuLabel>
                         <div className="flex gap-1.5 px-3 pb-2">
@@ -187,6 +189,7 @@ export default function KanbanBoard({
                           ))}
                         </div>
                         <DropdownMenuSeparator />
+                        </>)}
                         <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => onDeleteColumn?.(column)}><Trash2 className="w-4 h-4 mr-2" /> Delete column</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

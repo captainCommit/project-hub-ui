@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { WORK_STATUS_DEFAULTS, swatchFor, useStatusLabels } from '@/lib/statusLabels';
 
 // Shared building blocks for the list pages (directories, requirements, testing, RAID): a page header, stat cards,
 // a filter bar and a navy-headed table with sorting and pages.
@@ -183,40 +184,49 @@ export function PriorityPill({ priority, className = undefined, tones = PRIORITY
 }
 
 // Portfolio, program and project statuses. The API's option values are Active / On Hold / Complete / Cancelled;
-// older records use planning / active / completed.
-const WORK_STATUS = {
-  planning: { label: 'Not started', tone: 'grey' },
-  not_started: { label: 'Not started', tone: 'grey' },
-  active: { label: 'In progress', tone: 'blue' },
-  in_progress: { label: 'In progress', tone: 'blue' },
-  on_hold: { label: 'On hold', tone: 'amber' },
-  complete: { label: 'Completed', tone: 'green' },
-  completed: { label: 'Completed', tone: 'green' },
-  cancelled: { label: 'Cancelled', tone: 'red' },
+// older records use planning / active / completed. Each maps to one of the five keys the account can rename in
+// Settings > Status & Priority Labels (lib/statusLabels.js).
+const WORK_STATUS_KEYS = {
+  planning: 'not_started',
+  not_started: 'not_started',
+  active: 'in_progress',
+  in_progress: 'in_progress',
+  on_hold: 'on_hold',
+  complete: 'completed',
+  completed: 'completed',
+  cancelled: 'cancelled',
 };
 
 export const isCompleteStatus = (status) => status === 'complete' || status === 'completed';
+export const isCancelledStatus = (status) => String(status || '').toLowerCase() === 'cancelled';
 
-export const workStatusInfo = (status) => WORK_STATUS[status] || { label: status ? String(status).replace(/_/g, ' ') : 'Not started', tone: 'grey' };
+/** { key, label, color } for a status. labels: useStatusLabels().workStatus (the defaults when left out). */
+export const workStatusInfo = (status, labels = WORK_STATUS_DEFAULTS) => {
+  const key = status ? WORK_STATUS_KEYS[status] : 'not_started';
+  if (!key) return { key: status, label: String(status).replace(/_/g, ' '), color: labels.not_started.color };
+  return { key, ...labels[key] };
+};
 
-/** Status filter options covering both spellings, keyed by the label so "Completed" matches complete and completed. */
-export const WORK_STATUS_OPTIONS = ['Not started', 'In progress', 'On hold', 'Completed', 'Cancelled'].map(l => ({ value: l, label: l }));
+/** Status filter options, by key so "Completed" matches complete and completed. */
+export const workStatusOptions = (labels = WORK_STATUS_DEFAULTS) =>
+  Object.entries(labels).map(([value, { label }]) => ({ value, label }));
 
-/** The small filled blue square the design puts in front of "In progress". */
-const InProgressIcon = (
-  <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" className="flex-shrink-0">
-    <rect width="12" height="12" rx="2.5" fill="#2563EB" />
-    <path d="M6 3.2v5.6M3.2 6h5.6" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" />
-  </svg>
-);
+// Text-only status/health pills (no dot or icon), in the swatch the account picked (or the default).
+function StatusPill({ color, title = undefined, children }) {
+  const c = swatchFor(color);
+  return (
+    <span title={title}
+      className="inline-flex items-center px-3 py-1 rounded-full text-[13px] font-medium whitespace-nowrap"
+      style={{ backgroundColor: c.bg, color: c.fg }}>
+      {children}
+    </span>
+  );
+}
 
 export function WorkStatusPill({ status }) {
-  const info = workStatusInfo(status);
-  return (
-    <Pill tone={info.tone} dot={info.tone === 'amber'} icon={info.tone === 'blue' ? InProgressIcon : undefined} className="px-3 py-1 text-[13px]">
-      {info.label}
-    </Pill>
-  );
+  const { workStatus } = useStatusLabels();
+  const info = workStatusInfo(status, workStatus);
+  return <StatusPill color={info.color}>{info.label}</StatusPill>;
 }
 
 const CLOSED_RAID = new Set(['closed', 'resolved', 'mitigated', 'cancelled']);
@@ -226,23 +236,27 @@ export const isHighOrCritical = (item) => item.priority === 'critical' || item.p
 /** "12 risks · 6 issues" */
 export const riskIssueLine = (risks, issues) => `${risks} risk${risks === 1 ? '' : 's'} · ${issues} issue${issues === 1 ? '' : 's'}`;
 
-// RAG health ('red' | 'amber' | 'green' | 'grey') as a pill.
-const HEALTH_TONES = { red: 'red', amber: 'amber', green: 'green', grey: 'grey' };
+/** Health with the account's labels and colours: { ...RAG[key], label, color }. health: useStatusLabels().health */
+export const withHealthLabels = (rag, health) => ({ ...rag, ...(health?.[rag.key] || {}) });
 
+// RAG health as a pill, in its colour (see withHealthLabels).
 export function HealthPill({ rag }) {
-  return (
-    <span title={rag.description}>
-      <Pill tone={HEALTH_TONES[rag.key] || 'grey'} dot className="px-3 py-1 text-[13px]">{rag.label}</Pill>
-    </span>
-  );
+  return <StatusPill color={rag.color} title={rag.description}>{rag.label}</StatusPill>;
 }
 
-export function CompletionBar({ pct }) {
+// Completion bar fill per RAG health, matching the health pills; grey and n/a bars are grey end to end.
+const GREY_BAR_FILL = '#CBD5E1';
+const GREY_BAR_TRACK = '#E2E8F0';
+
+/** rag (optional): colour the bar by health instead of the default blue/navy. */
+export function CompletionBar({ pct, rag = undefined }) {
   const value = Math.max(0, Math.min(100, Math.round(pct || 0)));
+  const greyed = rag && swatchFor(rag.color).name === 'Grey';
+  const fill = rag ? (greyed ? GREY_BAR_FILL : swatchFor(rag.color).hex) : (value >= 100 ? '#00306E' : '#3392FD');
   return (
     <div className="flex items-center gap-2.5 min-w-[140px]">
-      <div className="w-[92px] h-2 rounded-full overflow-hidden flex-shrink-0" style={{ backgroundColor: '#EAF0F6' }}>
-        <div className="h-full rounded-full" style={{ width: `${value}%`, backgroundColor: value >= 100 ? '#00306E' : '#3392FD' }} />
+      <div className="w-[92px] h-2 rounded-full overflow-hidden flex-shrink-0" style={{ backgroundColor: greyed ? GREY_BAR_TRACK : '#EAF0F6' }}>
+        <div className="h-full rounded-full" style={{ width: `${value}%`, backgroundColor: fill }} />
       </div>
       <span className="text-[13px]" style={{ color: MUTED }}>{value}%</span>
     </div>

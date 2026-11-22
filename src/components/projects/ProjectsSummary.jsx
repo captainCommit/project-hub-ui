@@ -4,10 +4,11 @@ import { useAuth } from '@/lib/AuthContext';
 import { useFavorites } from '@/lib/favorites';
 import { exportRecords } from '@/lib/exportUtils';
 import { RAG } from './HealthIndicator';
+import { useStatusLabels } from '@/lib/statusLabels';
 import {
   PageHeader, PageBody, PrimaryButton, ExportButton, StatGrid, StatCard, FilterBar, SearchInput, FilterSelect, optionsFrom,
   DataTable, TitleCell, HealthPill, WorkStatusPill, CompletionBar, DetailsChevron,
-  WORK_STATUS_OPTIONS, workStatusInfo, isCompleteStatus, isOpenRaid, isHighOrCritical, riskIssueLine, SOFT, PersonCell,
+  workStatusOptions, workStatusInfo, withHealthLabels, isCompleteStatus, isOpenRaid, isHighOrCritical, riskIssueLine, SOFT, PersonCell,
 } from './DirectoryKit';
 
 const NOT_STARTED = new Set(['planning', 'not_started']);
@@ -19,14 +20,16 @@ function getRag(critHighRisks, critHighIssues, project, progress) {
   return RAG.green;
 }
 
-const HEALTH_INFO = `${RAG.green.label}: ${RAG.green.description}. ${RAG.amber.label}: ${RAG.amber.description}. ${RAG.red.label}: ${RAG.red.description}. ${RAG.grey.label}: not started and no tasks done.`;
-const HEALTH_OPTIONS = [RAG.green, RAG.amber, RAG.red, RAG.grey].map(r => ({ value: r.key, label: r.label }));
+const healthInfo = (h) => `${h.green.label}: ${h.green.description}. ${h.amber.label}: ${h.amber.description}. ${h.red.label}: ${h.red.description}. ${h.grey.label}: not started and no tasks done.`;
+const healthOptions = (h) => [h.green, h.amber, h.red, h.grey].map(r => ({ value: r.key, label: r.label }));
 const SCOPE_OPTIONS = [{ value: 'mine', label: 'My Projects' }, { value: 'favorites', label: 'Favorites' }];
 
 /** The current person's name as owners are recorded (first and last name, else the profile's full name). */
 const personName = (user) => [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim() || user?.full_name || '';
 
 export default function ProjectsSummary({ projects = [], programs = [], portfolios = [], tasks = [], risks = [], issues = [], onSelectProject, onNewProject }) {
+  const { workStatus, health: healthLabels } = useStatusLabels();
+  const H = Object.fromEntries(Object.keys(RAG).map(key => [key, withHealthLabels(RAG[key], healthLabels)]));
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState('');
   const { user } = useAuth();
@@ -49,16 +52,16 @@ export default function ProjectsSummary({ projects = [], programs = [], portfoli
       done, total: projectTasks.length,
       manager: project.project_manager || project.owner || '',
       openRisks: openRisks.length, openIssues: openIssues.length,
-      rag: getRag(critHighRisks, critHighIssues, project, progress),
+      rag: withHealthLabels(getRag(critHighRisks, critHighIssues, project, progress), healthLabels),
     };
-  }), [projects, programs, tasks, risks, issues]);
+  }), [projects, programs, tasks, risks, issues, healthLabels]);
 
   const filtered = rows.filter(r => {
     if (search && !r.project.name?.toLowerCase().includes(search.toLowerCase())) return false;
     if (scope === 'mine' && r.manager !== personName(user)) return false;
     if (scope === 'favorites' && !isFav('project', r.project.id)) return false;
     if (health && r.rag.key !== health) return false;
-    if (status && workStatusInfo(r.project.status).label !== status) return false;
+    if (status && workStatusInfo(r.project.status).key !== status) return false;
     if (owner && r.manager !== owner) return false;
     return true;
   });
@@ -72,7 +75,7 @@ export default function ProjectsSummary({ projects = [], programs = [], portfoli
     { label: 'Project', value: r => r.project.name },
     { label: 'Program', value: r => r.program?.name || '' },
     { label: 'Health', value: r => r.rag.label },
-    { label: 'Status', value: r => workStatusInfo(r.project.status).label },
+    { label: 'Status', value: r => workStatusInfo(r.project.status, workStatus).label },
     { label: 'Completion %', value: r => r.progress },
     { label: 'Tasks Done', value: r => r.done },
     { label: 'Tasks', value: r => r.total },
@@ -89,8 +92,8 @@ export default function ProjectsSummary({ projects = [], programs = [], portfoli
         <TitleCell title={r.project.name} sub={r.program ? `Program: ${r.program.name}` : null} />
       ),
     },
-    { key: 'health', label: 'Health', info: HEALTH_INFO, render: r => <HealthPill rag={r.rag} /> },
-    { key: 'status', label: 'Status', sortValue: r => workStatusInfo(r.project.status).label, render: r => <WorkStatusPill status={r.project.status} /> },
+    { key: 'health', label: 'Health', info: healthInfo(H), render: r => <HealthPill rag={r.rag} /> },
+    { key: 'status', label: 'Status', sortValue: r => workStatusInfo(r.project.status, workStatus).label, render: r => <WorkStatusPill status={r.project.status} /> },
     { key: 'completion', label: 'Completion', sortValue: r => r.progress, render: r => <CompletionBar pct={r.progress} /> },
     { key: 'tasks', label: 'Tasks', sortValue: r => r.total, render: r => <span className="text-sm" style={{ color: SOFT }}>{r.done}/{r.total}</span> },
     { key: 'owner', label: 'Project Owner(s)', sortValue: r => r.manager, render: r => <PersonCell name={r.manager} /> },
@@ -116,8 +119,8 @@ export default function ProjectsSummary({ projects = [], programs = [], portfoli
       <FilterBar right={<ExportButton onClick={handleExport} disabled={filtered.length === 0} />}>
         <SearchInput value={search} onChange={setSearch} placeholder="Search projects..." />
         <FilterSelect value={scope} onChange={setScope} allLabel="All Projects" options={SCOPE_OPTIONS} />
-        <FilterSelect value={health} onChange={setHealth} allLabel="Health" options={HEALTH_OPTIONS} />
-        <FilterSelect value={status} onChange={setStatus} allLabel="Status" options={WORK_STATUS_OPTIONS} />
+        <FilterSelect value={health} onChange={setHealth} allLabel="Health" options={healthOptions(H)} />
+        <FilterSelect value={status} onChange={setStatus} allLabel="Status" options={workStatusOptions(workStatus)} />
         <FilterSelect value={owner} onChange={setOwner} allLabel="Project Owner" options={optionsFrom(rows.map(r => r.manager))} />
       </FilterBar>
 

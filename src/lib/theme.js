@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
 
-// Light or dark appearance, chosen per browser in Settings > Appearance. "system" follows the OS setting.
+// Light or dark appearance, chosen per browser in Settings > Appearance. (An old "system" choice reads as light.)
 // index.html applies the saved choice before the app loads, so dark mode doesn't flash white first.
 
 const STORAGE_KEY = 'app_theme';
 const CHANGE_EVENT = 'app-theme-changed';
-export const THEME_OPTIONS = ['light', 'dark', 'system'];
-
-const systemQuery = () => (typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null);
+export const THEME_OPTIONS = ['light', 'dark'];
 
 export function getThemePreference() {
   try {
@@ -19,8 +17,7 @@ export function getThemePreference() {
 }
 
 export function applyTheme(preference = getThemePreference()) {
-  const dark = preference === 'dark' || (preference === 'system' && Boolean(systemQuery()?.matches));
-  document.documentElement.classList.toggle('dark', dark);
+  document.documentElement.classList.toggle('dark', preference === 'dark');
 }
 
 export function setThemePreference(preference) {
@@ -29,11 +26,8 @@ export function setThemePreference(preference) {
   window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
-/** Keeps the page in step with the OS when the choice is "system". Call once at startup. */
+/** Keeps this tab in step when the choice changes in another tab. Call once at startup. */
 export function watchSystemTheme() {
-  const query = systemQuery();
-  if (!query) return;
-  query.addEventListener('change', () => { if (getThemePreference() === 'system') applyTheme('system'); });
   window.addEventListener('storage', (event) => { if (event.key === STORAGE_KEY) applyTheme(); });
 }
 
